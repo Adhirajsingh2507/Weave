@@ -1,0 +1,10 @@
+# Weave brief — robotics company landing page (line-directive format)
+# Use with the real Claude executor:  node dist/cli/index.js run --brief examples/robotics-landing.brief --name robotics-landing
+page: home /
+component: nav nav
+component: hero section
+component: features section
+component: cta section
+component: footer footer
+asset: robot 3d robot.glb
+asset: logo logo logo.svg
