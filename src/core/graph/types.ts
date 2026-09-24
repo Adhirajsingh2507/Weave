@@ -12,6 +12,7 @@ export type ExecNodeKind =
   | "plan"
   | "design-analysis"
   | "architecture"
+  | "scaffold"
   | "impl"
   | "integration"
   | "code-qa"
@@ -67,4 +68,8 @@ export interface ExecNode {
   status: ExecNodeStatus;
   /** Git commit sha that captured this node's work, once passed. */
   commit?: string;
+  /** Evidence refs recorded by the node loop, kept for passing nodes too. */
+  evidence?: string[];
+  /** How many attempts the node took, so first-pass rate is computable. */
+  attempts?: number;
 }

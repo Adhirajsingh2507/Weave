@@ -38,8 +38,13 @@ export async function initAgentDir(repoPath: string): Promise<string> {
   await writeFile(join(base, "history", "execution-log.jsonl"), "", { flag: "a" });
   // Write the README only if absent.
   await writeFile(join(base, "README.md"), AGENT_README, { flag: "wx" }).catch(() => {});
-  // Ensure .agent/ is gitignored — engine state must never pollute the user's git
-  // (and must not be caught by the harness auto-stash).
+  // Self-ignoring directory. The root .gitignore is itself an uncommitted change at the
+  // start of a run, so the harness auto-stash takes it away and .agent/ stops being
+  // ignored mid-run — which let `git add -A` commit engine state into the user's history.
+  // A .gitignore inside .agent/ survives that, because it goes away with the directory.
+  await writeFile(join(base, ".gitignore"), "*\n", { flag: "w" });
+
+  // Root entry as well, so the directory reads as ignored to a human running git status.
   const giPath = join(repoPath, ".gitignore");
   const gi = existsSync(giPath) ? await readFile(giPath, "utf8") : "";
   if (!gi.split(/\r?\n/).includes(".agent/")) {

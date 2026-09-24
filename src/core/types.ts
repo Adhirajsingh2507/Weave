@@ -46,6 +46,9 @@ export interface Gate {
   summary: string;
   evidenceRefs: string[];
   openedAt: string;
+  /** What the human said when resolving. Feeds the next attempt's context pack. */
+  notes?: string;
+  resolvedAt?: string;
 }
 
 export interface RunHandle {

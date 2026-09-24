@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Weave — graph-driven autonomous engineering platform (headless core + CLI).",
+  "description": "Weave \u2014 graph-driven autonomous engineering platform (headless core + CLI).",
   "bin": {
     "weave": "dist/cli/index.js",
     "weave-mcp": "dist/mcp/bin.js"
@@ -21,7 +21,7 @@
     "start": "node dist/cli/index.js",
     "demo": "pnpm build && node scripts/demo.mjs",
     "ship": "bash scripts/deploy.sh",
-    "check": "node dist/core/ir/schema.check.js && node dist/core/policy/policy.check.js && node dist/core/graph/project.check.js && node dist/core/store/store.check.js && node dist/core/decision/runner.check.js && node dist/core/loop.check.js && node dist/core/verify.check.js && node dist/core/visual.check.js && node dist/core/compiler.check.js && node dist/core/ingest/ingest.check.js && node dist/core/orchestrator.check.js && node dist/core/parallel.check.js && node dist/core/parallel-resume.check.js && node dist/core/resume.check.js && node dist/core/deploy.check.js && node dist/mcp/mcp.check.js"
+    "check": "node dist/core/ir/schema.check.js && node dist/core/policy/policy.check.js && node dist/core/graph/project.check.js && node dist/core/store/store.check.js && node dist/core/decision/runner.check.js && node dist/core/loop.check.js && node dist/core/verify.check.js && node dist/core/visual.check.js && node dist/core/compiler.check.js && node dist/core/ingest/ingest.check.js && node dist/core/orchestrator.check.js && node dist/core/parallel.check.js && node dist/core/parallel-resume.check.js && node dist/core/resume.check.js && node dist/core/deploy.check.js && node dist/core/design/style.check.js && node dist/core/build.check.js && node dist/mcp/mcp.check.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",

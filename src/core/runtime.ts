@@ -1,10 +1,13 @@
 // Execution runtime: the NodeExecutor seam (agent adapter) + real GitHarness (sandbox).
 // Decisions #5 (git worktree per node, sequential, working branch) and #30-#33.
 
-import { execFileSync } from "node:child_process";
+import { execFile, execFileSync } from "node:child_process";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { promisify } from "node:util";
+
+const run = promisify(execFile);
 
 /** What a node's agent gets — only what the node needs, not the whole project. */
 export interface ContextPack {
@@ -48,29 +51,63 @@ function sanitize(id: string): string {
 }
 
 /**
+ * Allow-list of environment variables an agent subprocess inherits. Everything else —
+ * cloud credentials, database URLs, CI tokens, unrelated API keys — stays out of reach.
+ * Enforcement lives here rather than in the prompt, which an agent can simply ignore.
+ */
+export function scrubbedEnv(extra: string[] = []): NodeJS.ProcessEnv {
+  const keep = [
+    "PATH", "HOME", "USER", "LOGNAME", "SHELL", "LANG", "LC_ALL", "TERM", "TMPDIR",
+    "ANTHROPIC_API_KEY", // the agent's own credential, nothing else
+    ...extra,
+  ];
+  const env: NodeJS.ProcessEnv = {};
+  for (const key of keep) {
+    const value = process.env[key];
+    if (value !== undefined) env[key] = value;
+  }
+  return env;
+}
+
+/**
  * Real Claude Code adapter — invokes the `claude` CLI headless in the worktree.
  * Requires the `claude` CLI on PATH + auth; not exercised in offline self-checks.
  */
 export class ClaudeCodeExecutor implements NodeExecutor {
   readonly name = "claude-code";
   #bin: string;
-  constructor(opts: { bin?: string } = {}) {
+  #timeoutMs: number;
+  /** A minimal env keeps the user's other credentials out of the agent's process. */
+  #env: NodeJS.ProcessEnv;
+
+  constructor(opts: { bin?: string; timeoutMs?: number; env?: NodeJS.ProcessEnv } = {}) {
     this.#bin = opts.bin ?? "claude";
+    this.#timeoutMs = opts.timeoutMs ?? 10 * 60_000;
+    this.#env = opts.env ?? scrubbedEnv();
   }
 
   async run(input: ExecInput): Promise<ExecResult> {
     const prompt = buildPrompt(input.contextPack);
     let summary = "";
     try {
-      summary = execFileSync(this.#bin, ["-p", prompt, "--permission-mode", "acceptEdits"], {
+      // Async on purpose: a sync spawn blocks the event loop, which silently made
+      // parallel node execution run one agent at a time.
+      const { stdout } = await run(this.#bin, ["-p", prompt, "--permission-mode", "acceptEdits"], {
         cwd: input.worktreeDir,
         encoding: "utf8",
         maxBuffer: 64 * 1024 * 1024,
-      }).trim();
+        timeout: this.#timeoutMs,
+        env: this.#env,
+      });
+      summary = stdout.trim();
     } catch (err) {
+      const e = err as { killed?: boolean; signal?: string; message?: string };
+      const timedOut = e.killed === true || e.signal === "SIGTERM";
       return {
         ok: false,
-        summary: err instanceof Error ? err.message : String(err),
+        summary: timedOut
+          ? `agent timed out after ${this.#timeoutMs}ms`
+          : (e.message ?? String(err)),
         changedFiles: [],
         evidenceRefs: [],
       };
@@ -190,6 +227,26 @@ export class GitHarness {
     git(["merge", "--ff-only", wt.branch], this.#repoPath);
     this.#removeWorktree(nodeId, wt);
     return sha;
+  }
+
+  /** Files touched by a commit — the fallback when an executor reports no changed files. */
+  filesInCommit(sha: string): string[] {
+    try {
+      return git(["show", "--name-only", "--pretty=format:", sha], this.#repoPath)
+        .split("\n")
+        .map((f) => f.trim())
+        .filter(Boolean);
+    } catch {
+      return [];
+    }
+  }
+
+  /** Commit work made directly in the main working tree — the scaffold step. */
+  async commitWorkingTree(message: string): Promise<string | undefined> {
+    git(["add", "-A"], this.#repoPath);
+    if (!this.#hasStaged(this.#repoPath)) return undefined;
+    git(["commit", "-m", message], this.#repoPath);
+    return git(["rev-parse", "HEAD"], this.#repoPath);
   }
 
   /** Commit a node's work to its branch WITHOUT merging or removing the worktree (parallel path). */

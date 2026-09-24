@@ -1,5 +1,7 @@
 # Weave brief — robotics company landing page (line-directive format)
 # Use with the real Claude executor:  node dist/cli/index.js run --brief examples/robotics-landing.brief --name robotics-landing
+# futuristic names robotics in its best_for; one line to change.
+style: futuristic
 page: home /
 component: nav nav
 component: hero section

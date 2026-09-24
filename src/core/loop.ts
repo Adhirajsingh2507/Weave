@@ -22,6 +22,8 @@ export interface NodeLoopResult {
   commit?: string;
   attempts: number;
   evidence: string[];
+  /** Files the agent touched — the basis for design→code mapping edges. */
+  changedFiles: string[];
 }
 
 export interface RunNodeOptions {
@@ -45,21 +47,23 @@ export async function executeAndVerify(opts: {
   node: LoopNode;
   worktreeDir: string;
   retryCap?: number;
-}): Promise<{ ok: boolean; attempts: number; evidence: string[] }> {
+}): Promise<{ ok: boolean; attempts: number; evidence: string[]; changedFiles: string[] }> {
   const { executor, verifier, node, worktreeDir } = opts;
   const retryCap = opts.retryCap ?? 3;
   const evidence: string[] = [];
+  let changedFiles: string[] = [];
   for (let attempt = 1; attempt <= retryCap; attempt++) {
     const exec = await executor.run({ contextPack: node.contextPack, worktreeDir });
     evidence.push(...exec.evidenceRefs);
+    changedFiles = exec.changedFiles;
     const verdict = await verifier.verify(worktreeDir);
     evidence.push(...verdict.evidence);
-    if (exec.ok && verdict.ok) return { ok: true, attempts: attempt, evidence };
+    if (exec.ok && verdict.ok) return { ok: true, attempts: attempt, evidence, changedFiles };
     node.contextPack.previousFailures.push(
       `attempt ${attempt}: ${exec.ok ? "verification failed" : exec.summary}`,
     );
   }
-  return { ok: false, attempts: retryCap, evidence };
+  return { ok: false, attempts: retryCap, evidence, changedFiles };
 }
 
 /** Run one node's loop in an isolated worktree; commit on pass, discard+escalate on exhaustion. */
@@ -74,8 +78,19 @@ export async function runNode(opts: RunNodeOptions): Promise<NodeLoopResult> {
       opts.integrate === false
         ? await harness.commitDetached(node.id, msg)
         : await harness.commitNode(node.id, msg);
-    return { status: "complete", commit, attempts: res.attempts, evidence: res.evidence };
+    return {
+      status: "complete",
+      commit,
+      attempts: res.attempts,
+      evidence: res.evidence,
+      changedFiles: res.changedFiles,
+    };
   }
   await harness.discardNode(node.id);
-  return { status: "escalated", attempts: res.attempts, evidence: res.evidence };
+  return {
+    status: "escalated",
+    attempts: res.attempts,
+    evidence: res.evidence,
+    changedFiles: res.changedFiles,
+  };
 }

@@ -1,5 +1,6 @@
 // Phase 1/6 — Design Compiler intake (deterministic minimal; LLM interpreter is the
 // documented upgrade). Accepts a partial IR object, or a simple line-directive brief:
+//   style: tactical-hud          (a slug from design-guide/styles.json)
 //   page: home /
 //   component: hero section
 //   asset: robot 3d robot.glb
@@ -13,6 +14,8 @@ export interface BriefInput {
   ir?: unknown;
   /** Line-directive brief (see header). */
   text?: string;
+  /** Design guide slug used when the brief names no style. */
+  defaultStyle?: string;
 }
 
 function cap(s: string): string {
@@ -25,12 +28,15 @@ export function compileBrief(input: BriefInput): DesignIR {
   const pages: Array<{ id: string; name: string; route: string; sections: string[] }> = [];
   const components: Array<{ id: string; name: string; kind: string }> = [];
   const assets: Array<{ id: string; type: string; src: string }> = [];
+  let style = input.defaultStyle;
 
   for (const raw of (input.text ?? "").split("\n")) {
     const line = raw.trim();
     if (!line || line.startsWith("#")) continue;
     const [kind, ...rest] = line.split(/\s+/);
-    if (kind === "page:" && rest[0]) {
+    if (kind === "style:" && rest[0]) {
+      style = rest[0];
+    } else if (kind === "page:" && rest[0]) {
       pages.push({ id: rest[0], name: cap(rest[0]), route: rest[1] ?? `/${rest[0]}`, sections: rest.slice(2) });
     } else if (kind === "component:" && rest[0]) {
       components.push({ id: rest[0], name: cap(rest[0]), kind: rest[1] ?? "section" });
@@ -41,7 +47,11 @@ export function compileBrief(input: BriefInput): DesignIR {
 
   return DesignIRSchema.parse({
     version: "1",
-    meta: { projectName: input.projectName ?? "project", createdAt: new Date().toISOString() },
+    meta: {
+      projectName: input.projectName ?? "project",
+      createdAt: new Date().toISOString(),
+      ...(style ? { style } : {}),
+    },
     visualLanguage: { mood: "clean" },
     pages,
     components,

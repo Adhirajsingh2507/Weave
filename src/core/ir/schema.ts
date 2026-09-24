@@ -59,6 +59,8 @@ export const DesignIRSchema = z.object({
     projectName: z.string(),
     createdAt: z.string(),
     sourceInputs: z.array(InputRef).default([]),
+    /** Design guide slug (design-guide/<style>.md) the build should follow. */
+    style: z.string().optional(),
   }),
   visualLanguage: z.object({
     mood: z.string(),

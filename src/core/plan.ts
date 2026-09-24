@@ -10,6 +10,9 @@ export function buildExecGraph(unrealizedDesign: string[]): ExecNode[] {
   for (const kind of ["intake", "plan", "design-analysis", "architecture"] as const) {
     nodes.push({ id: kind, kind, status: "complete" });
   }
+  // The project itself, created by a fixed template step before any agent runs.
+  // Without it a greenfield repo has nothing to build on and every impl node fails verify.
+  nodes.push({ id: "scaffold", kind: "scaffold", status: "pending" });
   // Fan-out: one implementation node per unrealized design node.
   for (const d of unrealizedDesign) {
     nodes.push({ id: `impl:${d}`, kind: "impl", designNodeId: d, status: "pending" });

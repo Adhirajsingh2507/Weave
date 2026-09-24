@@ -3,7 +3,7 @@
 // run() drives intake → plan → execute → loop, halting at a gate or completion.
 
 import { join } from "node:path";
-import { existsSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { EventLog } from "./events/index.js";
 import { initAgentDir, AGENT_DIR } from "./state.js";
 import { GraphStore } from "./store/graph-store.js";
@@ -18,6 +18,10 @@ import { ClaudeCodeExecutor, GitHarness } from "./runtime.js";
 import type { ContextPack, NodeExecutor } from "./runtime.js";
 import { DeterministicVerifier } from "./verify.js";
 import type { Deployer } from "./deploy.js";
+import { TemplateScaffolder } from "./scaffold.js";
+import type { Scaffolder } from "./scaffold.js";
+import { loadStyle, styleBrief } from "./design/style.js";
+import type { StyleGuide } from "./design/style.js";
 import { ClaudeDecision } from "./decision/providers.js";
 import { DecisionRunner } from "./decision/runner.js";
 import type { Decision } from "./decision/index.js";
@@ -48,6 +52,10 @@ export interface EngineDeps {
   budget?: number;
   /** Parallel impl nodes per batch (1 = sequential; >1 = worktree parallelism). */
   concurrency?: number;
+  /** Creates the project before any agent runs (decision: template with command override). */
+  scaffolder?: Scaffolder;
+  /** Design guide slug used when a brief names no style. */
+  defaultStyle?: string;
 }
 
 export interface EngineOptions {
@@ -63,6 +71,8 @@ interface ResolvedDeps {
   deployer?: Deployer;
   budget: number;
   concurrency: number;
+  scaffolder: Scaffolder;
+  defaultStyle?: string;
 }
 
 export class Engine {
@@ -71,6 +81,7 @@ export class Engine {
   #graph?: GraphStore;
   #deps: ResolvedDeps;
   #harness?: GitHarness;
+  #styleCache?: StyleGuide;
 
   constructor(opts: EngineOptions) {
     this.#repoPath = opts.repoPath;
@@ -84,6 +95,8 @@ export class Engine {
       deployer: d.deployer,
       budget: d.budget ?? 100,
       concurrency: d.concurrency ?? 1,
+      scaffolder: d.scaffolder ?? new TemplateScaffolder(),
+      defaultStyle: d.defaultStyle,
     };
   }
 
@@ -103,16 +116,21 @@ export class Engine {
   /** Autonomous driver: intake → plan → open design-approval gate (halt). */
   async run(inputs?: BriefInput): Promise<RunHandle> {
     const store = this.#graphStore();
-    const ir = compileBrief(inputs ?? {});
+    const ir = compileBrief({ defaultStyle: this.#deps.defaultStyle, ...(inputs ?? {}) });
     store.loadGraph(projectIR(ir));
 
     const unrealized = store.gaps().unrealizedDesign;
     const runId = `run-${Date.now()}`;
     store.createRun({ runId, status: "running", startedAt: new Date().toISOString(), budgetUsed: 0 });
+    // The IR is canonical: persist it so a later process can scaffold and brief agents
+    // without re-interpreting the input.
+    const irDir = join(this.#repoPath, AGENT_DIR, "project");
+    mkdirSync(irDir, { recursive: true });
+    writeFileSync(join(irDir, `ir-${runId}.json`), `${JSON.stringify(ir, null, 2)}\n`, "utf8");
     for (const n of buildExecGraph(unrealized)) store.upsertExecNode(runId, n);
     await this.#events.emit({ type: "graph.generated", runId, data: { unrealized } });
 
-    const gate = this.#openGate(runId, "design-approval", `Review interpreted design (${unrealized.length} items)`, []);
+    const gate = await this.#openGate(runId, "design-approval", `Review interpreted design (${unrealized.length} items)`, []);
     store.updateRun(runId, { status: "gated", cursor: gate.id });
     return { runId, status: "gated" };
   }
@@ -124,20 +142,20 @@ export class Engine {
   }
 
   /** Resolve a human gate; approving a design-approval/blocking gate resumes execution. */
-  async resolveGate(gateId: GateId, decision: GateDecision, _notes?: string): Promise<void> {
+  async resolveGate(gateId: GateId, decision: GateDecision, notes?: string): Promise<void> {
     const store = this.#graphStore();
     const gate = store.getGate(gateId);
     if (!gate) throw new Error(`gate not found: ${gateId}`);
     if (gate.status !== "open") return;
 
     if (decision === "reject") {
-      store.setGateStatus(gateId, "rejected");
+      store.setGateStatus(gateId, "rejected", notes);
       store.updateRun(gate.runId, { status: "failed", endedAt: new Date().toISOString() });
       await this.#events.emit({ type: "approval.rejected", runId: gate.runId, data: { gate: gateId } });
       return;
     }
 
-    store.setGateStatus(gateId, "approved");
+    store.setGateStatus(gateId, "approved", notes);
     await this.#events.emit({ type: "approval.granted", runId: gate.runId, data: { gate: gateId } });
 
     if (gate.kind === "pre-release") {
@@ -212,10 +230,122 @@ export class Engine {
   }
 
   // ── Execution (internal) ──────────────────────────────────
+  /** The canonical IR for a run, persisted at intake. */
+  #loadIR(runId: RunId): { meta: { projectName: string; style?: string } } | undefined {
+    const path = join(this.#repoPath, AGENT_DIR, "project", `ir-${runId}.json`);
+    if (!existsSync(path)) return undefined;
+    try {
+      return JSON.parse(readFileSync(path, "utf8")) as { meta: { projectName: string; style?: string } };
+    } catch {
+      return undefined;
+    }
+  }
+
+  #styleFor(runId: RunId): StyleGuide | undefined {
+    const slug = this.#loadIR(runId)?.meta.style ?? this.#deps.defaultStyle;
+    if (!slug) return undefined;
+    this.#styleCache ??= loadStyle(slug);
+    return this.#styleCache;
+  }
+
+  /** Context pack: what the node needs, including the style it must build to. */
+  #contextPack(runId: RunId, node: ExecNode): ContextPack {
+    const style = this.#styleFor(runId);
+    const notes = this.#graphStore().latestGateNotes(runId);
+    const constraints: string[] = [];
+    if (style) constraints.push(styleBrief(style));
+    if (notes) constraints.push(`Reviewer notes from the last gate: ${notes}`);
+    return {
+      taskId: node.id,
+      goal: `build ${this.#goalFor(node)}`,
+      relevantNodeIds: node.designNodeId ? [node.designNodeId] : [],
+      relevantFiles: ["index.html", "styles/tokens.css", "styles/base.css"],
+      constraints,
+      previousFailures: [],
+      permissions: { write: ["**"], deny: [".env", "**/.env", "**/*.pem", "**/secrets/**"] },
+    };
+  }
+
+  /**
+   * The fixed template step. Runs on the working branch before any agent, so impl nodes
+   * inherit a project that builds — the thing greenfield runs never had.
+   */
+  async #runScaffold(runId: RunId): Promise<void> {
+    const store = this.#graphStore();
+    const node = store.getExecNode(runId, "scaffold");
+    if (!node || node.status === "complete" || node.status === "skipped") return;
+
+    store.upsertExecNode(runId, { ...node, status: "running" });
+    await this.#events.emit({ type: "node.started", runId, data: { node: node.id } });
+    const sections = store
+      .getExecGraph(runId)
+      .filter((n) => n.kind === "impl" && n.designNodeId)
+      .map((n) => n.designNodeId!);
+    const result = await this.#deps.scaffolder.scaffold({
+      repoPath: this.#repoPath,
+      projectName: this.#loadIR(runId)?.meta.projectName ?? "project",
+      style: this.#styleFor(runId),
+      sections,
+    });
+    const commit = await this.#harness!.commitWorkingTree(`chore(scaffold): ${result.summary}`);
+    store.upsertExecNode(runId, {
+      ...node,
+      status: "complete",
+      commit,
+      evidence: [`scaffold:${this.#deps.scaffolder.name}`, ...result.files.slice(0, 40)],
+      attempts: 1,
+    });
+    await this.#events.emit({
+      type: "node.completed",
+      runId,
+      data: { node: node.id, commit, files: result.files.length },
+    });
+  }
+
+  /**
+   * Record what a node actually built: code nodes plus by-construction mapping edges.
+   * Without this the graph never learns anything and every re-run re-plans the same work.
+   */
+  #recordRealization(node: ExecNode, changedFiles: string[], commit?: string): void {
+    if (!node.designNodeId) return;
+    const store = this.#graphStore();
+    const files = changedFiles.length
+      ? changedFiles
+      : commit
+        ? this.#harness?.filesInCommit(commit) ?? []
+        : [];
+    const ts = new Date().toISOString();
+    for (const file of files) {
+      store.upsertNode({
+        id: file,
+        kind: "code",
+        name: file.split("/").pop() ?? file,
+        attrs: { commit },
+      });
+      store.upsertEdge({
+        from: file,
+        to: node.designNodeId,
+        kind: "realizes",
+        confidence: 1,
+        provenance: "by_construction",
+        ts,
+      });
+      store.upsertEdge({
+        from: node.designNodeId,
+        to: file,
+        kind: "realized_by",
+        confidence: 1,
+        provenance: "by_construction",
+        ts,
+      });
+    }
+  }
+
   async #execute(runId: RunId): Promise<void> {
     const store = this.#graphStore();
     await this.#harnessForExecution(runId);
     store.updateRun(runId, { status: "running" });
+    await this.#runScaffold(runId);
 
     const pending = store.getExecGraph(runId).filter((n) => n.kind === "impl" && n.status !== "complete");
     const halted =
@@ -235,7 +365,7 @@ export class Engine {
       const n = store.getExecNode(runId, qa);
       if (n) store.upsertExecNode(runId, { ...n, status: "skipped" });
     }
-    const g = this.#openGate(runId, "pre-release", "Build verified (browser/visual QA skipped — no worker) — review before release", []);
+    const g = await this.#openGate(runId, "pre-release", "Build verified (browser/visual QA skipped — no worker) — review before release", []);
     store.updateRun(runId, { status: "gated", cursor: g.id });
   }
 
@@ -249,7 +379,7 @@ export class Engine {
     for (const node of pending) {
       const budgetUsed = store.getRun(runId)?.budgetUsed ?? 0;
       if (budgetUsed >= this.#deps.budget) {
-        const g = this.#openGate(runId, "risky-op", `Budget ${this.#deps.budget} reached at ${node.id}`, []);
+        const g = await this.#openGate(runId, "risky-op", `Budget ${this.#deps.budget} reached at ${node.id}`, []);
         store.updateRun(runId, { status: "gated", cursor: g.id });
         return true;
       }
@@ -259,16 +389,28 @@ export class Engine {
         harness: this.#harness!,
         executor: this.#deps.executor,
         verifier: this.#deps.verifier,
-        node: { id: node.id, contextPack: makeContextPack(node, this.#goalFor(node)) },
+        node: { id: node.id, contextPack: this.#contextPack(runId, node) },
         retryCap: 3,
       });
       store.updateRun(runId, { budgetUsed: budgetUsed + r.attempts });
       if (r.status === "complete") {
-        store.upsertExecNode(runId, { ...node, status: "complete", commit: r.commit });
+        this.#recordRealization(node, r.changedFiles, r.commit);
+        store.upsertExecNode(runId, {
+          ...node,
+          status: "complete",
+          commit: r.commit,
+          evidence: r.evidence,
+          attempts: r.attempts,
+        });
         await this.#events.emit({ type: "node.completed", runId, data: { node: node.id, commit: r.commit } });
       } else {
-        store.upsertExecNode(runId, { ...node, status: "escalated" });
-        const g = this.#openGate(runId, "low-confidence", `${node.id} failed after retries`, r.evidence);
+        store.upsertExecNode(runId, {
+          ...node,
+          status: "escalated",
+          evidence: r.evidence,
+          attempts: r.attempts,
+        });
+        const g = await this.#openGate(runId, "low-confidence", `${node.id} failed after retries`, r.evidence);
         store.updateRun(runId, { status: "gated", cursor: g.id });
         await this.#events.emit({ type: "escalation", runId, data: { node: node.id, gate: g.id } });
         return true;
@@ -299,7 +441,7 @@ export class Engine {
         executeAndVerify({
           executor: this.#deps.executor,
           verifier: this.#deps.verifier,
-          node: { id: node.id, contextPack: makeContextPack(node, this.#goalFor(node)) },
+          node: { id: node.id, contextPack: this.#contextPack(runId, node) },
           worktreeDir: dirs.get(node.id)!,
           retryCap: 3,
         }).then((res) => ({ node, res })),
@@ -319,7 +461,14 @@ export class Engine {
       if (!merged.ok) {
         return this.#haltParallel(runId, "risky-op", `${node.id} merge conflict on integration`, res.evidence, budgetUsed);
       }
-      store.upsertExecNode(runId, { ...node, status: "complete", commit });
+      this.#recordRealization(node, res.changedFiles, commit);
+      store.upsertExecNode(runId, {
+        ...node,
+        status: "complete",
+        commit,
+        evidence: res.evidence,
+        attempts: res.attempts,
+      });
       await this.#events.emit({ type: "node.completed", runId, data: { node: node.id, commit } });
     }
     store.updateRun(runId, { budgetUsed });
@@ -341,14 +490,16 @@ export class Engine {
         store.upsertExecNode(runId, { ...n, status: "pending" }); // clean re-run on resume
       }
     }
-    const g = this.#openGate(runId, kind, summary, evidence);
+    const g = await this.#openGate(runId, kind, summary, evidence);
     store.updateRun(runId, { status: "gated", cursor: g.id, budgetUsed });
     return true;
   }
 
-  #openGate(runId: RunId, kind: GateKind, summary: string, evidenceRefs: string[]): Gate {
+  async #openGate(runId: RunId, kind: GateKind, summary: string, evidenceRefs: string[]): Promise<Gate> {
+    // Sequenced so a second gate of the same kind cannot overwrite the first's record.
+    const seq = this.#graphStore().countGates(runId, kind) + 1;
     const gate: Gate = {
-      id: `${runId}:${kind}`,
+      id: `${runId}:${kind}:${seq}`,
       runId,
       kind,
       status: "open",
@@ -357,7 +508,7 @@ export class Engine {
       openedAt: new Date().toISOString(),
     };
     this.#graphStore().openGate(gate);
-    void this.#events.emit({ type: "approval.requested", runId, data: { gate: gate.id, kind } });
+    await this.#events.emit({ type: "approval.requested", runId, data: { gate: gate.id, kind } });
     return gate;
   }
 
@@ -443,14 +594,3 @@ export class Engine {
   }
 }
 
-function makeContextPack(node: ExecNode, goal: string): ContextPack {
-  return {
-    taskId: node.id,
-    goal: `build ${goal}`,
-    relevantNodeIds: node.designNodeId ? [node.designNodeId] : [],
-    relevantFiles: [],
-    constraints: [],
-    previousFailures: [],
-    permissions: { write: ["**"], deny: [".env", "**/.env", "**/*.pem", "**/secrets/**"] },
-  };
-}

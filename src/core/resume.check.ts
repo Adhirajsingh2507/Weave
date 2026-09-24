@@ -53,14 +53,23 @@ const handle = await engine().run({ text: "component: hero section" });
 assert.equal(handle.status, "gated");
 
 // Process 2: approve the design gate. Cuts the working branch and auto-stashes.
-await engine().resolveGate(`${handle.runId}:design-approval`, "approve");
+const designGate = (await engine().listGates())[0]!;
+assert.equal(designGate.kind, "design-approval");
+await engine().resolveGate(designGate.id, "approve", "keep the hero copy short");
 const mid = await engine().getRun(handle.runId);
 assert.equal(mid?.workingBranch, `weave/${handle.runId}`, "working branch persisted");
 assert.equal(mid?.baseBranch, "main", "base branch persisted");
 assert.equal(mid?.stashed, true, "auto-stash recorded");
 
+// Notes are recorded, not discarded — the next attempt's context pack reads them.
+const resolved = await engine().getGate(designGate.id);
+assert.equal(resolved?.notes, "keep the hero copy short", "gate notes persisted");
+assert.ok(resolved?.resolvedAt, "resolution timestamped");
+
 // Process 3: approve pre-release. This process never created a harness.
-await engine().resolveGate(`${handle.runId}:pre-release`, "approve");
+const releaseGate = (await engine().listGates())[0]!;
+assert.equal(releaseGate.kind, "pre-release");
+await engine().resolveGate(releaseGate.id, "approve");
 
 const done = await engine().getRun(handle.runId);
 assert.equal(done?.status, "done");

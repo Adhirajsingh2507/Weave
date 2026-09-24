@@ -46,17 +46,25 @@ CREATE TABLE IF NOT EXISTS exec_nodes (
   design_node_id TEXT,
   status         TEXT NOT NULL,
   "commit"       TEXT,
+  -- Evidence and attempt count kept per node, so a passing node records why it
+  -- passed rather than discarding it the moment the commit lands.
+  evidence       TEXT,
+  attempts       INTEGER,
   PRIMARY KEY (run_id, id)
 );
 CREATE TABLE IF NOT EXISTS gates (
-  id        TEXT PRIMARY KEY,
-  run_id    TEXT NOT NULL,
-  kind      TEXT NOT NULL,
-  status    TEXT NOT NULL,
-  node_id   TEXT,
-  summary   TEXT NOT NULL,
-  evidence  TEXT,
-  opened_at TEXT NOT NULL
+  id          TEXT PRIMARY KEY,
+  run_id      TEXT NOT NULL,
+  kind        TEXT NOT NULL,
+  status      TEXT NOT NULL,
+  node_id     TEXT,
+  summary     TEXT NOT NULL,
+  evidence    TEXT,
+  opened_at   TEXT NOT NULL,
+  -- What the human said when resolving, and when. Notes feed the next attempt's
+  -- context pack; without them an approved retry repeats the failure blind.
+  notes       TEXT,
+  resolved_at TEXT
 );
 `;
 
@@ -73,10 +81,12 @@ interface RunRow {
 interface ExecRow {
   run_id: string; id: string; kind: string;
   design_node_id: string | null; status: string; commit: string | null;
+  evidence: string | null; attempts: number | null;
 }
 interface GateRow {
   id: string; run_id: string; kind: string; status: string;
   node_id: string | null; summary: string; evidence: string | null; opened_at: string;
+  notes: string | null; resolved_at: string | null;
 }
 
 function toGate(r: GateRow): Gate {
@@ -89,6 +99,8 @@ function toGate(r: GateRow): Gate {
     summary: r.summary,
     evidenceRefs: r.evidence ? (JSON.parse(r.evidence) as string[]) : [],
     openedAt: r.opened_at,
+    notes: r.notes ?? undefined,
+    resolvedAt: r.resolved_at ?? undefined,
   };
 }
 
@@ -130,6 +142,8 @@ function toExec(r: ExecRow): ExecNode {
     designNodeId: r.design_node_id ?? undefined,
     status: r.status as ExecNode["status"],
     commit: r.commit ?? undefined,
+    evidence: r.evidence ? (JSON.parse(r.evidence) as string[]) : undefined,
+    attempts: r.attempts ?? undefined,
   };
 }
 
@@ -264,6 +278,20 @@ export class GraphStore {
     for (const [name, type] of added) {
       if (!cols.has(name)) this.#db.exec(`ALTER TABLE runs ADD COLUMN ${name} ${type}`);
     }
+
+    const gateCols = new Set(
+      (this.#db.prepare(`PRAGMA table_info(gates)`).all() as Array<{ name: string }>).map((c) => c.name),
+    );
+    for (const [name, type] of [["notes", "TEXT"], ["resolved_at", "TEXT"]] as Array<[string, string]>) {
+      if (!gateCols.has(name)) this.#db.exec(`ALTER TABLE gates ADD COLUMN ${name} ${type}`);
+    }
+
+    const execCols = new Set(
+      (this.#db.prepare(`PRAGMA table_info(exec_nodes)`).all() as Array<{ name: string }>).map((c) => c.name),
+    );
+    for (const [name, type] of [["evidence", "TEXT"], ["attempts", "INTEGER"]] as Array<[string, string]>) {
+      if (!execCols.has(name)) this.#db.exec(`ALTER TABLE exec_nodes ADD COLUMN ${name} ${type}`);
+    }
   }
 
   createRun(record: RunRecord): void {
@@ -322,31 +350,46 @@ export class GraphStore {
   upsertExecNode(runId: string, node: ExecNode): void {
     this.#db
       .prepare(
-        `INSERT OR REPLACE INTO exec_nodes (run_id, id, kind, design_node_id, status, "commit") VALUES (?, ?, ?, ?, ?, ?)`,
+        `INSERT OR REPLACE INTO exec_nodes (run_id, id, kind, design_node_id, status, "commit", evidence, attempts)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       )
-      .run(runId, node.id, node.kind, node.designNodeId ?? null, node.status, node.commit ?? null);
+      .run(
+        runId,
+        node.id,
+        node.kind,
+        node.designNodeId ?? null,
+        node.status,
+        node.commit ?? null,
+        node.evidence ? JSON.stringify(node.evidence) : null,
+        node.attempts ?? null,
+      );
   }
 
   getExecGraph(runId: string): ExecNode[] {
     return (
       this.#db
-        .prepare(`SELECT run_id, id, kind, design_node_id, status, "commit" FROM exec_nodes WHERE run_id = ?`)
+        .prepare(
+          `SELECT run_id, id, kind, design_node_id, status, "commit", evidence, attempts FROM exec_nodes WHERE run_id = ?`,
+        )
         .all(runId) as ExecRow[]
     ).map(toExec);
   }
 
   getExecNode(runId: string, id: NodeId): ExecNode | undefined {
     const row = this.#db
-      .prepare(`SELECT run_id, id, kind, design_node_id, status, "commit" FROM exec_nodes WHERE run_id = ? AND id = ?`)
+      .prepare(
+        `SELECT run_id, id, kind, design_node_id, status, "commit", evidence, attempts FROM exec_nodes WHERE run_id = ? AND id = ?`,
+      )
       .get(runId, id) as ExecRow | undefined;
     return row ? toExec(row) : undefined;
   }
 
   // ── Gates ─────────────────────────────────────────────────
+  /** Plain INSERT: gate ids are unique per occurrence, so history is never overwritten. */
   openGate(gate: Gate): void {
     this.#db
       .prepare(
-        `INSERT OR REPLACE INTO gates (id, run_id, kind, status, node_id, summary, evidence, opened_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO gates (id, run_id, kind, status, node_id, summary, evidence, opened_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         gate.id,
@@ -358,6 +401,25 @@ export class GraphStore {
         JSON.stringify(gate.evidenceRefs),
         gate.openedAt,
       );
+  }
+
+  /** How many gates of this kind this run has already opened — the id sequence. */
+  countGates(runId: string, kind: string): number {
+    const row = this.#db
+      .prepare(`SELECT COUNT(*) AS n FROM gates WHERE run_id = ? AND kind = ?`)
+      .get(runId, kind) as { n: number };
+    return row.n;
+  }
+
+  /** Notes from the most recently resolved gate on this run, for the next attempt's context. */
+  latestGateNotes(runId: string): string | undefined {
+    const row = this.#db
+      .prepare(
+        `SELECT notes FROM gates WHERE run_id = ? AND notes IS NOT NULL AND notes != ''
+         ORDER BY resolved_at DESC LIMIT 1`,
+      )
+      .get(runId) as { notes: string } | undefined;
+    return row?.notes;
   }
 
   getGate(id: string): Gate | undefined {
@@ -372,8 +434,10 @@ export class GraphStore {
     return rows.map(toGate);
   }
 
-  setGateStatus(id: string, status: GateStatus): void {
-    this.#db.prepare(`UPDATE gates SET status = ? WHERE id = ?`).run(status, id);
+  setGateStatus(id: string, status: GateStatus, notes?: string): void {
+    this.#db
+      .prepare(`UPDATE gates SET status = ?, notes = ?, resolved_at = ? WHERE id = ?`)
+      .run(status, notes ?? null, new Date().toISOString(), id);
   }
 
   close(): void {
