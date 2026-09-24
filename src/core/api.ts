@@ -3,7 +3,7 @@
 // run() drives intake → plan → execute → loop, halting at a gate or completion.
 
 import { join } from "node:path";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { EventLog } from "./events/index.js";
 import { initAgentDir, AGENT_DIR } from "./state.js";
 import { GraphStore } from "./store/graph-store.js";
@@ -13,7 +13,7 @@ import type { BriefInput } from "./compiler.js";
 import { projectIR } from "./graph/project.js";
 import { buildExecGraph } from "./plan.js";
 import { runNode, executeAndVerify } from "./loop.js";
-import type { Verifier } from "./loop.js";
+import type { AttemptOutcome, EvidenceRecord, Verifier, VerifyResult } from "./loop.js";
 import { ClaudeCodeExecutor, GitHarness } from "./runtime.js";
 import type { ContextPack, NodeExecutor } from "./runtime.js";
 import { DeterministicVerifier } from "./verify.js";
@@ -21,6 +21,11 @@ import type { Deployer } from "./deploy.js";
 import { TemplateScaffolder } from "./scaffold.js";
 import type { Scaffolder } from "./scaffold.js";
 import { loadStyle, styleBrief } from "./design/style.js";
+import { mintCriteria } from "./criteria.js";
+import { buildReport } from "./report.js";
+import type { RunReport } from "./report.js";
+import { projectMetrics, runMetrics } from "./metrics.js";
+import type { ProjectMetrics, RunMetrics } from "./metrics.js";
 import type { StyleGuide } from "./design/style.js";
 import { ClaudeDecision } from "./decision/providers.js";
 import { DecisionRunner } from "./decision/runner.js";
@@ -121,6 +126,10 @@ export class Engine {
     // design gate, half way through a run, as a mid-flight crash.
     if (ir.meta.style) loadStyle(ir.meta.style);
     store.loadGraph(projectIR(ir));
+    // The criteria pass runs before any implementation exists, so what "done" means is
+    // authored independently of whatever the implementer later produces (decision #25).
+    const criteria = mintCriteria(ir, ir.meta.style ? loadStyle(ir.meta.style) : undefined);
+    store.loadGraph({ nodes: criteria.nodes, edges: criteria.edges });
 
     const unrealized = store.gaps().unrealizedDesign;
     const runId = `run-${Date.now()}`;
@@ -299,6 +308,9 @@ export class Engine {
       sections,
     });
     const commit = await this.#harness!.commitWorkingTree(`chore(scaffold): ${result.summary}`);
+    store.recordEvidence(runId, [
+      { nodeId: node.id, kind: "structural", ok: true, detail: `${this.#deps.scaffolder.name}: ${result.summary}` },
+    ]);
     store.upsertExecNode(runId, {
       ...node,
       status: "complete",
@@ -311,6 +323,75 @@ export class Engine {
       runId,
       data: { node: node.id, commit, files: result.files.length },
     });
+  }
+
+  /**
+   * Wraps the injected verifier with the node's own structural criterion, so "did the agent
+   * actually build the thing it was asked for" is part of pass/fail rather than a note added
+   * afterwards. Without it a no-op agent passes whenever the project still builds.
+   */
+  #verifierFor(node: ExecNode): Verifier {
+    const base = this.#deps.verifier;
+    const design = node.designNodeId;
+    if (!design) return base;
+    const store = this.#graphStore();
+    const criteria = store
+      .neighbors(`req:design:${design}`)
+      .filter((e) => e.kind === "verifies" && e.to === `req:design:${design}`)
+      .map((e) => store.getNode(e.from))
+      .filter((c): c is KgNode => Boolean(c))
+      .filter((c) => ["structural", "build"].includes(String(c.attrs?.["runner"] ?? "")));
+    if (!criteria.length) return base;
+
+    return {
+      async verify(worktreeDir: string): Promise<VerifyResult> {
+        const result = await base.verify(worktreeDir);
+        const found = findDesignMarker(worktreeDir, design);
+        const structural: EvidenceRecord[] = criteria.map((c) => ({
+          kind: "structural" as const,
+          criterionId: c.id,
+          ok: Boolean(found),
+          detail: found
+            ? `${design} present in ${found}`
+            : `nothing in the worktree realises "${design}"`,
+        }));
+        return { ok: result.ok && Boolean(found), evidence: [...result.evidence, ...structural] };
+      },
+    };
+  }
+
+  /** Persist a node's typed evidence and its per-attempt outcomes. */
+  #persistOutcome(
+    runId: RunId,
+    nodeId: NodeId,
+    result: { evidence: EvidenceRecord[]; attemptLog: AttemptOutcome[] },
+  ): void {
+    const store = this.#graphStore();
+    if (result.evidence.length) {
+      store.recordEvidence(
+        runId,
+        result.evidence.map((e) => ({
+          nodeId,
+          kind: e.kind,
+          ok: e.ok,
+          detail: e.detail,
+          ...(e.criterionId ? { criterionId: e.criterionId } : {}),
+          ...(e.artifactPath ? { artifactPath: e.artifactPath } : {}),
+        })),
+      );
+    }
+    for (const a of result.attemptLog) {
+      store.recordAttempt({
+        run_id: runId,
+        node_id: nodeId,
+        attempt: a.attempt,
+        executor: a.executor,
+        exec_ok: a.execOk ? 1 : 0,
+        verify_ok: a.verifyOk ? 1 : 0,
+        started_at: a.startedAt,
+        ended_at: a.endedAt,
+      });
+    }
   }
 
   /**
@@ -399,29 +480,31 @@ export class Engine {
       const r = await runNode({
         harness: this.#harness!,
         executor: this.#deps.executor,
-        verifier: this.#deps.verifier,
+        verifier: this.#verifierFor(node),
         node: { id: node.id, contextPack: this.#contextPack(runId, node) },
         retryCap: 3,
       });
       store.updateRun(runId, { budgetUsed: budgetUsed + r.attempts });
       if (r.status === "complete") {
         this.#recordRealization(node, r.changedFiles, r.commit);
+        this.#persistOutcome(runId, node.id, r);
         store.upsertExecNode(runId, {
           ...node,
           status: "complete",
           commit: r.commit,
-          evidence: r.evidence,
+          evidence: summarise(r.evidence),
           attempts: r.attempts,
         });
         await this.#events.emit({ type: "node.completed", runId, data: { node: node.id, commit: r.commit } });
       } else {
+        this.#persistOutcome(runId, node.id, r);
         store.upsertExecNode(runId, {
           ...node,
           status: "escalated",
-          evidence: r.evidence,
+          evidence: summarise(r.evidence),
           attempts: r.attempts,
         });
-        const g = await this.#openGate(runId, "low-confidence", `${node.id} failed after retries`, r.evidence);
+        const g = await this.#openGate(runId, "low-confidence", `${node.id} failed after retries`, summarise(r.evidence));
         store.updateRun(runId, { status: "gated", cursor: g.id });
         await this.#events.emit({ type: "escalation", runId, data: { node: node.id, gate: g.id } });
         return true;
@@ -451,7 +534,7 @@ export class Engine {
       pending.map((node) =>
         executeAndVerify({
           executor: this.#deps.executor,
-          verifier: this.#deps.verifier,
+          verifier: this.#verifierFor(node),
           node: { id: node.id, contextPack: this.#contextPack(runId, node) },
           worktreeDir: dirs.get(node.id)!,
           retryCap: 3,
@@ -465,19 +548,21 @@ export class Engine {
       budgetUsed += res.attempts;
       if (!res.ok) {
         await this.#events.emit({ type: "escalation", runId, data: { node: node.id } });
-        return this.#haltParallel(runId, "low-confidence", `${node.id} failed after retries`, res.evidence, budgetUsed);
+        this.#persistOutcome(runId, node.id, res);
+        return this.#haltParallel(runId, "low-confidence", `${node.id} failed after retries`, summarise(res.evidence), budgetUsed);
       }
       const commit = await harness.commitDetached(node.id, `feat(${node.id}): ${this.#goalFor(node)}`);
       const merged = await harness.integrateBranch(node.id);
       if (!merged.ok) {
-        return this.#haltParallel(runId, "risky-op", `${node.id} merge conflict on integration`, res.evidence, budgetUsed);
+        return this.#haltParallel(runId, "risky-op", `${node.id} merge conflict on integration`, summarise(res.evidence), budgetUsed);
       }
       this.#recordRealization(node, res.changedFiles, commit);
+      this.#persistOutcome(runId, node.id, res);
       store.upsertExecNode(runId, {
         ...node,
         status: "complete",
         commit,
-        evidence: res.evidence,
+        evidence: summarise(res.evidence),
         attempts: res.attempts,
       });
       await this.#events.emit({ type: "node.completed", runId, data: { node: node.id, commit } });
@@ -589,6 +674,25 @@ export class Engine {
     return inferMappings(this.#graphStore(), runner);
   }
 
+  /** Traceability: requirement → design → code → criteria → evidence → commit → approval. */
+  async report(runId?: RunId): Promise<RunReport> {
+    const store = this.#graphStore();
+    const id = runId ?? store.latestRun()?.runId;
+    if (!id) throw new Error("no runs yet");
+    return buildReport(store, id);
+  }
+
+  async metrics(runId?: RunId): Promise<RunMetrics> {
+    const store = this.#graphStore();
+    const id = runId ?? store.latestRun()?.runId;
+    if (!id) throw new Error("no runs yet");
+    return runMetrics(store, id);
+  }
+
+  async projectMetrics(): Promise<ProjectMetrics> {
+    return projectMetrics(this.#graphStore());
+  }
+
   async getRun(runId: RunId): Promise<RunRecord | undefined> {
     return this.#graphStore().getRun(runId);
   }
@@ -605,3 +709,48 @@ export class Engine {
   }
 }
 
+/** Short labels kept on the exec node for cheap reads; full records live in the evidence table. */
+function summarise(evidence: EvidenceRecord[]): string[] {
+  return evidence.map((e) => `${e.kind}:${e.ok ? "pass" : "fail"}${e.criterionId ? ` (${e.criterionId})` : ""}`);
+}
+
+/**
+ * Look for a design element in a worktree: a file named after it, or markup carrying its id.
+ * Shallow on purpose — agents write into the scaffolded project root, and walking a whole
+ * tree per verification would cost more than it finds.
+ */
+function findDesignMarker(worktreeDir: string, designNodeId: string): string | undefined {
+  const marker = `id="${designNodeId}"`;
+  const skip = new Set(["node_modules", ".git", "dist", ".agent"]);
+  const search = (dir: string, rel: string, depth: number): string | undefined => {
+    let entries;
+    try {
+      entries = readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return undefined;
+    }
+    for (const entry of entries) {
+      const childRel = rel ? `${rel}/${entry.name}` : entry.name;
+      if (entry.isDirectory()) {
+        if (depth === 0 || skip.has(entry.name) || entry.name.startsWith(".")) continue;
+        const hit = search(join(dir, entry.name), childRel, depth - 1);
+        if (hit) return hit;
+        continue;
+      }
+      if (entry.name.includes(designNodeId)) return childRel;
+      if (!/\.(html?|jsx?|tsx?|md|css|svg)$/i.test(entry.name)) continue;
+      try {
+        const text = readFileSync(join(dir, entry.name), "utf8");
+        if (!text.includes(marker)) continue;
+        // The scaffold seeds a placeholder carrying the same id, so an element still flagged
+        // as a placeholder does not count as built.
+        const tag = new RegExp(`<[^>]*id=["']${designNodeId}["'][^>]*>`, "i").exec(text);
+        if (!tag || !/data-placeholder/i.test(tag[0])) return childRel;
+      } catch {
+        // unreadable file, keep looking
+      }
+    }
+    return undefined;
+  };
+  return search(worktreeDir, "", 2);
+}

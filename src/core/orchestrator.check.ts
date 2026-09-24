@@ -45,7 +45,7 @@ class SiteExecutor implements NodeExecutor {
 const verifier: Verifier = {
   async verify(dir: string) {
     const ok = git(["status", "--porcelain"], dir).length > 0;
-    return { ok, evidence: [`verify:changes=${ok}`] };
+    return { ok, evidence: [{ kind: "structural" as const, ok, detail: `worktree changed=${ok}` }] };
   },
 };
 

@@ -52,6 +52,34 @@ CREATE TABLE IF NOT EXISTS exec_nodes (
   attempts       INTEGER,
   PRIMARY KEY (run_id, id)
 );
+-- Typed evidence, replacing the string arrays that used to be thrown away on success.
+-- Artefacts (logs, screenshots) live on disk under .agent/evidence; rows hold the path.
+CREATE TABLE IF NOT EXISTS evidence (
+  id            TEXT PRIMARY KEY,
+  run_id        TEXT NOT NULL,
+  node_id       TEXT,
+  criterion_id  TEXT,
+  kind          TEXT NOT NULL,
+  ok            INTEGER NOT NULL,
+  detail        TEXT NOT NULL,
+  artifact_path TEXT,
+  ts            TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS evidence_run ON evidence (run_id);
+CREATE INDEX IF NOT EXISTS evidence_criterion ON evidence (criterion_id);
+
+-- One row per attempt, so first-pass and repair rates are measured rather than inferred.
+CREATE TABLE IF NOT EXISTS attempts (
+  run_id     TEXT NOT NULL,
+  node_id    TEXT NOT NULL,
+  attempt    INTEGER NOT NULL,
+  executor   TEXT,
+  exec_ok    INTEGER NOT NULL,
+  verify_ok  INTEGER NOT NULL,
+  started_at TEXT NOT NULL,
+  ended_at   TEXT,
+  PRIMARY KEY (run_id, node_id, attempt)
+);
 CREATE TABLE IF NOT EXISTS gates (
   id          TEXT PRIMARY KEY,
   run_id      TEXT NOT NULL,
@@ -145,6 +173,39 @@ function toExec(r: ExecRow): ExecNode {
     evidence: r.evidence ? (JSON.parse(r.evidence) as string[]) : undefined,
     attempts: r.attempts ?? undefined,
   };
+}
+
+/** A piece of evidence on its way into the store. */
+export interface EvidenceInput {
+  nodeId?: string;
+  criterionId?: string;
+  kind: "build" | "test" | "structural" | "dom" | "visual" | "pack" | "deploy" | "agent";
+  ok: boolean;
+  detail: string;
+  artifactPath?: string;
+}
+
+export interface EvidenceRow {
+  id: string;
+  run_id: string;
+  node_id: string | null;
+  criterion_id: string | null;
+  kind: string;
+  ok: number;
+  detail: string;
+  artifact_path: string | null;
+  ts: string;
+}
+
+export interface AttemptRow {
+  run_id: string;
+  node_id: string;
+  attempt: number;
+  executor: string | null;
+  exec_ok: number;
+  verify_ok: number;
+  started_at: string;
+  ended_at: string | null;
 }
 
 export interface MappingFilter {
@@ -409,6 +470,81 @@ export class GraphStore {
       .prepare(`SELECT COUNT(*) AS n FROM gates WHERE run_id = ? AND kind = ?`)
       .get(runId, kind) as { n: number };
     return row.n;
+  }
+
+  // ── Evidence + attempts ───────────────────────────────────
+  recordEvidence(runId: string, records: EvidenceInput[]): string[] {
+    const ids: string[] = [];
+    const insert = this.#db.prepare(
+      `INSERT INTO evidence (id, run_id, node_id, criterion_id, kind, ok, detail, artifact_path, ts)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    );
+    const tx = this.#db.transaction((rows: EvidenceInput[]) => {
+      for (const r of rows) {
+        if (!r.kind || typeof r.ok !== "boolean" || !r.detail) {
+          throw new Error(`malformed evidence record: ${JSON.stringify(r)} — needs kind, ok and detail`);
+        }
+        const id = `ev-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+        insert.run(
+          id,
+          runId,
+          r.nodeId ?? null,
+          r.criterionId ?? null,
+          r.kind,
+          r.ok ? 1 : 0,
+          r.detail,
+          r.artifactPath ?? null,
+          new Date().toISOString(),
+        );
+        ids.push(id);
+      }
+    });
+    tx(records);
+    return ids;
+  }
+
+  evidenceFor(filter: { runId?: string; nodeId?: string; criterionId?: string } = {}): EvidenceRow[] {
+    const clauses: string[] = [];
+    const params: unknown[] = [];
+    for (const [col, value] of [
+      ["run_id", filter.runId],
+      ["node_id", filter.nodeId],
+      ["criterion_id", filter.criterionId],
+    ] as Array<[string, string | undefined]>) {
+      if (value !== undefined) {
+        clauses.push(`${col} = ?`);
+        params.push(value);
+      }
+    }
+    const where = clauses.length ? ` WHERE ${clauses.join(" AND ")}` : "";
+    return this.#db
+      .prepare(`SELECT * FROM evidence${where} ORDER BY ts`)
+      .all(...params) as EvidenceRow[];
+  }
+
+  recordAttempt(a: AttemptRow): void {
+    this.#db
+      .prepare(
+        `INSERT OR REPLACE INTO attempts (run_id, node_id, attempt, executor, exec_ok, verify_ok, started_at, ended_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(a.run_id, a.node_id, a.attempt, a.executor ?? null, a.exec_ok, a.verify_ok, a.started_at, a.ended_at ?? null);
+  }
+
+  attemptsFor(runId: string): AttemptRow[] {
+    return this.#db
+      .prepare(`SELECT * FROM attempts WHERE run_id = ? ORDER BY node_id, attempt`)
+      .all(runId) as AttemptRow[];
+  }
+
+  allRuns(): RunRecord[] {
+    return (this.#db.prepare(`SELECT * FROM runs ORDER BY started_at`).all() as RunRow[]).map(toRun);
+  }
+
+  gatesForRun(runId: string): Gate[] {
+    return (
+      this.#db.prepare(`SELECT * FROM gates WHERE run_id = ? ORDER BY opened_at`).all(runId) as GateRow[]
+    ).map(toGate);
   }
 
   /** Notes from the most recently resolved gate on this run, for the next attempt's context. */

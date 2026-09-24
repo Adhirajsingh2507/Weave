@@ -4,9 +4,23 @@
 import type { ContextPack, NodeExecutor } from "./runtime.js";
 import type { GitHarness } from "./runtime.js";
 
+/**
+ * A typed piece of evidence. Replaces the string arrays that used to be assembled for a gate
+ * and then discarded the moment a node passed.
+ */
+export interface EvidenceRecord {
+  kind: "build" | "test" | "structural" | "dom" | "visual" | "pack" | "deploy" | "agent";
+  ok: boolean;
+  detail: string;
+  /** Criterion this proves, where the producer knows it. */
+  criterionId?: string;
+  /** Log or screenshot on disk under .agent/evidence. */
+  artifactPath?: string;
+}
+
 export interface VerifyResult {
   ok: boolean;
-  evidence: string[];
+  evidence: EvidenceRecord[];
 }
 /** Verifies a node's worktree. Deterministic checks (build/test) land in Phase 5. */
 export interface Verifier {
@@ -21,9 +35,20 @@ export interface NodeLoopResult {
   status: "complete" | "escalated";
   commit?: string;
   attempts: number;
-  evidence: string[];
+  evidence: EvidenceRecord[];
+  /** Per-attempt outcomes, so first-pass and repair rates are measured, not inferred. */
+  attemptLog: AttemptOutcome[];
   /** Files the agent touched — the basis for design→code mapping edges. */
   changedFiles: string[];
+}
+
+export interface AttemptOutcome {
+  attempt: number;
+  executor: string;
+  execOk: boolean;
+  verifyOk: boolean;
+  startedAt: string;
+  endedAt: string;
 }
 
 export interface RunNodeOptions {
@@ -47,23 +72,57 @@ export async function executeAndVerify(opts: {
   node: LoopNode;
   worktreeDir: string;
   retryCap?: number;
-}): Promise<{ ok: boolean; attempts: number; evidence: string[]; changedFiles: string[] }> {
+}): Promise<{
+  ok: boolean;
+  attempts: number;
+  evidence: EvidenceRecord[];
+  attemptLog: AttemptOutcome[];
+  changedFiles: string[];
+}> {
   const { executor, verifier, node, worktreeDir } = opts;
   const retryCap = opts.retryCap ?? 3;
-  const evidence: string[] = [];
+  const evidence: EvidenceRecord[] = [];
+  const attemptLog: AttemptOutcome[] = [];
   let changedFiles: string[] = [];
+
   for (let attempt = 1; attempt <= retryCap; attempt++) {
+    const startedAt = new Date().toISOString();
     const exec = await executor.run({ contextPack: node.contextPack, worktreeDir });
-    evidence.push(...exec.evidenceRefs);
     changedFiles = exec.changedFiles;
+    for (const ref of exec.evidenceRefs) {
+      evidence.push({ kind: "agent", ok: exec.ok, detail: ref });
+    }
     const verdict = await verifier.verify(worktreeDir);
-    evidence.push(...verdict.evidence);
-    if (exec.ok && verdict.ok) return { ok: true, attempts: attempt, evidence, changedFiles };
+    evidence.push(...normaliseEvidence(verdict));
+    attemptLog.push({
+      attempt,
+      executor: executor.name,
+      execOk: exec.ok,
+      verifyOk: verdict.ok,
+      startedAt,
+      endedAt: new Date().toISOString(),
+    });
+
+    if (exec.ok && verdict.ok) {
+      return { ok: true, attempts: attempt, evidence, attemptLog, changedFiles };
+    }
     node.contextPack.previousFailures.push(
-      `attempt ${attempt}: ${exec.ok ? "verification failed" : exec.summary}`,
+      `attempt ${attempt}: ${exec.ok ? normaliseEvidence(verdict).filter((e) => !e.ok).map((e) => e.detail).join("; ") || "verification failed" : exec.summary}`,
     );
   }
-  return { ok: false, attempts: retryCap, evidence, changedFiles };
+  return { ok: false, attempts: retryCap, evidence, attemptLog, changedFiles };
+}
+
+/**
+ * Verifier is a public seam and may be implemented in plain JavaScript, where nothing enforces
+ * the record shape. Accept the v1 string form rather than failing deep in the store with a
+ * SQL constraint error.
+ */
+function normaliseEvidence(verdict: VerifyResult): EvidenceRecord[] {
+  const raw = (verdict.evidence ?? []) as Array<EvidenceRecord | string>;
+  return raw.map((e) =>
+    typeof e === "string" ? { kind: "test" as const, ok: verdict.ok, detail: e } : e,
+  );
 }
 
 /** Run one node's loop in an isolated worktree; commit on pass, discard+escalate on exhaustion. */
@@ -83,6 +142,7 @@ export async function runNode(opts: RunNodeOptions): Promise<NodeLoopResult> {
       commit,
       attempts: res.attempts,
       evidence: res.evidence,
+      attemptLog: res.attemptLog,
       changedFiles: res.changedFiles,
     };
   }
@@ -91,6 +151,7 @@ export async function runNode(opts: RunNodeOptions): Promise<NodeLoopResult> {
     status: "escalated",
     attempts: res.attempts,
     evidence: res.evidence,
+    attemptLog: res.attemptLog,
     changedFiles: res.changedFiles,
   };
 }

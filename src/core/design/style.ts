@@ -194,6 +194,41 @@ export function loadStyle(slug: string, dir: string = GUIDE_DIR): StyleGuide {
   };
 }
 
+/**
+ * The floor in `_base.md`. Written as prose bullets rather than frontmatter, because it is
+ * read by humans as often as by the engine — so it is parsed rather than duplicated.
+ */
+export function loadBaseChecks(dir: string = GUIDE_DIR): StyleCheck[] {
+  const src = readFileSync(join(dir, "_base.md"), "utf8");
+  const checks: StyleCheck[] = [];
+  let current: StyleCheck | undefined;
+
+  // Line-driven rather than one regex: rules wrap across indented continuation lines, and a
+  // lookahead-based match silently swallowed every other bullet.
+  for (const line of src.split(/\r?\n/)) {
+    const start = /^- `([a-z0-9.-]+)`\s*[—–-]?\s*(.*)$/.exec(line);
+    if (start) {
+      const id = start[1]!;
+      current = {
+        id,
+        rule: start[2]!.trim(),
+        // The file states its own exception: content rules are judged, the rest measurable.
+        kind: id.startsWith("base.content.") ? "judged" : "deterministic",
+      };
+      checks.push(current);
+      continue;
+    }
+    if (current && /^\s+\S/.test(line)) {
+      current.rule = `${current.rule} ${line.trim()}`.trim();
+      continue;
+    }
+    current = undefined; // blank line or heading ends the bullet
+  }
+
+  for (const check of checks) check.rule = check.rule.replace(/\s+/g, " ").replace(/\.$/, "");
+  return checks;
+}
+
 export function listStyles(dir: string = GUIDE_DIR): string[] {
   return readdirSync(dir)
     .filter((f) => f.endsWith(".md") && !f.startsWith("_") && f !== "README.md")

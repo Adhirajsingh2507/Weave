@@ -9,6 +9,7 @@ import { join } from "node:path";
 import { GitHarness } from "./runtime.js";
 import type { ContextPack, ExecInput, ExecResult, NodeExecutor } from "./runtime.js";
 import { runNode } from "./loop.js";
+import type { VerifyResult } from "./loop.js";
 import type { Verifier } from "./loop.js";
 
 function git(args: string[], cwd: string): string {
@@ -56,9 +57,9 @@ class WritingExecutor implements NodeExecutor {
 }
 
 const fileExists = (name: string): Verifier => ({
-  async verify(dir: string): Promise<{ ok: boolean; evidence: string[] }> {
+  async verify(dir: string): Promise<VerifyResult> {
     const ok = existsSync(join(dir, name));
-    return { ok, evidence: [`verify:${name}=${ok}`] };
+    return { ok, evidence: [{ kind: "structural", ok, detail: `${name}=${ok}` }] };
   },
 });
 
@@ -72,7 +73,7 @@ const okRes = await runNode({
 assert.equal(okRes.status, "complete");
 assert.ok(okRes.commit && okRes.commit.length >= 7);
 assert.ok(existsSync(join(repo, "hero.tsx"))); // present on the working branch
-assert.ok(okRes.evidence.includes("edit:hero.tsx"));
+assert.ok(okRes.evidence.some((e) => e.detail === "edit:hero.tsx"), "agent evidence kept");
 
 const commitsAfterSuccess = git(["rev-list", "--count", "HEAD"], repo);
 
@@ -80,7 +81,7 @@ const commitsAfterSuccess = git(["rev-list", "--count", "HEAD"], repo);
 const badRes = await runNode({
   harness,
   executor: new WritingExecutor("nav.tsx", "x"),
-  verifier: { async verify() { return { ok: false, evidence: ["verify:forced-fail"] }; } },
+  verifier: { async verify() { return { ok: false, evidence: [{ kind: "structural" as const, ok: false, detail: "forced fail" }] }; } },
   node: { id: "impl:nav", contextPack: ctx("build nav") },
   retryCap: 3,
 });

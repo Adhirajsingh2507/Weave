@@ -68,10 +68,14 @@ export function computeGaps(graph: DesignGraph): Gaps {
 
   const unrealizedDesign: NodeId[] = [];
   const orphanCode: NodeId[] = [];
+  // Only things an agent can build count as unrealized work. Requirements, criteria and
+  // package nodes live in the same graph but are not build targets — treating every
+  // non-code node as work made the fan-out plan a node per criterion.
+  const buildable = new Set<KgNode["kind"]>(["design", "asset"]);
   for (const n of graph.nodes) {
     if (n.kind === "code") {
       if (!realizedCode.has(n.id)) orphanCode.push(n.id);
-    } else if (!realizedDesign.has(n.id)) {
+    } else if (buildable.has(n.kind) && !realizedDesign.has(n.id)) {
       unrealizedDesign.push(n.id);
     }
   }

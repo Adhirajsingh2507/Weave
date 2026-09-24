@@ -41,7 +41,7 @@ const executor = {
 const verifier = {
   async verify(dir) {
     const ok = git(["status", "--porcelain"], dir).length > 0;
-    return { ok, evidence: [`verify:changes=${ok}`] };
+    return { ok, evidence: [{ kind: "structural", ok, detail: `worktree changed=${ok}` }] };
   },
 };
 

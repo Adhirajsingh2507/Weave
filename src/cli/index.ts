@@ -4,6 +4,7 @@
 import { parseArgs } from "node:util";
 import { readFileSync } from "node:fs";
 import { Engine } from "../core/api.js";
+import { renderReport } from "../core/report.js";
 import type { BriefInput } from "../core/compiler.js";
 import type { GateDecision, ProjectMode } from "../core/types.js";
 
@@ -15,6 +16,8 @@ const HELP = `weave <command>
   map                             infer code→design mappings (needs a decision provider)
   status                          show project status
   graph                           show gaps (unrealized-design + orphan-code)
+  report [--json] [--run <id>]    traceability: requirement → code → evidence, plus metrics
+  metrics [--json]                the five metrics for the latest run and the project
   gates                           list open human gates
   approve <id> [--notes ...]      resolve a gate (approve; resumes execution)
   reject  <id> [--notes ...]      resolve a gate (reject; fails the run)
@@ -33,6 +36,8 @@ async function main(): Promise<void> {
       ir: { type: "string" },
       name: { type: "string" },
       changed: { type: "boolean" },
+      json: { type: "boolean" },
+      run: { type: "string" },
     },
   });
 
@@ -75,6 +80,16 @@ async function main(): Promise<void> {
         break;
       }
       await engine.resolveGate(id, cmd as GateDecision, values.notes);
+      break;
+    }
+    case "report": {
+      const report = await engine.report(values.run);
+      console.log(values.json ? JSON.stringify(report, null, 2) : renderReport(report));
+      break;
+    }
+    case "metrics": {
+      const [run, project] = [await engine.metrics(values.run), await engine.projectMetrics()];
+      console.log(JSON.stringify({ run, project: { runs: project.runs, autonomousCompletionRate: project.autonomousCompletionRate } }, null, 2));
       break;
     }
     case "graph":

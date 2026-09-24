@@ -15,7 +15,8 @@ const passing = new DeterministicVerifier({
 });
 const good = await passing.verify(dir);
 assert.equal(good.ok, true);
-assert.match(good.evidence[0]!, /check:ok=pass/);
+assert.equal(good.evidence[0]!.ok, true);
+assert.match(good.evidence[0]!.detail, /passed/);
 
 // A failing check flips ok to false and captures output.
 const failing = new DeterministicVerifier({
@@ -26,7 +27,8 @@ const failing = new DeterministicVerifier({
 });
 const bad = await failing.verify(dir);
 assert.equal(bad.ok, false);
-assert.match(bad.evidence[1]!, /check:boom=fail/);
+assert.equal(bad.evidence[1]!.ok, false);
+assert.match(bad.evidence[1]!.detail, /boom failed/);
 
 // Evidence logs were written.
 assert.ok(readdirSync(dir).some((f) => f.startsWith("ok-")));

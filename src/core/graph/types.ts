@@ -4,7 +4,7 @@
 import type { NodeId } from "../types.js";
 
 /** Knowledge-graph node layers. Design nodes are projected from the canonical IR. */
-export type KgNodeKind = "design" | "code" | "asset" | "criterion" | "package";
+export type KgNodeKind = "design" | "code" | "asset" | "criterion" | "package" | "requirement";
 
 /** Fixed execution-graph skeleton stages; `impl` is the fan-out stage (one per unrealized design node). */
 export type ExecNodeKind =
@@ -34,7 +34,9 @@ export type EdgeKind =
   | "realizes" // code -> design
   | "realized_by" // design -> code
   | "depends_on" // code/package dependency (incl. cross-package)
-  | "belongs_to"; // node -> page/package
+  | "belongs_to" // node -> page/package
+  | "covers" // requirement -> design node it is about
+  | "verifies"; // criterion -> requirement it proves
 
 export interface Edge {
   from: NodeId;

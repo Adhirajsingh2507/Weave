@@ -184,7 +184,9 @@ img, video { max-width: 100%; height: auto; }
 
 function indexHtml(projectName: string, sections: string[]): string {
   const placeholders = sections
-    .map((s) => `    <section id="${s}" data-design-node="${s}"><!-- ${s}: not built yet --></section>`)
+    // data-placeholder is what lets verification tell "stubbed" from "built" — without it a
+    // no-op agent passes, because the scaffold already put the element on the page.
+    .map((s) => `    <section id="${s}" data-design-node="${s}" data-placeholder><!-- ${s}: not built yet --></section>`)
     .join("\n");
   return `<!doctype html>
 <html lang="en">
