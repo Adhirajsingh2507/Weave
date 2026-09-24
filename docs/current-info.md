@@ -2,7 +2,10 @@
 
 > Single source of truth for the **latest** decisions. When something changes, update it here and move the superseded version to `past-info.md`.
 
-_Last updated: 2026-09-19_
+_Last updated: 2026-09-24_
+
+> **Where things stand:** v1 is complete and archived. V2 is underway — phase V2.0 has shipped.
+> The phased plan lives in `implementation-v2.md`; the raw source lists in `v2-inputs.md`.
 
 ## What the project is
 A **graph-driven autonomous engineering platform** (**Weave**) that turns human intent + multimodal design inputs into software via bounded agent loops, with persistent state, evidence, and human gates.
@@ -87,6 +90,27 @@ The ultimate reference is **`../autonomous-engineering-universal-context.md`** (
 
 **#1 delivery-mode order:** CLI (done) → **MCP is the next and only additional adapter for now**; plugin + website deferred to future versions (order decided then).
 
+## V2 decisions (2026-09-22 → 24)
+| # | Decision | Value |
+|---|----------|-------|
+| 42 | Product identity | **Control and governance layer for AI coding agents**, web apps first. Agents execute; Weave governs, verifies, records. Restores canonical §4 ("the coding agent is a worker; the system is the engineering control plane"). |
+| 43 | V2 scope | **Canonical §116 minus multiple runtimes**, plus policy packs: KG + evaluators + parallel + deploy, graph UI, multimodal compiler, asset/3D pipeline. |
+| 44 | Sequencing | **Each subsystem carries its own defect fix.** No separate cleanup phase. |
+| 45 | Demo | A **running acceptance test** that must stay green at every phase, not a finale. Robotics landing page, style `futuristic`. |
+| 46 | Demo failure | **Natural**, from a strict check agents commonly miss; repair loop fixes it. Never faked. |
+| 47 | Agent runtimes | **Agnostic seam, Claude Code only.** Reverses #5 in contract but not in adapters — a second vendor is added only when something demands it. |
+| 48 | Agent boundaries | **Env scrub + the agent's native sandbox, OS sandbox as fallback.** Enforcement never lives in the prompt alone. |
+| 49 | Part 4 lists | **Selectable policy packs**: every item is a requirement told to the agent *and* a check Weave runs (automatic, model-judged, conditional, or human-only). |
+| 50 | Scaffold | **Built-in zero-dependency template with a command override.** Never touches an existing project. |
+| 51 | Style selection | **`style:` directive in the brief**, engine default when silent. Unknown slug fails at intake. |
+| 52 | Design system | **91 guides** in `design-guide/`, each with machine-readable tokens and style-specific checks (739 checks, ~86% deterministic). `_base.md` is the floor every style inherits. |
+| 53 | Guides vs pictures | **The guide is the spec.** Conflicting reference pictures get re-filed; a guide changes only by explicit decision (done twice: `ascii-art` rewritten, `minimalism` given variants). |
+| 54 | `.agent/` in git | **Commit the durable parts** (IR, requirements/criteria, evidence summaries, decision records); `state.db`, logs and screenshots stay out. Not yet implemented — V2.1. |
+| 55 | Repo | **Private** on GitHub; v1.0.0 flagged pre-release; CI runs build + all checks + the design validator on every push. |
+| 56 | Name and licence | **Deferred until launch.** `weave` on npm belongs to Weights & Biases; no licence while private. |
+| 57 | Jev | **Waitlisted.** Widen the `Decision` seam to typed multi-question calls and build the parity harness; adapter when access lands. |
+| 58 | Docs convention | Per `v2-inputs.md` item 80: keep `current-info.md` current, phase the plan, move superseded content to `past-info.md`. |
+
 ## Tech stack (locked)
 | Concern | Choice |
 |---|---|
@@ -121,18 +145,46 @@ Reliability (evidence-gated completion, graceful failure), scalability (no singl
 3. **Autonomy ≠ lack of control** — more autonomy demands stronger state, boundaries, evaluation, recovery, auditability.
 4. **Complexity must be earned** — simple loop for simple work; graph for cross-domain; multiple agents only when specialization/parallelism/isolation justify it.
 
-## Scaffold status
-Repo scaffolded (TypeScript, single package; extract to workspaces when MCP/web arrive). Built + verified: `pnpm build` clean, `pnpm check` (IR self-check) passes, CLI `init/status/help` work, unwired seams fail loudly. Git initialized on `main` (not committed).
-- **Implemented + self-checked (14 checks):** Design IR + projection; **SQLite store** (KG + runs + exec graph + gates); policy layer; **DecisionRunner** + `ClaudeDecision`/`FakeDecision`; **real `GitHarness`** (+ parallel worktrees) + `ClaudeCodeExecutor` + **`runNode` loop**; **DeterministicVerifier** + `BrowserWorker`(Playwright/fake) + hybrid `visualQA`; **Design Compiler** + exec-graph planner + **`Engine.run`/`resolveGate`/`cancel` orchestration** (sequential + parallel, gates, budget); **ingestion** (tree-sitter parse + sweep + workspace detection + code→design mapping); **MCP server** (`weave-mcp`); **gated deployment** (`Deployer` seam); event log; `.agent/` init (auto-gitignores).
-- **Runs end-to-end** (`pnpm demo`): run → design gate → fan-out (with repair) → pre-release gate → done, on real git, no creds.
-- **Needs credentials to run live (implemented, exercised via fakes):** `ClaudeDecision` (ANTHROPIC_API_KEY), `ClaudeCodeExecutor` (`claude` CLI), `PlaywrightBrowserWorker` (playwright dep).
-- **Progress: Phases 0–7 ✅ + Ingestion track ✅ + Post-V1 (MCP adapter, parallel worktrees, gated deployment) ✅.** §115 V1 DoD **met**. Remaining: #8 calibration (needs data), #10 Jev parity (needs access), monitoring/plugin/website. See `implementation-plan.md`.
-- Layout + quickstart in `../README.md`.
+## Status (2026-09-24)
+
+**v1:** complete. Phases 0–7 + ingestion + MCP + parallel worktrees + gated deployment; §115 DoD
+met. The v1 phase plan is archived in `past-info.md`.
+
+**V2.0:** shipped. A greenfield brief now produces a real, styled, verified build:
+
+- **Harness state persists** (working branch, base branch, stash flag), so a later process can
+  finish or cancel a run. The CLI flow used to strand the user on the weave branch with their
+  work in a stash.
+- **Gate history is kept** — sequenced ids, notes and `resolved_at`; notes reach the next
+  attempt's context pack.
+- **The graph learns**: completed nodes write code nodes and by-construction mapping edges, with
+  evidence and attempt counts per node. An identical re-run plans nothing.
+- **Parallelism is real** — the executor and verifier are async with timeouts (3×1s nodes:
+  3.3s → 1.3s), and agents run with a scrubbed environment.
+- **A scaffold node** creates a zero-dependency project before any agent, so `pnpm build` and
+  `pnpm check` mean something in a fresh worktree. It refuses to touch an existing project.
+- **Context packs carry the design guide** — tokens become `styles/tokens.css` and the agent is
+  told the rules its work will be judged against.
+
+**Design system:** 91 guides in `design-guide/`, 739 checks (~86% deterministic), 89 picture
+folders in `demo-design/`, validated by `scripts/check-design.mjs`.
+
+**Verification:** 18 self-checks plus the design validator, green locally and in CI on every
+push. `pnpm demo` runs end to end with no credentials.
+
+**Credentialed adapters** (implemented, exercised via fakes): `ClaudeDecision` (API key),
+`ClaudeCodeExecutor` (`claude` CLI), `PlaywrightBrowserWorker` (playwright).
+
+**Known gaps carried into V2.1:** evidence is still a string array rather than typed records;
+`listGates()` spans runs, so approving by index can pick a stale gate; `browser-qa` and
+`visual-qa` are marked `skipped`; the IR has no home for the guides' shape/motion/spacing tokens.
 
 ## Open (see `to-be-discussed.md`)
-Concept + scaffold + frameworks all done. Only data/access-blocked tails remain:
-- **#1** — resolved: CLI → MCP next; plugin/website are future versions (order later).
-- **#8** — framework implemented; real threshold *values* await calibration data.
-- **#10** — routing seam implemented; parity-harness *execution* awaits Jev access.
+- **#8** — escalation framework implemented; real threshold values await calibration data, which
+  V2.4 starts producing by putting the decision layer in the run path.
+- **#10 / #57** — provider routing implemented; Jev parity awaits access.
+- Metric definitions, default packs, deploy target, name and licence: see the open questions in
+  `implementation-v2.md`.
 
-Next real step (canonical §112/§114): **one end-to-end vertical slice** wiring the stubbed seams. See `to-be-discussed.md`.
+**Next:** V2.1 — requirements, criteria, typed evidence and the five metrics. Plan in
+`implementation-v2.md`.

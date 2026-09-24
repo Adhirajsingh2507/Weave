@@ -2,6 +2,119 @@
 
 > Archive of prior thinking and superseded decisions, newest first. Never delete — this is the paper trail.
 
+## 2026-09-24 — V2.0 shipped, and four defects caught in review
+
+Phase V2.0 of `implementation-v2.md`: make one real greenfield run possible, fixing the four
+reproduced defects on the way.
+
+- **Defect A — harness state was memory-only.** The documented CLI flow is separate invocations,
+  so the process approving the pre-release gate had no harness and never called `finish()`. The
+  user was left on the weave branch with their uncommitted work stranded in a stash; `cancel()`
+  had the same hole. `runs` gained `working_branch`, `base_branch` and `stashed` with an additive
+  migration; `GitHarness` gained `state`, `adopt()` and `attach()` so a later process re-attaches
+  instead of recomputing base from HEAD (which would have recorded the weave branch as base).
+- **Defect B — gate ids collided.** `runId:kind` written with `INSERT OR REPLACE` meant a second
+  failure gate erased the first's approval record. Ids are sequenced and inserted; gates carry
+  `notes` and `resolved_at`, and notes now reach the next attempt's context pack.
+- **Defect C — the graph never learned.** Nothing wrote design→code edges, so gaps stayed full
+  and an identical re-run re-planned finished work. Completed nodes now upsert code nodes and
+  by-construction mapping edges (falling back to the commit's file list), with evidence and
+  attempt counts persisted per node.
+- **Defect D — parallelism was fake.** `execFileSync` in the executor and verifier blocked the
+  event loop, so `concurrency: 3` ran one agent at a time. Both are async with timeouts now:
+  3×1s nodes went 3.3s → 1.3s. Agents also get a scrubbed environment.
+
+Plus the scaffold node (zero-dependency template, refuses to touch an existing project) and
+style-aware context packs (`style:` directive → one of 91 guides → `styles/tokens.css` + the
+rules the agent is judged on).
+
+**Found while reviewing that commit, before pushing:**
+1. `TemplateScaffolder` overwrote `package.json`, `index.html` and `.gitignore` unconditionally —
+   destructive in modify-existing mode, which is a supported project mode.
+2. The style cache was keyed per engine, not per slug, so a second run inherited the first's guide.
+3. Retries after a gate started blind; the context pack now seeds prior failures from recorded
+   evidence.
+4. An unknown style slug threw at execute time; `run()` validates it at intake.
+
+**Also fixed:** `.agent/` now ignores itself (the root `.gitignore` is auto-stashed mid-run, which
+let `git add -A` commit engine state into the user's history); `openGate` awaited its event
+instead of firing and forgetting. **Footgun noted:** `listGates()` spans runs, so approving by
+index can pick a stale gate.
+
+Checks went 15 → 18 (`resume`, `style`, `build`). CI green on every push.
+
+## 2026-09-23 — Design system: 91 style guides
+
+Turned the 93-entry preset list in `weave_changes.odt` into a working design system.
+
+- `design-guide/`: one guide per style with YAML tokens (palette, type, layout, shape, motion)
+  and style-specific checks — **739 checks, ~86% deterministic**. `_base.md` holds the floor every
+  style inherits (contrast, focus, target size, reduced motion, font budget, no fabricated
+  testimonials); style bends around it, never below.
+- `styles.json` reconciled 93 raw entries into 91 styles: 5 duplicate pairs merged, Atompunk and
+  Dieselpunk split, the 4 combination entries kept as full styles.
+- `demo-design/`: one picture folder per style; 32 references filed with provenance.
+- `scripts/check-design.mjs` validates structure; it caught two corrupted hex values and a stray
+  transparent black during authoring.
+
+**Changed by evidence.** Reference pictures showed two guides had been written too narrowly:
+`ascii-art` described a terminal while the references showed character rendering inside editorial
+layouts, so it was rewritten and `terminal-ui` split out; `minimalism` gained four variants
+(light, true-dark, grain, soft-gradient) because half the references failed its own checks. Six
+references clustered around a style the set lacked, which became `bold-editorial`.
+
+**Rule recorded:** the guide is the spec. Conflicting pictures get re-filed; a guide changes only
+by explicit decision.
+
+## 2026-09-22 — V2 direction set
+
+Reviewed `V2_planing.md` against the code and found the docs were ahead of the implementation:
+every green check drove a fake agent, and the real Claude path had never run. Four defects were
+reproduced on throwaway repos before any decision was taken.
+
+Decisions (now #42–58 in `current-info.md`): identity is the **control and governance layer for AI
+coding agents**, web first — which is canonical §4 restored, not a pivot. V2 scope is §116 minus
+multiple runtimes plus policy packs. Each subsystem carries its own defect fix. The demo is a
+running acceptance test. Part 4's lists become selectable packs where each item is a requirement
+*and* a check. Agent boundaries are enforced outside the prompt. Repo went private; v1.0.0 flagged
+pre-release; name and licence deferred until launch.
+
+**Superseded:** decision #5 ("Claude Code only") in contract — the `NodeExecutor` seam is now
+genuinely agnostic, though Claude Code remains the only adapter.
+
+## Archived — v1 implementation plan (phases 0–7), complete
+
+`implementation-plan.md` is retired; its content is preserved here. Every phase exited on evidence.
+
+- **Phase 0 — Scaffold & contracts.** Typed contracts, Design IR (Zod), graph kinds, state
+  machines, `Decision` seam, policy resolvers, `NodeExecutor` + `GitHarness` seams, event log,
+  `.agent/` init, CLI. Exit: build clean, checks pass, CLI works.
+- **Phase 1 — Knowledge front.** `projectIR` → design subgraph with stable ids, `computeGaps`,
+  `compileBrief`. Exit: brief → IR → design nodes → gaps, self-checked.
+- **Phase 2 — Persistence.** SQLite store over one `state.db` (`kg_nodes`, `edges`, `runs`,
+  `exec_nodes`), wired into `Engine`. Exit: cross-process demo — one process persists, a fresh
+  process reads it all back through the public API.
+- **Phase 3 — Decision provider.** `ClaudeDecision` (tool-forced structured output via `fetch`,
+  no SDK dep), `FakeDecision`, `DecisionRunner` with escalation and a JSONL corpus. Exit:
+  0.95→accept, 0.7→llm, 0.3→human, mapping stricter at 0.9.
+- **Phase 4 — Execution.** Real `GitHarness` (working branch, worktree per node, commit/discard,
+  auto-stash), `ClaudeCodeExecutor`, `runNode` loop with retry cap → escalate. Exit: on a real
+  temp repo, success commits and fast-forwards; forced failure retries 3× then discards.
+- **Phase 5 — Verification.** `DeterministicVerifier`, `BrowserWorker` seam with lazy Playwright,
+  hybrid `visualQA`. Exit: nodes verified by deterministic checks, evidence written.
+- **Phase 6 — Orchestration.** `buildExecGraph`, `Engine.run`/`resolveGate`/`cancel`, gates
+  persisted, budget ceiling. Exit: run → design gate → fan-out with repair → pre-release gate →
+  done, resumable.
+- **Phase 7 — First demo.** `pnpm demo` end to end with no credentials. §115 V1 DoD met.
+- **Ingestion track.** tree-sitter sweep, git-diff freshness, workspace detection, inferred
+  code→design mapping. Dogfooded on this repo.
+- **Post-V1.** MCP adapter, parallel worktrees, gated deployment.
+
+Two review passes during v1 fixed: a parallel halt that leaked worktrees and broke resume;
+QA nodes marked `complete` without running (now honestly `skipped`); a non-idempotent
+`createWorkingBranch`; a too-loose verifier; and the `.agent/` auto-stash collision.
+
+
 ## 2026-09-19 — Decisions: remaining open items (#1, #3, #5b, #6–#10) + audit close
 - **#5b Deployment = out of v1** — stop at verified build (working branch + evidence). RELEASE deferred to a later gated node. (Rejected in-v1 and flagged-optional.)
 - **#9 Model roster = all-Claude, procedural independence** — Claude for generation, vision-QA, Decision wrapper, and the independent criteria/evaluator passes (separate calls; independence is structural — criteria frozen pre-impl from intent — not model-level). Roster swappable via policies for a cross-model evaluator later. (Rejected cross-model-now and configurable-now as premature.) Residual same-family-blind-spot risk acknowledged.

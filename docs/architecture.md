@@ -2,7 +2,30 @@
 
 > The living architecture. Improve in place as decisions firm up. Reflects `current-info.md`.
 
-_Last updated: 2026-09-19_
+_Last updated: 2026-09-24_
+
+## What V2.0 changed
+
+The structure below still holds. These are the deltas, so read them first:
+
+- **A scaffold node** runs between ARCHITECTURE and the impl fan-out. It is a fixed, non-AI
+  template step that creates the project on the working branch, so impl nodes inherit something
+  that builds. It never touches an existing project.
+- **The design system feeds the loop.** `design-guide/<style>.md` supplies tokens (written into
+  the project as CSS variables) and machine-readable checks. Those checks are the first concrete
+  source of acceptance criteria, which until now had no implementation.
+- **Harness state is persisted** on the run (`working_branch`, `base_branch`, `stashed`), so a
+  later process can finish or cancel a run. Git remains the checkpoint mechanism; the difference
+  is that the record of it survives the process.
+- **Mapping edges are written by construction** when a node commits — the "new project → mapping
+  created by construction" path described below is now real, not aspirational.
+- **Execution is genuinely async.** The executor and verifier no longer block the event loop, so
+  the parallel worktree path actually overlaps; both carry timeouts.
+- **Gates keep history.** Ids are sequenced, notes are recorded and reach the next attempt.
+- **Naming.** "System One / System Two" is retained below for continuity with the canonical doc,
+  but is being retired in favour of **decision layer** and **execution layer** (phase V2.5).
+
+Phase plan: `implementation-v2.md`.
 
 ## Headless core + frontends
 The same engine must ship (eventually) as a Claude Code plugin, an MCP server, and a website. None of those *is* the engine — they are thin callers of one headless core.
@@ -369,19 +392,19 @@ All four on by default: **design approval** (human reviews the interpreted IR be
 - **Node:** `pending → ready → running → verifying → (complete | retry → blocked → escalated)`, plus `cancelled`. Encoded as `ProjectStatus` / `ExecNodeStatus` types in the scaffold.
 
 ## Repository layout (platform scaffold)
-Single TypeScript package for v1 (extract to a pnpm workspace — `apps/`, `packages/`, `workers/` per canonical §58 — when MCP/web/other-language workers arrive). Runs on Node ≥22.6 (target 24 LTS).
+Single TypeScript package (extract to a pnpm workspace per canonical §58 when other-language
+workers arrive). Runs on Node ≥22.6, targets 24 LTS. Current layout is listed in
+`information.md` §7; the short version:
+
 ```
-src/
-  index.ts          public core API surface (one stable contract)
-  core/
-    api.ts          Engine — commands / queries / events
-    types.ts        shared primitives + project state machine
-    ir/schema.ts    Design IR (Zod, canonical/versioned) + schema.check.ts self-check
-    graph/types.ts  KG + execution graph node/edge kinds + node state machine
-    decision/       Decision (System One) seam + v1 catalog
-    runtime.ts      NodeExecutor seam + GitHarness (sandbox)
-    state.ts        .agent/ layout init
-    events/         append-only event log + subscribe (§100 taxonomy)
-  cli/index.ts      first adapter (thin) over the core
+src/core/     api (Engine) · types · ir · graph · decision · policy · store · runtime
+              loop · verify · scaffold · design/style · browser · visual · compiler
+              plan · deploy · ingest · state · events
+src/mcp/      MCP server (weave-mcp)
+src/cli/      CLI adapter
+design-guide/ 91 style guides + _base.md floor + styles.json
+demo-design/  reference pictures per style
 ```
-Most execution paths are typed **seams** that throw "not wired yet" — per §112/§113: contracts and schemas before implementation, one vertical slice next.
+
+Seams that still need live credentials — `ClaudeDecision`, `ClaudeCodeExecutor`,
+`PlaywrightBrowserWorker` — are implemented and exercised via fakes in the 18 self-checks.

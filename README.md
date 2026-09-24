@@ -2,7 +2,17 @@
 
 A **graph-driven autonomous engineering platform** — turns human intent + multimodal design inputs into software via bounded agent loops, with persistent state, evidence, and human gates. (Package/CLI: `weave`; MCP: `weave-mcp`.)
 
-> **Status: v1.** End-to-end vertical slice is complete — intent → knowledge graph → gated autonomous build → verified result, with persisted state/evidence, tree-sitter ingestion, an MCP server, parallel worktrees, and gated deployment. **15 self-checks + `pnpm demo` green.** The credentialed adapters (Claude executor/decision, Playwright, real deploy) are implemented and exercised via fakes — set `ANTHROPIC_API_KEY` + the `claude` CLI for real builds (see below). Design docs live in `docs/` (start with `information.md`).
+> **Status: V2 underway, phase V2.0 shipped.** v1's vertical slice is complete (intent →
+> knowledge graph → gated build → verified result, with tree-sitter ingestion, an MCP server,
+> parallel worktrees and gated deployment). V2.0 added persisted harness state, kept gate
+> history, design→code edges written on commit, genuinely async parallel execution, a
+> zero-dependency scaffold step, and style-aware context packs drawn from **91 design guides**.
+> **18 self-checks + the design validator + `pnpm demo`, green in CI.** Credentialed adapters
+> (Claude executor/decision, Playwright, real deploy) are implemented and exercised via fakes —
+> set `ANTHROPIC_API_KEY` + the `claude` CLI for real builds (see below).
+>
+> Docs: start with `docs/information.md`; the plan is `docs/implementation-v2.md`. An
+> outcome-first rewrite of this README is phase V2.5.
 
 ## The idea in one breath
 - **Knowledge graph** = what the project *is* (design ↔ code, two layers joined by confidence-weighted mapping edges).
@@ -24,15 +34,27 @@ src/
     runtime.ts      NodeExecutor seam + GitHarness (sandbox)
     state.ts        .agent/ layout
     events/         append-only event log + subscribe
+    scaffold.ts     zero-dependency project template (runs before any agent)
+    design/style.ts reads design-guide/*.md → tokens, agent brief, checks
   cli/index.ts      first adapter (thin) over the core
-docs/               the living design (start with current-info.md)
+design-guide/       91 style guides + _base.md floor + styles.json
+demo-design/        reference pictures, one folder per style
+docs/               the living design (start with information.md)
 ```
+
+## Design system
+91 style guides, each carrying machine-readable tokens and style-specific checks (739 checks,
+~86% deterministic). A brief selects one with `style: swiss-design`; its tokens become the
+project's `styles/tokens.css`, and the agent is told the rules its work will be judged against.
+`design-guide/_base.md` is the floor every style inherits — contrast, focus, target size,
+reduced motion, font budget — which a style may exceed but never fall below.
 
 ## Quickstart
 ```bash
 pnpm install
 pnpm build
-pnpm check                       # 15 self-checks (IR, policy, store, loop, verify, ingest, orchestrator, parallel, deploy, mcp…)
+pnpm check                       # 18 self-checks (IR, policy, store, loop, verify, ingest, orchestrator, parallel, resume, style, build, deploy, mcp…)
+node scripts/check-design.mjs    # validates the 91 design guides + their picture folders
 pnpm demo                        # end-to-end pipeline on a throwaway repo (no creds)
 
 node dist/cli/index.js init      # create .agent/ (+ state.db) in cwd

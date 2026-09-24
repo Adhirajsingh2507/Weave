@@ -1,27 +1,54 @@
 # To Be Discussed
 
-> Open questions not yet decided. Move each to `current-info.md` / `architecture.md` once resolved.
+> Open questions not yet decided. Move each to `current-info.md` once resolved.
 
-_Last updated: 2026-09-19_
+_Last updated: 2026-09-24_
 
-## Still open / ongoing (data/access-blocked tails only)
-- **#1 — RESOLVED:** CLI → **MCP next** (v1's only additional adapter); plugin + website deferred to future versions (order decided then).
-- **#8 — framework done, values pending:** `resolveEscalation` + `ThresholdPolicy` implemented + self-checked; real per-type thresholds await **calibration data** from logged (name, confidence, outcome).
-- **#10 — seam done, execution pending:** `providerFor` + `ProviderPolicy` implemented; parity-harness *execution* awaits **Jev access**.
+## Needs a decision before the phase that uses it
 
-## Resolved (see current-info.md / architecture.md)
-- #2 Core API surface · #3 Design Compiler (incl. IR Zod schema, modality order, criteria-pass model) · #4 Acceptance-criteria independence · #5 Sandbox/execution env · #5b Deployment scope (out of v1) · #6 Ingestion grammars + monorepo (full multi-package) · #7 Decision-schema catalog · #9 Model roster (all-Claude, procedural independence).
-- Plus audit forks: execution-graph generation, run safety ceilings, default gates, decision provider.
+| # | Question | Needed by | Proposal |
+|---|---|---|---|
+| 1 | Do the five metric definitions hold — in particular, does design-approval count as human intervention? | V2.1 | It does not; it is a mandatory control point, not an intervention. |
+| 2 | Are requirements scoped per run or per project? | V2.1 | Per project, versioned with the IR. |
+| 3 | Which policy packs are on by default versus opt-in? | V2.2 | Security and a11y on; SEO and performance opt-in. |
+| 4 | Does a `severity: blocking` pack item fail the run or open a gate? | V2.2 | Open a gate — the human decides. |
+| 5 | Deploy target for the demo: Vercel, Netlify or Cloudflare Pages? | V2.4 | Vercel; the MCP connection already exists. |
+| 6 | Name and licence before any public launch. | before launch | `weave` on npm belongs to Weights & Biases. Decide after the demo. |
 
-## Scaffold — DONE
-Repo scaffolded + verified (build/check/CLI green), git on `main`, canonical-aligned. See `current-info.md` → Scaffold status and `../README.md`.
+## Blocked on access or data
 
-## Next candidates
-Per canonical §112/§114, the next real step is **one end-to-end vertical slice** wiring the currently-stubbed seams, in roughly this order:
-1. `state.db` (SQLite) + graph store behind the read queries.
-2. `Decision` provider (Claude structured-output wrapper).
-3. Design Compiler intake (text → IR → design-subgraph).
-4. `ClaudeCodeExecutor` (Agent SDK/headless) + `GitHarness` (working branch + worktree + commit/discard).
-5. Deterministic QA (build/test) → evidence → gate → resumable `run`.
+- **#8 — confidence thresholds.** The framework is implemented; real per-type values need
+  calibration data from logged `(name, confidence, outcome)`. V2.4 starts producing it by putting
+  the decision layer in the run path.
+- **#10 / #57 — Jev.** Provider routing is implemented and the parity harness is specified.
+  Waitlisted for early access. The seam also needs widening to Jev's shape: several typed
+  questions per call, with choice, score and boolean-probability primitives.
 
-First slice target (canonical §62/§93): a small "build a landing page" request driven through intake → graph → one impl node loop → deterministic QA → visual evidence → gate → verified build.
+## Design system
+
+- **`terminal-ui` has no reference pictures.** The six originally filed under `ascii-art` all
+  turned out to belong to the editorial character-rendering style. It needs its own: box-drawn
+  panels, phosphor on near-black, an 80-column measure, status output.
+- **`demo-design/` is mostly empty** — 5 of 91 folders have pictures.
+  `pinterest_website_design_inspiration.html` holds 92 cards of links, one per style, which is the
+  obvious source for filling the rest and for recording real source URLs in each `sources.md`.
+
+## Carried engineering gaps
+
+These are recorded in `implementation-v2.md` against the phase that fixes them, listed here so
+they are not lost:
+
+- Evidence is a string array, not typed records linked to criteria — V2.1.
+- `listGates()` spans runs, so approving by index can pick a stale gate from an earlier run.
+- `browser-qa` and `visual-qa` are marked `skipped`; the hybrid visual QA code exists but is
+  unwired — V2.7.
+- The IR has no home for the guides' `shape`, `motion` and `spacing` tokens — V2.6.
+- `ingest --changed` uses working-tree dirty files rather than a persisted since-last-ingest diff,
+  and deletions leave stale code nodes.
+
+## Resolved (see `current-info.md`)
+
+v1 items #1–#41, and V2 items #42–58: identity, V2 scope, sequencing, demo as acceptance test,
+natural demo failure, agent-runtime stance, boundary enforcement, packs, scaffold, style
+selection, the design system, guide-versus-pictures precedence, `.agent/` in git, repo privacy,
+and the docs convention.

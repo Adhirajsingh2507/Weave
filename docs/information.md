@@ -4,7 +4,11 @@
 >
 > **Ultimate source of truth:** `../autonomous-engineering-universal-context.md` (canonical, 123 sections). This project's docs are the *distilled decided layer* over it.
 
-_Last updated: 2026-09-19_
+_Last updated: 2026-09-24_
+
+> **V2 is underway.** Identity: the control and governance layer for AI coding agents, web
+> apps first — agents execute; Weave governs, verifies, records. Phase V2.0 has shipped. The
+> phased plan is `implementation-v2.md`; decisions #42–58 in `current-info.md`.
 
 ---
 
@@ -95,45 +99,67 @@ Project (§97): `draft→planning→executing→verifying→awaiting-approval→
 └── history/     execution-log.jsonl (append-only events + traces)
 ```
 
-## 7. Repository layout (platform scaffold)
-Single TS package for v1 (extract to workspace — apps/packages/workers per §58 — when MCP/web/other-lang workers arrive).
+## 7. Repository layout
+Single TS package for v1/V2.0 (extract to a workspace when other-language workers arrive).
 ```
 src/index.ts            public core API surface
 src/core/api.ts         Engine — run/resolveGate/cancel orchestration + reads + events
 src/core/types.ts       primitives + project/node state machines
 src/core/ir/schema.ts   Design IR (Zod) + schema.check.ts
-src/core/graph/types.ts KG + exec graph kinds + node state machine
-src/core/decision/      Decision seam + catalog; providers (ClaudeDecision/FakeDecision); DecisionRunner (+corpus)
-src/core/policy/        escalation resolver + provider routing (+ policy.check.ts)
-src/core/graph/project.ts  IR → design-subgraph projection + gaps (+ project.check.ts)
-src/core/store/         SQLite store (KG + runs + exec_nodes), better-sqlite3 (+ store.check.ts)
-src/core/runtime.ts     NodeExecutor seam + real GitHarness + ClaudeCodeExecutor
-src/core/loop.ts        node loop (execute→verify→record→repair, retry cap) + Verifier seam
-src/core/verify.ts      DeterministicVerifier (build/test → evidence)
+src/core/graph/         KG + exec graph kinds; IR → design-subgraph projection + gaps
+src/core/decision/      Decision seam + catalog; ClaudeDecision/FakeDecision; DecisionRunner
+src/core/policy/        escalation resolver + provider routing
+src/core/store/         SQLite store (KG, runs, exec_nodes, gates) — better-sqlite3
+src/core/runtime.ts     NodeExecutor seam, scrubbedEnv, real GitHarness, ClaudeCodeExecutor
+src/core/loop.ts        node loop (execute→verify→record→repair) + Verifier seam
+src/core/verify.ts      DeterministicVerifier (async, timeouts) → evidence
+src/core/scaffold.ts    scaffold node: zero-dependency template + command override
+src/core/design/style.ts  reads design-guide/*.md → tokens, brief, checks
 src/core/browser.ts     BrowserWorker seam + Playwright (lazy) + fake
 src/core/visual.ts      hybrid visual QA (extract → score → pixel re-check)
-src/core/compiler.ts    Design Compiler intake (brief → IR)
-src/core/plan.ts        exec-graph generation (skeleton + fan-out + release)
-src/core/deploy.ts      Deployer seam (CommandDeployer/FakeDeployer) — gated RELEASE
+src/core/compiler.ts    Design Compiler intake (brief → IR, incl. style: directive)
+src/core/plan.ts        exec-graph generation (skeleton + scaffold + fan-out + release)
+src/core/deploy.ts      Deployer seam — gated RELEASE
 src/core/ingest/        tree-sitter parse + repo sweep + code→design mapping
-src/mcp/                MCP server (weave-mcp) exposing the Engine as tools
-src/core/state.ts       .agent/ init (auto-gitignores .agent/)
-src/core/events/        event log (§100 taxonomy)
-src/cli/index.ts        first adapter (init/run/status/graph/gates/approve/reject/watch)
-examples/robotics-landing.brief   sample brief
-scripts/deploy.sh       auto-deploy to GitHub (private repo "Weave"; `pnpm ship`)
-scripts/demo.mjs        end-to-end pipeline demo (`pnpm demo`)
-```
-Phases 0–7 are wired end-to-end; the remaining "seams" that need live creds are the Claude/browser adapters (`ClaudeDecision`, `ClaudeCodeExecutor`, `PlaywrightBrowserWorker`), exercised via fakes.
+src/core/state.ts       .agent/ init (self-ignoring)
+src/core/events/        append-only event log
+src/mcp/                MCP server (weave-mcp)
+src/cli/index.ts        CLI adapter
 
-## 8. Scaffold status (Phases 0–7 + ingestion + MCP/parallel/deploy — V1 DoD met)
-Built + verified: `pnpm build` clean, **14 self-checks** pass (IR, policy, projection+gaps, store, decision-runner, node-loop, verifier, visual, orchestrator), `pnpm demo` runs end-to-end, CLI `init/run/status/graph/gates/approve/reject` work. Git on `main` (uncommitted). **Implemented for real:** contracts; Design IR + validation + projection; SQLite store (KG + runs + exec graph + gates, commit↔node) wired into `Engine` + CLI; policy resolvers; `DecisionRunner` + `ClaudeDecision`/`FakeDecision`; real `GitHarness` + `ClaudeCodeExecutor` + `runNode` loop; `DeterministicVerifier` + `BrowserWorker`(Playwright/fake) + hybrid `visualQA`; `compileBrief` + exec-graph planner + `Engine.run/resolveGate/cancel` orchestration with gates + budget; event log; `.agent/` init (auto-gitignores). **Proven:** cross-process persistence (P2); node loop over real git (P4); full run→gates→fan-out→repair→done on real git + `pnpm demo` (P6/P7); **§115 V1 success criteria met**. **Need credentials to run live (via fakes in tests):** `ClaudeDecision` (API key), `ClaudeCodeExecutor` (`claude` CLI), `PlaywrightBrowserWorker` (playwright dep).
+design-guide/           91 style guides + _base.md + styles.json (the design system)
+demo-design/            reference pictures, one folder per style
+docs/                   current-info, past-info, architecture, implementation-v2, v2-inputs
+examples/               robotics-landing.brief
+scripts/demo.mjs        end-to-end demo (`pnpm demo`)
+scripts/check-design.mjs  design-guide validator
+scripts/deploy.sh       GitHub sync (`pnpm ship`)
+.github/workflows/ci.yml  build + checks + design validator on every push
+```
+
+## 8. Status
+**v1:** complete (phases 0–7 + ingestion + MCP + parallel + gated deploy; §115 DoD met). The v1
+phase plan is archived in `past-info.md`.
+
+**V2.0:** shipped — persisted harness state, kept gate history with notes, design→code edges on
+commit, genuinely async parallel execution with timeouts, a zero-dependency scaffold node, and
+style-aware context packs drawn from the 91 design guides.
+
+**Design system:** 91 guides, 739 checks (~86% deterministic), 89 picture folders, validated by
+`scripts/check-design.mjs`.
+
+**Verification:** 18 self-checks + the design validator, green locally and in CI. `pnpm demo`
+runs end to end without credentials.
 
 ## 9. Open / ongoing
-- **#1** — resolved: MCP is the next adapter; plugin/website future versions.
-- **#8** — escalation framework implemented; real threshold values await calibration data.
-- **#10** — provider-routing seam implemented; parity-harness execution awaits Jev access.
-- Store impl for Phase 2: **resolved — better-sqlite3** (GraphStore implemented).
+- **#8** — escalation framework implemented; threshold values await calibration data, which V2.4
+  begins producing by putting the decision layer in the run path.
+- **#10 / #57** — provider routing implemented; Jev parity awaits early-access approval.
+- Metric definitions, default packs, deploy target, name and licence — see the open questions in
+  `implementation-v2.md`.
+- Carried gaps: evidence is a string array not typed records; `listGates()` spans runs; browser
+  and visual QA are `skipped`; the IR has no home for the guides' shape/motion/spacing tokens.
 
 ## 10. Build plan
-See `implementation-plan.md` — Phase 0 (scaffold) done; Phase 1 (knowledge front: IR→graph projection + gaps) in progress; then persistence → decision provider → execution → verification → orchestration → first demo.
+See **`implementation-v2.md`** — V2.0 done; V2.1 (requirements, criteria, evidence, metrics) next,
+then packs, parallel DAG, boundaries and deploy, explorer, multimodal compiler, assets and 3D,
+with the Jev track alongside.

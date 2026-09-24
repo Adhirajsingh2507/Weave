@@ -1,0 +1,505 @@
+# Implementation Plan — V2
+
+> The phased build plan for V2. Supersedes `implementation-plan.md` (v1 phases 0–7, complete;
+> archived in `past-info.md`).
+>
+> Sources: `../V2_planing.md` (the V2 brief), canonical §116 (V2 definition), `v2-inputs.md`
+> (the raw lists), and the decisions recorded in `current-info.md`.
+
+_Last updated: 2026-09-24_
+
+## What V2 is
+
+V2 is the canonical §116 list minus multiple runtimes, plus policy packs:
+
+```
+knowledge graph + evaluators + parallel + deploy    ← V2.0–V2.4
+visual graph UI                                     ← V2.5
+multimodal design compiler                          ← V2.6
+asset + 3D pipeline                                 ← V2.7
+policy packs (the weave_changes lists)              ← V2.2
+```
+
+**Multiple agent runtimes is excluded.** The `NodeExecutor` seam is made genuinely agnostic —
+async, timeouts, capabilities, enforcement outside the prompt — but Claude Code stays the only
+adapter until something demands a second one.
+
+### Rules that govern every phase
+
+1. **Each subsystem carries its own defect fix.** No separate cleanup phase; a subsystem lands
+   on solid ground or it doesn't land.
+2. **Exits are evidence, not opinion.** Every phase ends with a runnable check or a recorded
+   artefact. "Looks done" is not an exit.
+3. **The demo is a running acceptance test.** It must stay green at every phase and grows with
+   them. See [Demo](#the-demo-as-acceptance-test).
+4. **Deterministic before judged.** A model-scored check is only acceptable where no
+   deterministic check exists.
+5. **The design guide is the spec.** When reference pictures disagree with a guide, the pictures
+   get re-filed; the guide changes only by explicit decision.
+
+### Phase dependencies
+
+```
+V2.0 ✅ ──┬─► V2.1 ──┬─► V2.2 ──┐
+          │          │          ├─► V2.5 ──► V2.6 ──► V2.7
+          ├─► V2.3 ──┘          │
+          └─► V2.4 ─────────────┘
+                     Jev track runs alongside, gated on access
+```
+
+V2.1 is the spine: packs, the explorer and the metrics all read the evidence chain it builds.
+V2.3 and V2.4 are independent of V2.1 and can be reordered.
+
+---
+
+## V2.0 — A real run ✅ DONE
+
+**Goal.** Make one real greenfield run possible end to end, fixing the four reproduced defects
+on the way.
+
+**Shipped.**
+- Harness state (`working_branch`, `base_branch`, `stashed`) persists on the run, so a later
+  process can finish or cancel it. Previously the CLI flow stranded the user on the weave branch
+  with their work in a stash.
+- Gate ids are sequenced and inserted, never replaced, so history survives. Gates carry `notes`
+  and `resolved_at`, and notes reach the next attempt's context pack.
+- Completed nodes write code nodes and by-construction mapping edges, with evidence and attempt
+  counts persisted per node. Gaps shrink as work completes; an identical re-run plans nothing.
+- `ClaudeCodeExecutor` and `DeterministicVerifier` are async with timeouts (3×1s nodes: 3.3s →
+  1.3s) and agents get a scrubbed environment.
+- A scaffold node runs a zero-dependency template before any agent, so `pnpm build` and
+  `pnpm check` mean something in a fresh worktree. It refuses to touch an existing project.
+- The context pack carries the chosen design guide: `style:` in the brief selects one of 91
+  guides, its tokens become `styles/tokens.css`, and the agent is told the rules it is judged on.
+
+**Also fixed:** `.agent/` now ignores itself (the root `.gitignore` is auto-stashed mid-run,
+which let `git add -A` commit engine state); `openGate` awaits its event.
+
+**Checks added:** `resume.check`, `style.check` (parses all 91 guides, 757 checks),
+`build.check` (greenfield with real scaffolder and real verifier). **18 checks, CI green.**
+
+**Known gaps carried forward:** evidence is still a string array rather than typed records;
+`listGates()` spans runs, so approving by index can hit a stale gate; `browser-qa` and
+`visual-qa` are still marked `skipped`.
+
+---
+
+## V2.1 — Requirements, criteria, evidence, metrics
+
+**Goal.** Every requirement traceable: requirement → design → code → criterion → evidence →
+commit → approval. Canonical §65 calls this potentially the strongest differentiator, and none
+of it exists yet.
+
+**Why now.** Packs, the explorer, the benchmark and all five metrics read this chain. Building
+any of them first means building them twice.
+
+### Tasks
+
+1. **Requirement nodes.** Add `requirement` and `evidence` to `KgNodeKind`, and `satisfied_by`
+   / `verifies` to `EdgeKind` (`src/core/graph/types.ts`). Requirements are minted from three
+   sources: each IR design element ("the hero exists and is visible"), each `constraints` entry
+   in the IR, and later each applicable pack item.
+   _Files:_ `graph/types.ts`, `graph/project.ts`, `store/graph-store.ts`.
+2. **Criteria pass** (`src/core/criteria.ts`). Independent of both compiler and implementer
+   (decision #25), frozen before implementation. v1 sources criteria deterministically:
+   - the floor from `design-guide/_base.md`,
+   - the `checks` array of the run's style guide (already machine-readable),
+   - IR-derived structural criteria (page routes exist, named components present).
+   An LLM-assisted pass is the documented upgrade, not the starting point.
+3. **Typed evidence records.** New `evidence` table: `id, run_id, node_id, criterion_id, kind
+   (build|test|dom|visual|pack|deploy), ok, detail, artifact_path, ts`. `Verifier` returns
+   structured results instead of strings; `loop.ts` threads them; `exec_nodes.evidence` keeps a
+   denormalised summary for cheap reads.
+   _Files:_ `store/graph-store.ts`, `verify.ts`, `loop.ts`, `api.ts`.
+4. **Attempts table.** `run_id, node_id, attempt, started_at, ended_at, executor, exec_ok,
+   verify_ok, evidence_ids`. This is what makes first-pass and repair rates real rather than
+   inferred.
+5. **Metrics module** (`src/core/metrics.ts`) implementing the five definitions below.
+6. **Reporting.** `Engine.report(runId)` returning the traceability chain plus metrics; CLI
+   `weave report [--json]`.
+
+### Metric definitions (proposed — vetoable)
+
+| Metric | Definition |
+|---|---|
+| Autonomous completion rate | runs reaching `done` opening no gates beyond the two mandatory ones (design-approval, pre-release) ÷ total runs |
+| Human intervention rate | gates opened beyond the mandatory two ÷ impl nodes, per run |
+| First-pass verification rate | impl nodes with `attempts == 1` ÷ impl nodes |
+| Repair success rate | impl nodes that failed ≥ once and later completed ÷ impl nodes that failed ≥ once |
+| Evidence coverage | requirements with ≥ 1 linked evidence record ÷ total requirements |
+
+Each is computed per run and as a rolling figure across runs in `state.db`.
+
+### Exit criteria
+
+- For a demo run, `weave report` prints every requirement with its design node, code files,
+  criteria, evidence records, commit and approving gate. No requirement is orphaned.
+- All five metrics compute from persisted state, not from logs.
+- Evidence coverage on the demo run is 100% for structural requirements.
+
+### Checks to add
+
+- `criteria.check` — criteria are minted before any impl node runs, and are stable across a
+  re-run of the same IR.
+- `evidence.check` — a passing node and a failing node both produce typed evidence linked to a
+  criterion.
+- `metrics.check` — a fixture run with known shape (one node failing twice then passing)
+  produces the exact expected five numbers.
+- `traceability.check` — every requirement in a completed run resolves to code + evidence.
+
+### Risks
+
+- **Criteria explosion.** A style guide contributes 8–10 checks and packs will add dozens.
+  Mitigation: applicability filtering (V2.2) and per-criterion `severity`.
+- **Evidence volume.** Screenshots and logs are large. Mitigation: artefacts on disk under
+  `.agent/evidence/`, rows hold paths.
+- **Double-counting.** The same rule can arrive from `_base.md` and a pack. Mitigation:
+  criterion ids are namespaced and deduplicated on mint.
+
+### Open questions
+
+- Do requirements live per run or per project? (Proposal: per project, versioned with the IR.)
+- Are the metric definitions above right, particularly whether design-approval counts as
+  intervention? (Proposal: it does not; it is a mandatory control point.)
+
+---
+
+## V2.2 — Policy packs
+
+**Goal.** Turn the `weave_changes` lists (20 pre-launch, 70 security, 79 features, 19 UX laws)
+into selectable packs where every item is *both* a requirement told to the agent and a check
+Weave runs.
+
+### Tasks
+
+1. **Pack format** (`packs/<name>/pack.json`): items of
+   `{ id, requirement, check: { kind, runner, args }, applies_when, severity, evidence_hint }`.
+2. **Runner registry** (`src/core/packs/runners/`): `file-exists`, `html-assert`,
+   `http-header`, `dom-query` (Playwright), `lighthouse`, `dep-audit`, `secret-scan`,
+   `judged` (decision layer). Every runner returns a typed evidence record.
+3. **Applicability.** Conditions evaluated against the IR and code graph: `hasAuth`,
+   `hasPayments`, `hasForms`, `hasDatabase`, `isStatic`. Payment items must not fire on a
+   brochure site — that is the difference between a useful pack and noise.
+4. **Starter packs**, drawn from `v2-inputs.md`:
+   - `web-security` — headers, cookie flags, CORS, secrets in git/JS, dependency audit.
+   - `seo` — titles, meta descriptions, canonical, sitemap, robots, one h1, alt text, og:image.
+   - `a11y` — the `_base.md` floor plus measurable UX laws (target size, nav item counts).
+   - `performance` — Lighthouse budgets, image weight, font budget, render-blocking.
+5. **Human-only items.** Backlink strategy, Search Console verification and similar are listed
+   as a checklist in the report and never silently marked passed.
+6. **CLI/MCP.** `weave packs list`, `weave packs add <name>`, pack selection in the brief.
+
+### Exit criteria
+
+- The demo run shows pack results as evidence, and a failing pack item drives a repair loop that
+  the report records.
+- An item that does not apply (a payments rule on a static site) is recorded as `not-applicable`
+  with its reason, not as a pass.
+- Human-only items appear as an explicit outstanding checklist.
+
+### Checks to add
+
+- `packs.check` — a fixture site that deliberately violates known items produces exactly the
+  expected failures; a fixed version passes.
+- `applicability.check` — payment and auth items do not fire on a static brochure IR.
+
+### Risks
+
+- **Tool weight.** Playwright and Lighthouse are heavy and are optional dependencies today.
+  Mitigation: runners degrade to `unavailable` evidence rather than failing the run, and CI runs
+  only the dependency-free runners.
+- **False positives** erode trust faster than missing checks. Mitigation: every pack item ships
+  with a fixture proving both directions.
+
+### Open questions
+
+- Which packs are on by default versus opt-in?
+- Does a `severity: blocking` item fail the run, or only open a gate? (Proposal: gate.)
+
+---
+
+## V2.3 — Parallel as a real DAG
+
+**Goal.** Dependencies, shared contracts, file ownership and conflict handling — so parallelism
+is a property of the graph rather than a batch size.
+
+**Why.** V2.0 made concurrency genuinely concurrent, but every impl node still runs in one
+undifferentiated batch, and nothing stops two agents editing the same file.
+
+### Tasks
+
+1. **Dependency edges in the exec graph.** `ExecNode.dependsOn: NodeId[]`; the planner derives:
+   `scaffold → components → pages (a page depends on its section components) → integration`.
+   _Files:_ `graph/types.ts`, `plan.ts`, `api.ts` scheduler.
+2. **Topological scheduler.** Batches computed from the DAG, `concurrency` caps batch width.
+   Replaces the current "all impl nodes at once".
+3. **Shared contract by construction.** Component nodes write `sections/<id>.html` fragments and
+   own only their own files; `index.html`, `styles/tokens.css` and `styles/base.css` are shared
+   and writable only by the scaffold and integration nodes. Most conflicts disappear rather than
+   being resolved.
+4. **File ownership enforcement.** Each node declares `owns: string[]`; changed files outside the
+   set fail verification with a clear message. Cheap, deterministic, and catches a whole class of
+   agent overreach.
+5. **Conflict handling.** On merge conflict: rebase the node branch onto the new tip and re-run
+   verification once; escalate to a gate only if it fails again. Today it goes straight to a gate
+   and resets the batch.
+6. **Integration node earns its name** — assembles fragments into `index.html`, runs the shared
+   checks.
+
+### Exit criteria
+
+- N components build concurrently with zero merge conflicts on the demo brief.
+- A deliberately conflicting node is auto-rebased once and then succeeds, with both attempts in
+  the evidence trail.
+- A node writing outside its ownership set fails verification, and the report says which file.
+- Wall-clock for the demo drops measurably versus sequential, recorded in the report.
+
+### Checks to add
+
+- `dag.check` — declared dependencies are respected; a page never starts before its components.
+- `ownership.check` — an out-of-bounds write fails with the offending path.
+- `conflict.check` — a forced conflict resolves by rebase without human involvement.
+
+### Risks
+
+- **Fragment assembly changes the template**, so `scaffold.ts` and the demo move together.
+- **Ownership too strict** blocks legitimate shared edits. Mitigation: shared files are edited by
+  designated nodes, not forbidden outright.
+
+---
+
+## V2.4 — Boundaries and deploy
+
+**Goal.** Enforcement that lives outside the prompt, and a release step that can hold a secret
+an agent never sees.
+
+### Tasks
+
+1. **Sandbox** (`src/core/sandbox.ts`). Native-first: Claude Code's own permission rules and
+   sandbox where available; OS fallback wrapping any agent in bubblewrap on Linux. Capability
+   declaration on `NodeExecutor` (`canShell`, `canNetwork`, `sandboxed`).
+2. **Filesystem enforcement.** The `permissions.deny` globs in the context pack become real:
+   secrets are unreadable from inside the sandbox, not merely discouraged in a prompt sentence.
+3. **Network policy.** Allowlist plus an audit record of outbound hosts per node, stored as
+   evidence.
+4. **Risky-op gates.** Classify each node diff — dependency changes, migrations, deletions,
+   anything secret-shaped — via `risk.classifyOperation`, and open a `risky-op` gate. This is the
+   first real use of the decision layer inside the run path, which also starts the corpus the Jev
+   parity harness needs.
+5. **Release.** Deploy token injected only into the release step's environment; post-deploy checks
+   re-run the relevant packs against the live URL; deployment evidence records URL, commit and
+   check results.
+
+### Exit criteria
+
+- A check proves an agent cannot read `.env` from inside a node, on this machine.
+- A node that adds a dependency opens a `risky-op` gate naming the package.
+- The demo deploys only after approval and records post-deploy evidence against the live URL.
+- The decision corpus has real entries from a real run.
+
+### Checks to add
+
+- `sandbox.check` — deny-listed file reads fail inside the sandbox; skipped with a recorded
+  reason where the backend is unavailable.
+- `risky-op.check` — a diff adding a dependency opens a gate; a cosmetic diff does not.
+- `deploy-evidence.check` — a fake deployer produces evidence linked to the release node.
+
+### Risks
+
+- **bubblewrap is Linux-only** and may be absent. Mitigation: capability detection, and the check
+  records "unavailable" rather than passing quietly.
+- **Sandboxing breaks tooling** — dev servers and Playwright need care. Mitigation: the browser
+  worker runs outside the agent sandbox, against built output.
+
+---
+
+## V2.5 — Graph explorer, README, benchmark
+
+**Goal.** Make the work visible and quantified — the two things V2_planing asks for that no
+amount of architecture supplies.
+
+### Tasks
+
+1. **Static explorer.** `weave report --html` renders one self-contained file from `state.db`:
+   intent → design → code → criteria → evidence → commits → gates, plus the metrics and a
+   failure/repair timeline. Static first because it works offline, attaches to a PR, and needs no
+   server.
+2. **README rewrite**, outcome-first: problem → solution → demo → differentiation → architecture
+   → quickstart. Jargon deferred until after the concept; "System One/Two" renamed to decision
+   layer and execution layer throughout the docs.
+3. **Benchmark harness** (`scripts/benchmark.mjs`): same brief, two arms — a single agent session
+   versus a governed Weave run — scored by **third-party tools only** (Lighthouse, axe,
+   dependency audit, secret scan), never by Weave's own judged checks. N runs per arm, variance
+   reported.
+
+### Exit criteria
+
+- One HTML file tells the whole story of a run without explanation.
+- A reader who has never seen the project can state what Weave does after the first screen of the
+  README.
+- The benchmark produces a table with an independent scorer and honest variance, including runs
+  where Weave loses.
+
+### Checks to add
+
+- `report-html.check` — the generated file is self-contained, opens without network access, and
+  contains every requirement in the run.
+
+### Risks
+
+- **Benchmark bias** is the serious one: Weave's checks grading both arms would be worthless.
+  Mitigation: third-party scorers only, and publish the losing runs.
+- **Explorer scope creep** toward an interactive editor. Canonical §94 warns against exactly
+  that; it stays a read-only report until something forces otherwise.
+
+---
+
+## V2.6 — Multimodal compiler and presets in MCP
+
+**Goal.** Replace the line-directive parser with real intake, and expose the 91 style guides
+through MCP so a style can be chosen by example.
+
+### Tasks
+
+1. **IR schema extension** — the guides carry `shape`, `motion` and `spacing` tokens that the IR
+   has no home for. Extend `ir/schema.ts` so the compiler can consume what the design system
+   already produces. **This is a known gap recorded during the design-system work.**
+2. **Screenshot intake.** Vision pass extracts structured facts → decision layer normalises enum
+   fields with confidence → low confidence opens a gate (decision #24).
+3. **URL intake**, then Figma via the existing MCP connection.
+4. **Preset resources.** The 91 guides exposed as MCP resources with their reference pictures, so
+   a client can browse and select. `demo-design/` becomes vision input rather than only human
+   reference.
+5. **Style suggestion.** Given a brief, propose 3 candidate styles with reasons, from `best_for`
+   and `avoid_for`.
+
+### Exit criteria
+
+- A brief that is "this screenshot plus two sentences" produces a valid IR and a styled build.
+- Low-confidence field interpretations open a gate rather than guessing silently.
+- An MCP client can list styles, see pictures, and select one.
+
+### Checks to add
+
+- `intake-vision.check` — with a recorded vision response, a screenshot produces the expected IR
+  fields and confidences.
+- `ir-tokens.check` — every token key used by the 91 guides has an IR home.
+
+### Risks
+
+- **Vision variance** makes checks flaky. Mitigation: recorded fixtures in checks, live calls only
+  in the demo.
+- **IR churn** ripples into projection and mapping. Mitigation: extend, never rename; IR is
+  versioned.
+
+---
+
+## V2.7 — Assets and 3D
+
+**Goal.** Assets as first-class graph entities with budgets, and the 3D path the canonical vision
+keeps asking for.
+
+### Tasks
+
+1. **Asset registry.** Asset nodes already exist as a `KgNodeKind`; give them budgets
+   (`sizeBytes`, `dims`), provenance and an optimisation step.
+2. **Stop treating assets as build tasks.** Today an asset becomes an impl node and an agent is
+   told to "build robot" for a `.glb`. Assets get an acquisition/optimisation node instead.
+3. **3D handling.** `.glb` placement, poly/size budget enforcement, a still render for visual QA.
+4. **Visual QA of placement** — the hybrid path exists in `visual.ts` but is unwired; connect it
+   to the browser worker and the criteria from V2.1.
+
+### Exit criteria
+
+- The robotics brief's `robot.glb` ships within budget, placed, with visual evidence.
+- No agent is ever asked to "build" an asset.
+
+### Checks to add
+
+- `assets.check` — an over-budget asset fails with its measured size.
+- `visual-placement.check` — with a fake browser worker and recorded vision, placement criteria
+  score correctly.
+
+### Risks
+
+- **3D is the least connected to the governance thesis.** It is last for that reason, and is the
+  first thing to cut if the demo needs the time.
+
+---
+
+## Jev track (parallel, access-gated)
+
+**Blocked on:** early-access approval. Waitlisted as of the last check.
+
+1. **Widen the `Decision` seam** to match Jev's shape: several typed questions per call, with
+   `choice`, `score` and boolean-probability primitives. Today it is one string-choice question
+   per call, which cannot express Jev's strengths and wastes its parallel sampler.
+2. **Fill the corpus.** V2.4 puts the decision layer in the run path, which is what makes replay
+   possible at all — today the corpus would be empty.
+3. **Parity harness.** Record → replay through Jev → compare agreement and calibration per
+   decision type against `ProviderPolicy` tolerances (0.95 agreement, 0.05 calibration error).
+4. **Per-type swap behind the existing flag**, with rollback on live regression.
+
+**Exit:** a parity report per decision type; no caller changes when a type swaps.
+
+---
+
+## The demo as acceptance test
+
+One project — the robotics landing page from `examples/robotics-landing.brief`, style
+`futuristic` — kept green from here to the end. It grows with each phase:
+
+| Phase | The demo must additionally show |
+|---|---|
+| V2.0 ✅ | Scaffold, styled build, gates honoured, resumable across processes |
+| V2.1 | `weave report` with a full traceability chain and the five metrics |
+| V2.2 | A pack failure driving a repair, and a not-applicable item explained |
+| V2.3 | Components building concurrently; a conflict auto-rebased |
+| V2.4 | A risky-op gate on a dependency change; deploy after approval |
+| V2.5 | The HTML explorer, and a benchmark table against a plain agent run |
+| V2.6 | A screenshot as intake |
+| V2.7 | The 3D asset placed within budget |
+
+**Failure staging: natural.** The demo's failure comes from a strict check agents commonly miss
+— one `h1` per page, zero console errors, or a mobile Lighthouse threshold — and the repair loop
+fixes it. Honest, and it exercises the same path a real failure would. It is not guaranteed on
+every run; if a recording happens to produce a clean pass, the recording is re-run rather than
+the failure faked.
+
+---
+
+## Risk register
+
+| Risk | Where | Mitigation |
+|---|---|---|
+| Real agent runs cost money and vary | every phase from V2.1 | Checks use fakes and recorded fixtures; live runs are for the demo and benchmark only |
+| Criteria and pack items multiply into noise | V2.1, V2.2 | Applicability conditions, severity, deduplicated namespaced ids |
+| Optional heavy deps (Playwright, Lighthouse) | V2.2, V2.4 | Runners degrade to `unavailable` evidence; CI runs the dependency-free set |
+| Benchmark grading itself | V2.5 | Third-party scorers only; losing runs published |
+| Sandbox backend unavailable | V2.4 | Capability detection; checks record "unavailable" rather than passing |
+| Scope drift toward a graph editor | V2.5 | Read-only report; canonical §94 |
+| 3D absorbing the schedule | V2.7 | Last, and first to cut |
+
+## Open questions
+
+1. Metric definitions — is design-approval an intervention? (Proposal: no.)
+2. Requirements per run or per project? (Proposal: per project, versioned with the IR.)
+3. Which packs default on?
+4. Does a blocking pack item fail the run or open a gate? (Proposal: gate.)
+5. Deploy target for the demo — Vercel, Netlify, Cloudflare Pages?
+6. Name and licence before any public launch (repo is private; `weave` is taken on npm).
+7. `terminal-ui` still has no reference pictures.
+
+## Status
+
+| Phase | State |
+|---|---|
+| V2.0 Real run | ✅ done, CI green |
+| V2.1 Requirements, criteria, evidence, metrics | next |
+| V2.2 Policy packs | planned |
+| V2.3 Parallel DAG | planned |
+| V2.4 Boundaries and deploy | planned |
+| V2.5 Explorer, README, benchmark | planned |
+| V2.6 Multimodal compiler and presets | planned |
+| V2.7 Assets and 3D | planned |
+| Jev track | blocked on access |
