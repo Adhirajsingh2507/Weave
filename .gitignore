@@ -3,3 +3,6 @@ dist/
 .agent/
 *.tsbuildinfo
 *.log
+
+# LibreOffice lock files
+.~lock.*#
