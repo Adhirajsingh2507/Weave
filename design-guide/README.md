@@ -62,10 +62,11 @@ whatever was collected. Two deliberate exceptions have been made so far, both af
 real references: `ascii-art` was rewritten (and `terminal-ui` split out of it), and `minimalism`
 gained variants.
 
-**Open gap:** six references collected under `maximalism` share one pattern — a single loud
-colour, huge condensed type, cut-out imagery on cream, strict grid. No guide in the set covers
-it. `editorial` is serif and magazine-shaped; `swiss-design` forbids the scale and the imagery.
-It probably wants its own slug (working name: bold-editorial). Undecided.
+A third change came from the same review: six references filed under `maximalism` shared a
+pattern no guide covered — one loud colour, poster-scale type, cut-out imagery on cream, visible
+grid. That became `bold-editorial`, and the references moved with it. Adding a style is the
+right response when references cluster around something the set genuinely lacks; rewriting an
+existing guide to absorb them is not.
 
 ## Adding a style
 

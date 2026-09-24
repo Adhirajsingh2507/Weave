@@ -1,10 +1,11 @@
 {
   "version": 1,
   "source": "weave_changes.odt — 'preset design and templates' list (93 entries)",
-  "note": "93 raw entries became 90 styles: 5 duplicate pairs merged (pop art, graffiti, aurora, bauhaus, surreal/surrealism), 'Atompunk, Dieselpunk' split into two, the 4 combination entries kept as full styles, and terminal-ui split out of ascii-art after reference pictures arrived. Slugs are the contract: the guide is design-guide/<slug>.md and the pictures are demo-design/<slug>/. status: ready = written + checkable, draft = written, stub = name only.",
+  "note": "93 raw entries became 91 styles: 5 duplicate pairs merged (pop art, graffiti, aurora, bauhaus, surreal/surrealism), 'Atompunk, Dieselpunk' split into two, the 4 combination entries kept as full styles, terminal-ui split out of ascii-art, and bold-editorial added — both after reference pictures arrived. Slugs are the contract: the guide is design-guide/<slug>.md and the pictures are demo-design/<slug>/. status: ready = written + checkable, draft = written, stub = name only.",
   "styles": [
     { "slug": "minimalism", "title": "Minimalism", "status": "ready" },
     { "slug": "maximalism", "title": "Maximalism", "status": "ready" },
+    { "slug": "bold-editorial", "title": "Bold Editorial", "aliases": ["poster web", "one-colour editorial"], "status": "ready", "note": "added after reference pictures showed a pattern no existing guide covered" },
     { "slug": "futuristic", "title": "Futuristic", "status": "ready" },
     { "slug": "vector-art", "title": "Vector Art", "status": "ready" },
     { "slug": "collage-art", "title": "Collage Art", "status": "ready" },
