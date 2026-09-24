@@ -6,7 +6,7 @@
 // work offline, in CI, and inside a fresh worktree.
 
 import { execFile } from "node:child_process";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
 import { styleTokensCss } from "./design/style.js";
@@ -40,6 +40,12 @@ function write(repoPath: string, rel: string, body: string, files: string[]): vo
   files.push(rel);
 }
 
+/** Never clobber something the user already has. */
+function writeIfAbsent(repoPath: string, rel: string, body: string, files: string[]): void {
+  if (existsSync(join(repoPath, rel))) return;
+  write(repoPath, rel, body, files);
+}
+
 /**
  * Default scaffolder: a dependency-free static site whose `check` script asserts the
  * structural rules every style inherits from _base.md.
@@ -51,6 +57,20 @@ export class TemplateScaffolder implements Scaffolder {
     const { repoPath, projectName, style, sections = [] } = input;
     const files: string[] = [];
 
+    // tokens.css is generated from the design guide and owned by Weave, so it is the one
+    // file that is always (re)written.
+    write(repoPath, "styles/tokens.css", style ? styleTokensCss(style) : DEFAULT_TOKENS, files);
+
+    // Modify-existing mode is a supported project mode (decision #4). Scaffolding over a
+    // real project would destroy its package.json, entry point and .gitignore, so the
+    // template only ever creates a project where there isn't one.
+    if (existsSync(join(repoPath, "package.json"))) {
+      return {
+        files,
+        summary: `existing project kept; wrote styles/tokens.css${style ? ` for ${style.title}` : ""}`,
+      };
+    }
+
     write(repoPath, "package.json", `${JSON.stringify({
       name: projectName.toLowerCase().replace(/[^a-z0-9-]/g, "-") || "site",
       private: true,
@@ -60,10 +80,9 @@ export class TemplateScaffolder implements Scaffolder {
 
     write(repoPath, "scripts/build.mjs", BUILD_SCRIPT, files);
     write(repoPath, "scripts/check.mjs", CHECK_SCRIPT, files);
-    write(repoPath, "styles/tokens.css", style ? styleTokensCss(style) : DEFAULT_TOKENS, files);
     write(repoPath, "styles/base.css", BASE_CSS, files);
-    write(repoPath, "index.html", indexHtml(projectName, sections), files);
-    write(repoPath, ".gitignore", "node_modules/\ndist/\n", files);
+    writeIfAbsent(repoPath, "index.html", indexHtml(projectName, sections), files);
+    writeIfAbsent(repoPath, ".gitignore", "node_modules/\ndist/\n", files);
 
     return {
       files,

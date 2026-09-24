@@ -86,12 +86,59 @@ const gaps = await engine().gaps();
 assert.deepEqual(gaps.unrealizedDesign, [], "design nodes should no longer be unrealized");
 
 // Which means a second run plans nothing — the point of having a graph at all.
+// This one also switches style, which a per-engine style cache would get wrong.
 const second = await engine().run({
   projectName: "Robotics",
-  text: "style: swiss-design\npage: home /\ncomponent: hero section\ncomponent: features section",
+  text: "style: brutalism\npage: home /\ncomponent: hero section\ncomponent: features section",
 });
 const replanned = (await engine().getExecGraph(second.runId)).filter((n) => n.kind === "impl");
-assert.equal(replanned.length, 0, "an identical re-run should have no work left to plan");
+assert.equal(replanned.length, 0, "a re-run of the same components should have no work left to plan");
+
+// Run 1's pre-release gate is still open, so pick this run's gate rather than the first.
+const secondGate = (await engine().listGates()).find(
+  (g) => g.runId === second.runId && g.kind === "design-approval",
+)!;
+assert.ok(secondGate, "second run should have its own design gate");
+await engine().resolveGate(secondGate.id, "approve");
+const restyled = readFileSync(join(repo, "styles", "tokens.css"), "utf8");
+assert.match(restyled, /Brutalism/, "second run should re-generate tokens for its own style");
+assert.doesNotMatch(restyled, /Swiss Design/, "stale style cache leaked the first run's guide");
+assert.match(
+  readFileSync(join(repo, "package.json"), "utf8"),
+  /"name": "robotics"/,
+  "the scaffolded project should survive the second run untouched",
+);
+
+// An unknown style must fail at intake, not half way through a run.
+await assert.rejects(
+  () => engine().run({ text: "style: not-a-real-style\ncomponent: hero section" }),
+  /unknown style 'not-a-real-style'/,
+  "a typo in the brief should fail fast",
+);
 
 rmSync(repo, { recursive: true, force: true });
+
+// Modify-existing mode: the scaffolder must not clobber a real project.
+const existing = mkdtempSync(join(tmpdir(), "weave-existing-"));
+const pkg = `{ "name": "theirs", "scripts": { "build": "their-build" } }\n`;
+writeFileSync(join(existing, "package.json"), pkg);
+writeFileSync(join(existing, "index.html"), "<!doctype html><title>theirs</title>\n");
+writeFileSync(join(existing, ".gitignore"), "their-ignores/\n");
+
+const { TemplateScaffolder } = await import("./scaffold.js");
+const { loadStyle } = await import("./design/style.js");
+const res = await new TemplateScaffolder().scaffold({
+  repoPath: existing,
+  projectName: "Theirs",
+  style: loadStyle("brutalism"),
+});
+
+assert.equal(readFileSync(join(existing, "package.json"), "utf8"), pkg, "package.json was overwritten");
+assert.match(readFileSync(join(existing, "index.html"), "utf8"), /theirs/, "index.html was overwritten");
+assert.equal(readFileSync(join(existing, ".gitignore"), "utf8"), "their-ignores/\n", ".gitignore was overwritten");
+assert.ok(existsSync(join(existing, "styles", "tokens.css")), "tokens.css should still be written");
+assert.match(res.summary, /existing project kept/, "summary should say the project was left alone");
+assert.ok(!existsSync(join(existing, "scripts", "build.mjs")), "no template scripts in an existing project");
+
+rmSync(existing, { recursive: true, force: true });
 console.log("greenfield build (scaffold + real verifier + design→code edges) check passed");

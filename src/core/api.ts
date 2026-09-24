@@ -81,7 +81,7 @@ export class Engine {
   #graph?: GraphStore;
   #deps: ResolvedDeps;
   #harness?: GitHarness;
-  #styleCache?: StyleGuide;
+  #styleCache?: { slug: string; guide: StyleGuide };
 
   constructor(opts: EngineOptions) {
     this.#repoPath = opts.repoPath;
@@ -117,6 +117,9 @@ export class Engine {
   async run(inputs?: BriefInput): Promise<RunHandle> {
     const store = this.#graphStore();
     const ir = compileBrief({ defaultStyle: this.#deps.defaultStyle, ...(inputs ?? {}) });
+    // Fail fast on an unknown style. Left to execute time it would surface after the
+    // design gate, half way through a run, as a mid-flight crash.
+    if (ir.meta.style) loadStyle(ir.meta.style);
     store.loadGraph(projectIR(ir));
 
     const unrealized = store.gaps().unrealizedDesign;
@@ -241,27 +244,35 @@ export class Engine {
     }
   }
 
+  /** Cached per slug, not per engine — two runs in one process can use different styles. */
   #styleFor(runId: RunId): StyleGuide | undefined {
     const slug = this.#loadIR(runId)?.meta.style ?? this.#deps.defaultStyle;
     if (!slug) return undefined;
-    this.#styleCache ??= loadStyle(slug);
-    return this.#styleCache;
+    if (this.#styleCache?.slug !== slug) this.#styleCache = { slug, guide: loadStyle(slug) };
+    return this.#styleCache.guide;
   }
 
   /** Context pack: what the node needs, including the style it must build to. */
   #contextPack(runId: RunId, node: ExecNode): ContextPack {
+    const store = this.#graphStore();
     const style = this.#styleFor(runId);
-    const notes = this.#graphStore().latestGateNotes(runId);
+    const notes = store.latestGateNotes(runId);
     const constraints: string[] = [];
     if (style) constraints.push(styleBrief(style));
     if (notes) constraints.push(`Reviewer notes from the last gate: ${notes}`);
+    // A retry after a gate used to start blind. Seed it with what the earlier attempt
+    // recorded, so the agent does not repeat the same failure.
+    const prior = store.getExecNode(runId, node.id)?.evidence ?? [];
+    const previousFailures = prior.length
+      ? [`earlier attempt on this node recorded: ${prior.slice(-8).join("; ")}`]
+      : [];
     return {
       taskId: node.id,
       goal: `build ${this.#goalFor(node)}`,
       relevantNodeIds: node.designNodeId ? [node.designNodeId] : [],
       relevantFiles: ["index.html", "styles/tokens.css", "styles/base.css"],
       constraints,
-      previousFailures: [],
+      previousFailures,
       permissions: { write: ["**"], deny: [".env", "**/.env", "**/*.pem", "**/secrets/**"] },
     };
   }
