@@ -27,12 +27,17 @@ CREATE TABLE IF NOT EXISTS edges (
   PRIMARY KEY ("from", "to", kind)
 );
 CREATE TABLE IF NOT EXISTS runs (
-  id          TEXT PRIMARY KEY,
-  status      TEXT NOT NULL,
-  started_at  TEXT NOT NULL,
-  ended_at    TEXT,
-  cursor      TEXT,
-  budget_used INTEGER NOT NULL DEFAULT 0
+  id             TEXT PRIMARY KEY,
+  status         TEXT NOT NULL,
+  started_at     TEXT NOT NULL,
+  ended_at       TEXT,
+  cursor         TEXT,
+  budget_used    INTEGER NOT NULL DEFAULT 0,
+  -- Harness state. Without these a second process cannot finish or cancel a run,
+  -- and the user is left on the working branch with their work in a stash.
+  working_branch TEXT,
+  base_branch    TEXT,
+  stashed        INTEGER NOT NULL DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS exec_nodes (
   run_id         TEXT NOT NULL,
@@ -63,6 +68,7 @@ interface EdgeRow {
 interface RunRow {
   id: string; status: string; started_at: string;
   ended_at: string | null; cursor: string | null; budget_used: number;
+  working_branch: string | null; base_branch: string | null; stashed: number;
 }
 interface ExecRow {
   run_id: string; id: string; kind: string;
@@ -112,6 +118,9 @@ function toRun(r: RunRow): RunRecord {
     endedAt: r.ended_at ?? undefined,
     cursor: r.cursor ?? undefined,
     budgetUsed: r.budget_used,
+    workingBranch: r.working_branch ?? undefined,
+    baseBranch: r.base_branch ?? undefined,
+    stashed: r.stashed === 1,
   };
 }
 function toExec(r: ExecRow): ExecNode {
@@ -143,6 +152,7 @@ export class GraphStore {
     this.#db = new Database(dbPath);
     this.#db.pragma("journal_mode = WAL");
     this.#db.exec(SCHEMA);
+    this.#migrate();
   }
 
   // ── Knowledge graph ───────────────────────────────────────
@@ -238,10 +248,29 @@ export class GraphStore {
   }
 
   // ── Run state + execution graph ───────────────────────────
+  /**
+   * CREATE TABLE IF NOT EXISTS never adds columns to a database that already exists,
+   * so new run columns are applied here. Additive only — no drops, no rewrites.
+   */
+  #migrate(): void {
+    const cols = new Set(
+      (this.#db.prepare(`PRAGMA table_info(runs)`).all() as Array<{ name: string }>).map((c) => c.name),
+    );
+    const added: Array<[string, string]> = [
+      ["working_branch", "TEXT"],
+      ["base_branch", "TEXT"],
+      ["stashed", "INTEGER NOT NULL DEFAULT 0"],
+    ];
+    for (const [name, type] of added) {
+      if (!cols.has(name)) this.#db.exec(`ALTER TABLE runs ADD COLUMN ${name} ${type}`);
+    }
+  }
+
   createRun(record: RunRecord): void {
     this.#db
       .prepare(
-        `INSERT INTO runs (id, status, started_at, ended_at, cursor, budget_used) VALUES (?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO runs (id, status, started_at, ended_at, cursor, budget_used, working_branch, base_branch, stashed)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         record.runId,
@@ -250,6 +279,9 @@ export class GraphStore {
         record.endedAt ?? null,
         record.cursor ?? null,
         record.budgetUsed,
+        record.workingBranch ?? null,
+        record.baseBranch ?? null,
+        record.stashed ? 1 : 0,
       );
   }
 
@@ -271,8 +303,20 @@ export class GraphStore {
     if (!cur) throw new Error(`run not found: ${runId}`);
     const next: RunRecord = { ...cur, ...patch };
     this.#db
-      .prepare(`UPDATE runs SET status = ?, ended_at = ?, cursor = ?, budget_used = ? WHERE id = ?`)
-      .run(next.status, next.endedAt ?? null, next.cursor ?? null, next.budgetUsed, runId);
+      .prepare(
+        `UPDATE runs SET status = ?, ended_at = ?, cursor = ?, budget_used = ?,
+         working_branch = ?, base_branch = ?, stashed = ? WHERE id = ?`,
+      )
+      .run(
+        next.status,
+        next.endedAt ?? null,
+        next.cursor ?? null,
+        next.budgetUsed,
+        next.workingBranch ?? null,
+        next.baseBranch ?? null,
+        next.stashed ? 1 : 0,
+        runId,
+      );
   }
 
   upsertExecNode(runId: string, node: ExecNode): void {

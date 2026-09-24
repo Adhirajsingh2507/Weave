@@ -119,6 +119,29 @@ export class GitHarness {
   }
 
   /**
+   * The branch state a later process needs to finish this run. Held in memory only
+   * until persisted, which is why a crashed or separate process used to strand the
+   * user on the working branch with their work still stashed.
+   */
+  get state(): { workingBranch: string; baseBranch: string; stashed: boolean } {
+    return { workingBranch: this.#workingBranch, baseBranch: this.#baseBranch, stashed: this.#stashed };
+  }
+
+  /** Re-attach to a run's persisted branch state instead of recomputing it from HEAD. */
+  adopt(state: { workingBranch: string; baseBranch: string; stashed: boolean }): void {
+    this.#workingBranch = state.workingBranch;
+    this.#baseBranch = state.baseBranch;
+    this.#stashed = state.stashed;
+  }
+
+  /** Check out an already-created working branch, leaving the recorded base intact. */
+  async attach(): Promise<void> {
+    if (!this.#workingBranch) throw new Error("attach(): no working branch adopted");
+    const head = git(["rev-parse", "--abbrev-ref", "HEAD"], this.#repoPath);
+    if (head !== this.#workingBranch) git(["checkout", this.#workingBranch], this.#repoPath);
+  }
+
+  /**
    * Dedicated working branch off HEAD; auto-stash a dirty tree, restore on finish().
    * Idempotent: if the branch already exists (resume in a fresh process), attach to it.
    */

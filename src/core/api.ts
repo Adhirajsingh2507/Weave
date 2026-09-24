@@ -119,7 +119,7 @@ export class Engine {
 
   async cancel(runId: RunId): Promise<void> {
     const store = this.#graphStore();
-    if (this.#harness) await this.#harness.finish();
+    await this.#finishHarness(runId);
     store.updateRun(runId, { status: "cancelled", endedAt: new Date().toISOString() });
   }
 
@@ -152,7 +152,7 @@ export class Engine {
       } else if (relNode) {
         store.upsertExecNode(gate.runId, { ...relNode, status: "skipped" });
       }
-      if (this.#harness) await this.#harness.finish();
+      await this.#finishHarness(gate.runId);
       store.updateRun(gate.runId, { status: ok ? "done" : "failed", endedAt: new Date().toISOString() });
       return;
     }
@@ -160,13 +160,61 @@ export class Engine {
     await this.#execute(gate.runId);
   }
 
+  // ── Harness lifecycle ─────────────────────────────────────
+  /**
+   * The harness for executing a run: reuse the in-process one, re-attach to the branch
+   * a previous process created, or cut a new working branch and persist its state.
+   */
+  async #harnessForExecution(runId: RunId): Promise<GitHarness> {
+    if (this.#harness) return this.#harness;
+    const store = this.#graphStore();
+    const run = store.getRun(runId);
+    const harness = this.#deps.makeHarness(this.#repoPath);
+    if (run?.workingBranch && run.baseBranch) {
+      harness.adopt({
+        workingBranch: run.workingBranch,
+        baseBranch: run.baseBranch,
+        stashed: run.stashed ?? false,
+      });
+      await harness.attach();
+    } else {
+      await harness.createWorkingBranch(`weave/${runId}`);
+      store.updateRun(runId, harness.state);
+    }
+    this.#harness = harness;
+    return harness;
+  }
+
+  /**
+   * The harness for finishing or cancelling a run. Never creates a branch — if the run
+   * never started one there is nothing to restore.
+   */
+  async #harnessForCleanup(runId: RunId): Promise<GitHarness | undefined> {
+    if (this.#harness) return this.#harness;
+    const run = this.#graphStore().getRun(runId);
+    if (!run?.workingBranch || !run.baseBranch) return undefined;
+    const harness = this.#deps.makeHarness(this.#repoPath);
+    harness.adopt({
+      workingBranch: run.workingBranch,
+      baseBranch: run.baseBranch,
+      stashed: run.stashed ?? false,
+    });
+    return harness;
+  }
+
+  /** Restore the user's branch and stash, then record that there is nothing left to restore. */
+  async #finishHarness(runId: RunId): Promise<void> {
+    const harness = await this.#harnessForCleanup(runId);
+    if (!harness) return;
+    await harness.finish();
+    this.#graphStore().updateRun(runId, { stashed: false });
+    this.#harness = undefined;
+  }
+
   // ── Execution (internal) ──────────────────────────────────
   async #execute(runId: RunId): Promise<void> {
     const store = this.#graphStore();
-    if (!this.#harness) {
-      this.#harness = this.#deps.makeHarness(this.#repoPath);
-      await this.#harness.createWorkingBranch(`weave/${runId}`);
-    }
+    await this.#harnessForExecution(runId);
     store.updateRun(runId, { status: "running" });
 
     const pending = store.getExecGraph(runId).filter((n) => n.kind === "impl" && n.status !== "complete");

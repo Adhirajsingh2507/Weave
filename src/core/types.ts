@@ -63,4 +63,10 @@ export interface RunRecord {
   cursor?: NodeId;
   /** Steps / cost units consumed; ceiling lives in policies (decision #27). */
   budgetUsed: number;
+  /** Branch this run's work lands on. Persisted so another process can finish the run. */
+  workingBranch?: string;
+  /** Branch the repo was on when the run started, restored by finish(). */
+  baseBranch?: string;
+  /** Whether the user's dirty tree was auto-stashed and still needs popping. */
+  stashed?: boolean;
 }
