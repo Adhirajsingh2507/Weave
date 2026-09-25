@@ -16,12 +16,13 @@
 // flattering subset.
 
 import { loadBaseChecks } from "./design/style.js";
+import { DEFAULT_PACKS, loadPack } from "./packs/load.js";
 import type { StyleCheck, StyleGuide } from "./design/style.js";
 import type { DesignIR } from "./ir/schema.js";
 import type { Edge, KgNode } from "./graph/types.js";
 
 /** Which runner can produce evidence for a criterion today. */
-export type CriterionRunner = "build" | "structural" | "pending" | "judged";
+export type CriterionRunner = "build" | "structural" | "pending" | "judged" | "pack";
 
 export interface CriteriaResult {
   nodes: KgNode[];
@@ -30,6 +31,12 @@ export interface CriteriaResult {
 
 export const REQ_BASE = "req:quality-floor";
 export const REQ_STYLE = "req:visual-style";
+export const reqForPack = (name: string): string => `req:pack:${name}`;
+
+/** Packs a run enforces: what the brief asked for, or the defaults. */
+export function packsFor(ir: DesignIR): string[] {
+  return ir.meta.packs ?? DEFAULT_PACKS;
+}
 
 function requirement(id: string, name: string, attrs: Record<string, unknown>): KgNode {
   return { id, kind: "requirement", name, attrs };
@@ -143,6 +150,29 @@ export function mintCriteria(ir: DesignIR, style?: StyleGuide): CriteriaResult {
       );
       nodes.push(crit);
       link(crit.id, REQ_STYLE, "verifies");
+    }
+  }
+
+  // ── 5. Policy packs: every item is a requirement told to the agent and a check ──
+  for (const name of packsFor(ir)) {
+    const pack = loadPack(name);
+    const reqId = reqForPack(name);
+    nodes.push(
+      requirement(reqId, `The build satisfies the ${pack.title} pack`, {
+        source: `packs/${name}/pack.json`,
+        pack: name,
+      }),
+    );
+    for (const item of pack.items) {
+      const crit = criterion(
+        item.id,
+        item.requirement,
+        item.runner === "human" ? "judged" : item.runner === "browser" ? "pending" : "pack",
+        `packs/${name}`,
+      );
+      crit.attrs = { ...crit.attrs, pack: name, severity: item.severity, packRunner: item.runner };
+      nodes.push(crit);
+      link(crit.id, reqId, "verifies");
     }
   }
 

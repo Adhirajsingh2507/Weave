@@ -42,7 +42,7 @@ const verifier: Verifier = {
 };
 // A fresh Engine per step — no shared in-memory harness, exactly like separate CLI runs.
 const engine = (): Engine =>
-  new Engine({ repoPath: repo, deps: { executor, verifier, makeHarness: (p) => new GitHarness(p) } });
+  new Engine({ repoPath: repo, deps: { executor, verifier, makeHarness: (p) => new GitHarness(p), defaultPacks: [] } });
 
 await engine().init("new");
 

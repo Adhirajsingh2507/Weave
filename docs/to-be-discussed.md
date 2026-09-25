@@ -2,18 +2,20 @@
 
 > Open questions not yet decided. Move each to `current-info.md` once resolved.
 
-_Last updated: 2026-09-24_
+_Last updated: 2026-09-25_
 
 ## Needs a decision before the phase that uses it
 
 | # | Question | Needed by | Proposal |
 |---|---|---|---|
-| 1 | Do the five metric definitions hold — in particular, does design-approval count as human intervention? | V2.1 | It does not; it is a mandatory control point, not an intervention. |
-| 2 | Are requirements scoped per run or per project? | V2.1 | Per project, versioned with the IR. |
-| 3 | Which policy packs are on by default versus opt-in? | V2.2 | Security and a11y on; SEO and performance opt-in. |
-| 4 | Does a `severity: blocking` pack item fail the run or open a gate? | V2.2 | Open a gate — the human decides. |
+| ~~1~~ | Do the five metric definitions hold — in particular, does design-approval count as human intervention? | V2.1 | **Decided (V2.1):** it does not. `design-approval` and `pre-release` are mandatory control points. |
+| ~~2~~ | Are requirements scoped per run or per project? | V2.1 | **Decided (V2.1):** per project, versioned with the IR. |
+| ~~3~~ | Which policy packs are on by default versus opt-in? | V2.2 | **Decided (V2.2):** `web-security` + `a11y` on; `seo` + `performance` opt-in. |
+| ~~4~~ | Does a `severity: blocking` pack item fail the run or open a gate? | V2.2 | **Decided (V2.2):** opens a `policy` gate; approving is a recorded waiver. |
 | 5 | Deploy target for the demo: Vercel, Netlify or Cloudflare Pages? | V2.4 | Vercel; the MCP connection already exists. |
 | 6 | Name and licence before any public launch. | before launch | `weave` on npm belongs to Weights & Biases. Decide after the demo. |
+
+Struck-through rows are settled; they stay here for one phase so the reasoning is easy to find.
 
 ## Blocked on access or data
 

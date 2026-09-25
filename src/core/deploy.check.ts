@@ -41,7 +41,7 @@ const engine = new Engine({
   deps: {
     executor,
     verifier,
-    makeHarness: (p) => new GitHarness(p),
+    makeHarness: (p) => new GitHarness(p), defaultPacks: [],
     deployer: new FakeDeployer("https://weave.example/deploy-123"),
   },
 });

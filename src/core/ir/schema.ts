@@ -61,6 +61,8 @@ export const DesignIRSchema = z.object({
     sourceInputs: z.array(InputRef).default([]),
     /** Design guide slug (design-guide/<style>.md) the build should follow. */
     style: z.string().optional(),
+    /** Policy packs to enforce; defaults applied at intake when the brief names none. */
+    packs: z.array(z.string()).optional(),
   }),
   visualLanguage: z.object({
     mood: z.string(),

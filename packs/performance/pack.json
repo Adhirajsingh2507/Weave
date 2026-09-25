@@ -1,0 +1,69 @@
+{
+  "name": "performance",
+  "title": "Performance",
+  "summary": "Budgets that can be measured from the built output. Lab metrics such as Lighthouse and Core Web Vitals need a browser, so they are reported as unavailable rather than assumed.",
+  "source": "docs/v2-inputs.md — 'Features to have in a website', performance items",
+  "items": [
+    {
+      "id": "perf.image-budget",
+      "requirement": "No shipped image exceeds 300KB; compress and use modern formats",
+      "runner": "file-size",
+      "args": { "pattern": "\\.(png|jpe?g|gif|webp|avif)$", "maxBytes": 300000 },
+      "appliesWhen": ["hasImages"],
+      "severity": "blocking",
+      "source": "features #34, #63 — compress all images"
+    },
+    {
+      "id": "perf.font-budget",
+      "requirement": "At most two font families, loaded with font-display: swap",
+      "runner": "html-assert",
+      "args": { "eachMatch": "<link\\b[^>]*fonts\\.(googleapis|gstatic)[^>]*>", "requires": "display=swap" },
+      "appliesWhen": ["hasHtml"],
+      "severity": "advisory",
+      "source": "_base.md base.perf.fonts"
+    },
+    {
+      "id": "perf.image-dimensions",
+      "requirement": "Images declare width and height so layout does not shift",
+      "runner": "html-assert",
+      "args": { "eachMatch": "<img\\b[^>]*>", "requires": "\\bwidth=" },
+      "appliesWhen": ["hasImages"],
+      "severity": "advisory",
+      "source": "_base.md base.perf.images; features #24 — improve core web vitals"
+    },
+    {
+      "id": "perf.lazy-loading",
+      "requirement": "Images below the fold are lazy-loaded",
+      "runner": "html-assert",
+      "args": { "pattern": "loading=[\"']lazy[\"']" },
+      "appliesWhen": ["hasImages"],
+      "severity": "advisory",
+      "source": "features #76 — add lazy loading"
+    },
+    {
+      "id": "perf.no-render-blocking-script",
+      "requirement": "Defer non-critical scripts rather than blocking render",
+      "runner": "html-assert",
+      "args": { "eachMatch": "<script\\b(?![^>]*\\bsrc=[\"'][^\"']*[\"'][^>]*\\b(defer|async|type=[\"']module[\"']))[^>]*\\bsrc=[^>]*>", "requires": "(defer|async|type=[\"']module[\"'])" },
+      "appliesWhen": ["hasHtml"],
+      "severity": "advisory",
+      "source": "features #77 — defer non-critical scripts"
+    },
+    {
+      "id": "perf.lab-metrics",
+      "requirement": "Mobile Lighthouse: LCP under 2.5s, CLS under 0.1, INP under 200ms",
+      "runner": "browser",
+      "appliesWhen": ["hasHtml"],
+      "severity": "blocking",
+      "source": "_base.md base.perf.budget; features #72 — lighthouse audit"
+    },
+    {
+      "id": "perf.cdn-caching",
+      "requirement": "Serve static assets from a CDN with cache headers",
+      "runner": "human",
+      "appliesWhen": ["hasDeployConfig"],
+      "severity": "advisory",
+      "source": "features #69, #70 — add a CDN, server-side caching"
+    }
+  ]
+}

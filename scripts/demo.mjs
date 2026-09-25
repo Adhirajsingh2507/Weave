@@ -7,7 +7,7 @@
 
 import { Engine, GitHarness } from "../dist/index.js";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -22,7 +22,9 @@ writeFileSync(join(repo, "README.md"), "# demo project\n");
 git(["add", "-A"], repo);
 git(["commit", "-q", "-m", "init"], repo);
 
-// Fake generator (stands in for ClaudeCodeExecutor). "hero" fails once → exercises repair.
+// Fake generator (stands in for ClaudeCodeExecutor). It fills the scaffolded page rather than
+// writing loose fragments, so the policy packs have a real site to check. "hero" does nothing on
+// its first attempt → exercises the repair loop.
 const failed = new Set();
 const executor = {
   name: "demo-site",
@@ -30,28 +32,30 @@ const executor = {
     const id = input.contextPack.taskId.replace("impl:", "");
     if (id === "hero" && !failed.has(id)) {
       failed.add(id);
-      return { ok: true, summary: "first try (no file) → will repair", changedFiles: [], evidenceRefs: [`try:${id}`] };
+      return { ok: true, summary: "first try (no change) → will repair", changedFiles: [], evidenceRefs: [`try:${id}`] };
     }
-    const f = `${id}.html`;
-    writeFileSync(join(input.worktreeDir, f), `<section id="${id}"><!-- ${id} --></section>\n`);
-    return { ok: true, summary: `wrote ${f}`, changedFiles: [f], evidenceRefs: [`edit:${f}`] };
-  },
-};
-// Deterministic verifier: node must produce an uncommitted change.
-const verifier = {
-  async verify(dir) {
-    const ok = git(["status", "--porcelain"], dir).length > 0;
-    return { ok, evidence: [{ kind: "structural", ok, detail: `worktree changed=${ok}` }] };
+    const page = join(input.worktreeDir, "index.html");
+    const html = readFileSync(page, "utf8");
+    writeFileSync(
+      page,
+      html.replace(
+        new RegExp(`<section id="${id}"[^>]*>.*?</section>`, "s"),
+        `<section id="${id}" data-design-node="${id}"><h2>${id}</h2><p>Built by the demo generator.</p></section>`,
+      ),
+      "utf8",
+    );
+    return { ok: true, summary: `filled ${id}`, changedFiles: ["index.html"], evidenceRefs: [`edit:${id}`] };
   },
 };
 
-const engine = new Engine({ repoPath: repo, deps: { executor, verifier, makeHarness: (p) => new GitHarness(p) } });
+// Real scaffolder and real deterministic verifier — only the agent is faked.
+const engine = new Engine({ repoPath: repo, deps: { executor, makeHarness: (p) => new GitHarness(p) } });
 await engine.init("new");
 
 console.log("→ weave run (intake → plan)");
 const h = await engine.run({
   projectName: "robotics-landing",
-  text: "page: home /\ncomponent: hero section\ncomponent: features section\ncomponent: cta section",
+  text: "style: futuristic\npage: home /\ncomponent: hero section\ncomponent: features section\ncomponent: cta section",
 });
 let gates = await engine.listGates();
 console.log(`  run ${h.runId} — status: ${h.status}`);
@@ -72,6 +76,15 @@ const wb = `weave/${h.runId}`;
 const files = git(["ls-tree", "-r", "--name-only", wb], repo).split("\n").filter((f) => f.endsWith(".html"));
 console.log(`  run status: ${st.latestRun.status} | open gates: ${st.openGates}`);
 console.log(`  built files on ${wb}: ${files.join(", ")}`);
+
+const report = await engine.report(h.runId);
+const m = report.metrics;
+console.log("\n→ weave report");
+console.log(`  requirements with evidence: ${report.requirements.filter((r) => r.covered).length}/${report.requirements.length}`);
+console.log(`  first-pass ${Math.round((m.firstPassVerificationRate ?? 0) * 100)}% | repair ${Math.round((m.repairSuccessRate ?? 0) * 100)}% | coverage ${Math.round((m.evidenceCoverage ?? 0) * 100)}%`);
+const crit = report.requirements.flatMap((r) => r.criteria);
+const tally = (s) => crit.filter((c) => c.status === s).length;
+console.log(`  criteria: ${tally("passed")} passed, ${tally("failed")} failed, ${tally("not-applicable")} n/a, ${tally("unavailable")} no runner, ${tally("human")} need a person`);
 
 console.log("\n✓ demo complete — graph/state/evidence persisted, gates honored, repair loop, resumable.");
 console.log(`  (throwaway repo: ${repo})`);

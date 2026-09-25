@@ -301,3 +301,27 @@ Layered production ML/software-platform rigor on top:
 ### Superseded initial framing
 - Original idea: "an AI that builds my website" / "AI + loop → website." Superseded by the platform framing above.
 - Earlier suggestion of "Design Graph + Execution Graph" as two fundamental graphs → replaced by "Project Knowledge Graph + Agent Execution Graph."
+
+## V2.1 and V2.2 — the evidence chain and the packs (2026-09-24 → 25)
+
+**V2.1** made every requirement traceable. Requirements and criteria became node kinds with
+`satisfied_by` / `verifies` edges, evidence became typed records in their own table alongside an
+`attempts` table, and `weave report` renders the chain end to end. Four defects surfaced and were
+fixed in the same phase: `computeGaps` treated every non-code node as buildable (3 impl nodes
+became 24 once requirements existed, and `package` nodes had been quietly affected before);
+the verifier passed no-op nodes because the project still built; criterion status used every
+verdict rather than the latest, so a repair still read as failed; `openGate` fired its event
+without awaiting it.
+
+**V2.2** turned the `weave_changes` lists into 4 packs of 46 items, each item both a requirement
+told to the agent and a check Weave runs. Every runner is dependency-free; anything needing a
+rendered page reports `unavailable` and anything only a person can settle reports `human`, so
+neither can masquerade as a pass. Applicability facts stop a payments rule firing on a brochure
+site. A failing blocking item opens a `policy` gate rather than failing the run, and approving it
+is a waiver recorded with its reason.
+
+The pack aimed at our own scaffold caught the predicted false positive: `a11y.reduced-motion`
+asserted against HTML while the rule lives in CSS. The runner gained `expect: present`; the
+template gained the skip link it was correctly marked down for.
+
+Open questions 1–4 were closed by these two phases. Checks went 18 → 22.

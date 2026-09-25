@@ -38,7 +38,7 @@ const verifier: Verifier = {
 
 const engine = new Engine({
   repoPath: repo,
-  deps: { executor: new Writer(), verifier, makeHarness: (p) => new GitHarness(p), concurrency: 3 },
+  deps: { executor: new Writer(), verifier, makeHarness: (p) => new GitHarness(p), defaultPacks: [], concurrency: 3 },
 });
 await engine.init("new");
 const h = await engine.run({ text: "component: a section\ncomponent: b section\ncomponent: c section" });

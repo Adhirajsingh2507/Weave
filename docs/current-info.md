@@ -175,6 +175,26 @@ push. `pnpm demo` runs end to end with no credentials.
 **Credentialed adapters** (implemented, exercised via fakes): `ClaudeDecision` (API key),
 `ClaudeCodeExecutor` (`claude` CLI), `PlaywrightBrowserWorker` (playwright).
 
+**V2.1:** shipped. Requirements and criteria are first-class nodes, evidence is typed and
+persisted, and `weave report` renders the chain requirement → design → code → criterion →
+evidence → commit → approval. The five metrics are computed from the evidence and attempts
+tables rather than re-derived. `design-approval` and `pre-release` are mandatory control points
+and do not count as human intervention.
+
+**V2.2:** shipped. Policy packs — 4 packs, 46 items, every item both a requirement told to the
+agent and a check Weave runs:
+
+- **Defaults:** `web-security` and `a11y` run on every project; `seo` and `performance` are
+  opt-in via `packs:` in the brief.
+- **Runners are dependency-free** so they work offline, in CI and in a fresh worktree. What
+  needs a rendered page reports `unavailable`, and what only a person can confirm reports
+  `human` — neither is ever counted as a pass.
+- **Applicability facts** are derived from the tree and `package.json`. An item that does not
+  apply is recorded as `not-applicable` with its reason; a payments rule firing on a brochure
+  site is how a report gets ignored.
+- **A blocking failure opens a `policy` gate,** it does not fail the run. Approving is a waiver,
+  recorded with its reason, and the gate does not reopen.
+
 **Known gaps carried into V2.1:** evidence is still a string array rather than typed records;
 `listGates()` spans runs, so approving by index can pick a stale gate; `browser-qa` and
 `visual-qa` are marked `skipped`; the IR has no home for the guides' shape/motion/spacing tokens.
@@ -183,8 +203,14 @@ push. `pnpm demo` runs end to end with no credentials.
 - **#8** — escalation framework implemented; real threshold values await calibration data, which
   V2.4 starts producing by putting the decision layer in the run path.
 - **#10 / #57** — provider routing implemented; Jev parity awaits access.
-- Metric definitions, default packs, deploy target, name and licence: see the open questions in
-  `implementation-v2.md`.
+- Metric definitions (#1, #2) and default packs (#3, #4) are decided — see above.
+- Deploy target (#5), name and licence (#6) remain open.
 
-**Next:** V2.1 — requirements, criteria, typed evidence and the five metrics. Plan in
-`implementation-v2.md`.
+**Verification now:** 22 self-checks plus the design validator. `pnpm demo` ends at
+`first-pass 75% | repair 100% | coverage 64%`, with 18 criteria passed and 0 failed.
+
+**Carried into V2.3:** the demo passes every runnable pack item, so *a pack failure driving a
+repair* is proven by `policy-gate.check` but not yet by the demo itself — staged with the
+benchmark in V2.5. Contrast and target size wait on the browser worker (V2.7).
+
+**Next:** V2.3 — parallelism as a real DAG. Plan in `implementation-v2.md`.

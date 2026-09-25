@@ -5,6 +5,7 @@ import { parseArgs } from "node:util";
 import { readFileSync } from "node:fs";
 import { Engine } from "../core/api.js";
 import { renderReport } from "../core/report.js";
+import { DEFAULT_PACKS, listPacks, loadPack } from "../core/packs/load.js";
 import type { BriefInput } from "../core/compiler.js";
 import type { GateDecision, ProjectMode } from "../core/types.js";
 
@@ -18,6 +19,7 @@ const HELP = `weave <command>
   graph                           show gaps (unrealized-design + orphan-code)
   report [--json] [--run <id>]    traceability: requirement → code → evidence, plus metrics
   metrics [--json]                the five metrics for the latest run and the project
+  packs [name]                    list policy packs, or show one pack's items
   gates                           list open human gates
   approve <id> [--notes ...]      resolve a gate (approve; resumes execution)
   reject  <id> [--notes ...]      resolve a gate (reject; fails the run)
@@ -90,6 +92,25 @@ async function main(): Promise<void> {
     case "metrics": {
       const [run, project] = [await engine.metrics(values.run), await engine.projectMetrics()];
       console.log(JSON.stringify({ run, project: { runs: project.runs, autonomousCompletionRate: project.autonomousCompletionRate } }, null, 2));
+      break;
+    }
+    case "packs": {
+      const name = positionals[1];
+      if (name) {
+        const pack = loadPack(name);
+        console.log(`${pack.title} (${pack.name}) — ${pack.items.length} items\n${pack.summary}\n`);
+        for (const item of pack.items) {
+          const scope = item.appliesWhen?.length ? ` [when ${item.appliesWhen.join(", ")}]` : "";
+          console.log(`  ${item.severity === "blocking" ? "!" : "·"} ${item.id} (${item.runner})${scope}`);
+          console.log(`      ${item.requirement}`);
+        }
+      } else {
+        for (const p of listPacks()) {
+          const pack = loadPack(p);
+          const on = DEFAULT_PACKS.includes(p) ? " (on by default)" : "";
+          console.log(`${pack.name}${on} — ${pack.items.length} items — ${pack.title}`);
+        }
+      }
       break;
     }
     case "graph":

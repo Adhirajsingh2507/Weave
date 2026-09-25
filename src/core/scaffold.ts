@@ -173,6 +173,8 @@ const DEFAULT_TOKENS = `/* No style chosen — neutral defaults. */
 `;
 
 const BASE_CSS = `/* Structural base only. Style decisions belong in tokens.css and the agent's work. */
+.skip-link { position: absolute; left: -9999px; }
+.skip-link:focus { left: 0; top: 0; padding: 0.5rem 1rem; background: #fff; color: #000; }
 *, *::before, *::after { box-sizing: border-box; }
 body { margin: 0; font-family: system-ui, sans-serif; }
 img, video { max-width: 100%; height: auto; }
@@ -199,7 +201,8 @@ function indexHtml(projectName: string, sections: string[]): string {
   <link rel="stylesheet" href="styles/base.css">
 </head>
 <body>
-  <main>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <main id="main">
     <h1>${projectName}</h1>
 ${placeholders}
   </main>

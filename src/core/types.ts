@@ -32,6 +32,8 @@ export type GateKind =
   | "design-approval"
   | "low-confidence"
   | "risky-op"
+  /** A blocking policy-pack item failed on the built site; the human decides. */
+  | "policy"
   | "pre-release";
 
 export type GateDecision = "approve" | "reject";

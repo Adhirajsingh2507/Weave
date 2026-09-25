@@ -61,6 +61,9 @@ CREATE TABLE IF NOT EXISTS evidence (
   criterion_id  TEXT,
   kind          TEXT NOT NULL,
   ok            INTEGER NOT NULL,
+  -- pass | fail | not-applicable | unavailable | human. The ok column stays for cheap
+  -- filtering; status is what the report shows, because not-applicable is not a pass.
+  status        TEXT NOT NULL DEFAULT 'pass',
   detail        TEXT NOT NULL,
   artifact_path TEXT,
   ts            TEXT NOT NULL
@@ -181,6 +184,8 @@ export interface EvidenceInput {
   criterionId?: string;
   kind: "build" | "test" | "structural" | "dom" | "visual" | "pack" | "deploy" | "agent";
   ok: boolean;
+  /** Defaults to pass/fail from `ok`; packs use the fuller set. */
+  status?: "pass" | "fail" | "not-applicable" | "unavailable" | "human";
   detail: string;
   artifactPath?: string;
 }
@@ -192,6 +197,7 @@ export interface EvidenceRow {
   criterion_id: string | null;
   kind: string;
   ok: number;
+  status: string;
   detail: string;
   artifact_path: string | null;
   ts: string;
@@ -347,6 +353,13 @@ export class GraphStore {
       if (!gateCols.has(name)) this.#db.exec(`ALTER TABLE gates ADD COLUMN ${name} ${type}`);
     }
 
+    const evidenceCols = new Set(
+      (this.#db.prepare(`PRAGMA table_info(evidence)`).all() as Array<{ name: string }>).map((c) => c.name),
+    );
+    if (evidenceCols.size && !evidenceCols.has("status")) {
+      this.#db.exec(`ALTER TABLE evidence ADD COLUMN status TEXT NOT NULL DEFAULT 'pass'`);
+    }
+
     const execCols = new Set(
       (this.#db.prepare(`PRAGMA table_info(exec_nodes)`).all() as Array<{ name: string }>).map((c) => c.name),
     );
@@ -476,8 +489,8 @@ export class GraphStore {
   recordEvidence(runId: string, records: EvidenceInput[]): string[] {
     const ids: string[] = [];
     const insert = this.#db.prepare(
-      `INSERT INTO evidence (id, run_id, node_id, criterion_id, kind, ok, detail, artifact_path, ts)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO evidence (id, run_id, node_id, criterion_id, kind, ok, status, detail, artifact_path, ts)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     const tx = this.#db.transaction((rows: EvidenceInput[]) => {
       for (const r of rows) {
@@ -492,6 +505,7 @@ export class GraphStore {
           r.criterionId ?? null,
           r.kind,
           r.ok ? 1 : 0,
+          r.status ?? (r.ok ? "pass" : "fail"),
           r.detail,
           r.artifactPath ?? null,
           new Date().toISOString(),

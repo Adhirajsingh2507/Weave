@@ -6,7 +6,7 @@
 > Sources: `../V2_planing.md` (the V2 brief), canonical §116 (V2 definition), `v2-inputs.md`
 > (the raw lists), and the decisions recorded in `current-info.md`.
 
-_Last updated: 2026-09-24_
+_Last updated: 2026-09-25_
 
 ## What V2 is
 
@@ -40,7 +40,7 @@ adapter until something demands a second one.
 ### Phase dependencies
 
 ```
-V2.0 ✅ ──┬─► V2.1 ──┬─► V2.2 ──┐
+V2.0 ✅ ──┬─► V2.1 ✅─┬─► V2.2 ✅─┐
           │          │          ├─► V2.5 ──► V2.6 ──► V2.7
           ├─► V2.3 ──┘          │
           └─► V2.4 ─────────────┘
@@ -84,7 +84,7 @@ which let `git add -A` commit engine state); `openGate` awaits its event.
 
 ---
 
-## V2.1 — Requirements, criteria, evidence, metrics
+## V2.1 — Requirements, criteria, evidence, metrics ✅ DONE
 
 **Goal.** Every requirement traceable: requirement → design → code → criterion → evidence →
 commit → approval. Canonical §65 calls this potentially the strongest differentiator, and none
@@ -162,9 +162,28 @@ Each is computed per run and as a rolling figure across runs in `state.db`.
 - Are the metric definitions above right, particularly whether design-approval counts as
   intervention? (Proposal: it does not; it is a mandatory control point.)
 
+**Shipped.**
+- `requirement` and `criterion` node kinds with `satisfied_by` / `verifies` edges. Requirements
+  are minted from the IR, the `_base.md` floor, the chosen style guide and the selected packs.
+- Typed evidence records (`kind`, `detail`, `status`, `at`) in their own table, plus an
+  `attempts` table — the two together are what the metrics are computed from, not re-derived.
+- `weave report` renders the full chain, requirement by requirement, and distinguishes passed,
+  failed, not-applicable, unavailable, human and pending rather than collapsing them to a tick.
+- The five metrics: first-pass rate, repair rate, criteria coverage, unplanned gates, human
+  intervention rate. `design-approval` and `pre-release` are mandatory control points and are
+  excluded from the intervention count (question 1, decided).
+
+**Defects fixed on the way.** `computeGaps` treated every non-code node as buildable, so minting
+requirement nodes turned 3 impl nodes into 24 — `package` nodes were quietly affected before
+this phase too. The verifier passed no-op nodes because the project still built; it now gates on
+the node's own structural criterion, with scaffolded sections marked `data-placeholder`. Criterion
+status used every verdict rather than the latest, so a successful repair still read as failed.
+
+**Checks added:** `criteria.check`, `traceability.check`. **20 checks, CI green.**
+
 ---
 
-## V2.2 — Policy packs
+## V2.2 — Policy packs ✅ DONE
 
 **Goal.** Turn the `weave_changes` lists (20 pre-launch, 70 security, 79 features, 19 UX laws)
 into selectable packs where every item is *both* a requirement told to the agent and a check
@@ -211,10 +230,40 @@ Weave runs.
 - **False positives** erode trust faster than missing checks. Mitigation: every pack item ships
   with a fixture proving both directions.
 
-### Open questions
+### Decided
 
-- Which packs are on by default versus opt-in?
-- Does a `severity: blocking` item fail the run, or only open a gate? (Proposal: gate.)
+- **Default packs:** `web-security` and `a11y` are on by default; `seo` and `performance` are
+  opt-in via `packs:` in the brief or `defaultPacks` on the engine (question 3).
+- **Blocking items open a gate, they do not fail the run** (question 4). Approving is a waiver:
+  it is recorded with its reason and the same gate does not reopen.
+
+**Shipped.**
+- 4 packs, 46 items (`web-security` 15, `a11y` 14, `seo` 10, `performance` 7), each item
+  carrying a `source` back to the list in `v2-inputs.md` it came from.
+- 8 dependency-free runners: `file-exists`, `file-absent`, `html-assert`, `text-scan`,
+  `dep-audit`, `file-size`, plus `browser` and `human`, which report `unavailable` / `human`
+  rather than a green tick that means nothing. The browser runners land with V2.7.
+- Applicability facts derived from the source tree and `package.json` (`hasAuth`, `hasPayments`,
+  `hasDatabase`, `hasForms`, `hasStyles`, …). A payments rule on a brochure site is recorded as
+  `not-applicable` **with its reason**, never as a pass.
+- A `policy` gate kind: a failing blocking item halts the run and names the item; approving is a
+  waiver recorded on the gate.
+- `weave packs` lists and inspects packs; pack results are evidence against criteria, so they
+  appear in `weave report` and count toward coverage.
+
+**Defect fixed on the way.** `a11y.reduced-motion` asserted against HTML, but the rule lives in
+CSS — it failed our own scaffold, which declares it in `base.css`. The runner gained
+`expect: present` and the item now scans styles. Exactly the false positive the risk list
+predicts, caught by pointing the pack at our own template. The template also gained the skip link
+it was being (correctly) marked down for.
+
+**Checks added:** `packs.check` (both directions, per item, plus applicability), `policy-gate.check`
+(blocking failure → gate → waiver recorded → release). **22 checks, CI green.**
+
+**Exit criteria status.** Not-applicable-with-reason and the human checklist are done and
+asserted. *A pack failure driving a repair* is proven by `policy-gate.check` but **not yet by the
+demo** — the demo scaffold now passes every runnable item. Staging a natural failure in the demo
+moves to V2.5, with the benchmark.
 
 ---
 
@@ -452,8 +501,8 @@ One project — the robotics landing page from `examples/robotics-landing.brief`
 | Phase | The demo must additionally show |
 |---|---|
 | V2.0 ✅ | Scaffold, styled build, gates honoured, resumable across processes |
-| V2.1 | `weave report` with a full traceability chain and the five metrics |
-| V2.2 | A pack failure driving a repair, and a not-applicable item explained |
+| V2.1 ✅ | `weave report` with a full traceability chain and the five metrics |
+| V2.2 ⚠ | Not-applicable explained ✅; a pack failure driving a repair — deferred to V2.5 |
 | V2.3 | Components building concurrently; a conflict auto-rebased |
 | V2.4 | A risky-op gate on a dependency change; deploy after approval |
 | V2.5 | The HTML explorer, and a benchmark table against a plain agent run |

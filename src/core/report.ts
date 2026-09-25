@@ -14,8 +14,10 @@ export interface CriterionReport {
   runner: string;
   judged: boolean;
   source: string;
-  evidence: Array<{ ok: boolean; kind: string; detail: string; artifactPath?: string }>;
-  status: "passed" | "failed" | "pending";
+  severity?: string;
+  evidence: Array<{ ok: boolean; status: string; kind: string; detail: string; artifactPath?: string }>;
+  /** not-applicable and unavailable are distinct from passing, and are never counted as one. */
+  status: "passed" | "failed" | "pending" | "not-applicable" | "unavailable" | "human";
 }
 
 export interface RequirementReport {
@@ -85,16 +87,17 @@ export function buildReport(store: GraphStore, runId: string): RunReport {
           runner,
           judged: Boolean(node.attrs?.["judged"]),
           source: String(node.attrs?.["source"] ?? "unknown"),
+          ...(node.attrs?.["severity"] ? { severity: String(node.attrs["severity"]) } : {}),
           evidence: rows.map((r) => ({
             ok: r.ok === 1,
+            status: r.status ?? (r.ok === 1 ? "pass" : "fail"),
             kind: r.kind,
             detail: r.detail,
             ...(r.artifact_path ? { artifactPath: r.artifact_path } : {}),
           })),
           // Status is the latest verdict, not every verdict ever recorded. A criterion that
           // failed twice and then passed is passed — the earlier rows are the repair trail.
-          status:
-            rows.length === 0 ? "pending" : rows[rows.length - 1]!.ok === 1 ? "passed" : "failed",
+          status: latestStatus(rows),
         } satisfies CriterionReport;
       });
 
@@ -106,7 +109,9 @@ export function buildReport(store: GraphStore, runId: string): RunReport {
       codeFiles,
       commits,
       criteria,
-      covered: criteria.some((c) => c.status !== "pending"),
+      // Only an actual verdict counts as covered. not-applicable, unavailable and human are
+      // resolutions, but they are not evidence that the requirement holds.
+      covered: criteria.some((c) => c.status === "passed" || c.status === "failed"),
     });
   }
 
@@ -126,6 +131,35 @@ export function buildReport(store: GraphStore, runId: string): RunReport {
     orphanCode: store.gaps().orphanCode,
   };
 }
+
+function latestStatus(rows: Array<{ ok: number; status?: string }>): CriterionReport["status"] {
+  if (!rows.length) return "pending";
+  const last = rows[rows.length - 1]!;
+  switch (last.status ?? (last.ok === 1 ? "pass" : "fail")) {
+    case "pass":
+      return "passed";
+    case "fail":
+      return "failed";
+    case "not-applicable":
+      return "not-applicable";
+    case "unavailable":
+      return "unavailable";
+    case "human":
+      return "human";
+    default:
+      return "pending";
+  }
+}
+
+/** Distinct symbols, because "not applicable" is not a failure and must not read as one. */
+const SYMBOL: Record<CriterionReport["status"], string> = {
+  passed: "✓",
+  failed: "✗",
+  "not-applicable": "–",
+  unavailable: "?",
+  human: "☐",
+  pending: "·",
+};
 
 const pct = (v: number | null): string => (v === null ? "n/a" : `${Math.round(v * 100)}%`);
 
@@ -158,8 +192,31 @@ export function renderReport(report: RunReport): string {
     if (req.commits.length) out.push(`      commit:   ${req.commits.map((c) => c.slice(0, 7)).join(", ")}`);
     out.push(`      criteria: ${passed} passed, ${failed} failed, ${pending} awaiting a runner`);
     for (const c of req.criteria.filter((x) => x.status !== "pending")) {
-      const detail = c.evidence.map((e) => e.detail).join("; ");
-      out.push(`        ${c.status === "passed" ? "✓" : "✗"} ${c.id}: ${detail}`);
+      out.push(`        ${SYMBOL[c.status]} ${c.id}: ${c.evidence.at(-1)?.detail ?? c.rule}`);
+    }
+  }
+
+  const all = report.requirements.flatMap((r) => r.criteria);
+  const tally = (s: CriterionReport["status"]): number => all.filter((c) => c.status === s).length;
+  out.push("");
+  out.push(
+    `Criteria: ${tally("passed")} passed, ${tally("failed")} failed, ${tally("not-applicable")} not applicable, ` +
+      `${tally("unavailable")} no runner yet, ${tally("human")} need a person, ${tally("pending")} not yet evaluated`,
+  );
+
+  const humans = all.filter((c) => c.status === "human");
+  if (humans.length) {
+    out.push("");
+    out.push("Outstanding — nobody can automate these:");
+    for (const c of humans) out.push(`  ☐ ${c.id} — ${c.rule}`);
+  }
+
+  const failed = all.filter((c) => c.status === "failed");
+  if (failed.length) {
+    out.push("");
+    out.push("Failing:");
+    for (const c of failed) {
+      out.push(`  ✗ ${c.id}${c.severity ? ` [${c.severity}]` : ""} — ${c.evidence.at(-1)?.detail ?? c.rule}`);
     }
   }
 

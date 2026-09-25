@@ -1,0 +1,93 @@
+{
+  "name": "seo",
+  "title": "SEO",
+  "summary": "The indexability items from the feature list that can be proved from the built output. Off-page work such as backlinks and Search Console stays a human checklist rather than a silent pass.",
+  "source": "docs/v2-inputs.md — 'Features to have in a website', SEO items",
+  "items": [
+    {
+      "id": "seo.meta-description",
+      "requirement": "Every page has a unique, non-empty meta description",
+      "runner": "html-assert",
+      "args": { "pattern": "<meta[^>]+name=[\"']description[\"'][^>]+content=[\"'][^\"']{20,}[\"']" },
+      "appliesWhen": ["hasHtml"],
+      "severity": "blocking",
+      "source": "features #22 — add meta descriptions"
+    },
+    {
+      "id": "seo.canonical",
+      "requirement": "Every page declares a canonical URL",
+      "runner": "html-assert",
+      "args": { "pattern": "<link[^>]+rel=[\"']canonical[\"']" },
+      "appliesWhen": ["hasHtml"],
+      "severity": "advisory",
+      "source": "features #32 — add canonical tags"
+    },
+    {
+      "id": "seo.og-image",
+      "requirement": "Every page provides an og:image for link previews",
+      "runner": "html-assert",
+      "args": { "pattern": "<meta[^>]+property=[\"']og:image[\"']" },
+      "appliesWhen": ["hasHtml"],
+      "severity": "advisory",
+      "source": "features #26 — add an og:image"
+    },
+    {
+      "id": "seo.robots-txt",
+      "requirement": "Publish a robots.txt",
+      "runner": "file-exists",
+      "args": { "paths": ["robots.txt", "public/robots.txt", "static/robots.txt"] },
+      "appliesWhen": ["hasHtml"],
+      "severity": "advisory",
+      "source": "features #38 — build a robots.txt"
+    },
+    {
+      "id": "seo.sitemap",
+      "requirement": "Publish a sitemap.xml",
+      "runner": "file-exists",
+      "args": { "paths": ["sitemap.xml", "public/sitemap.xml", "static/sitemap.xml"] },
+      "appliesWhen": ["hasHtml"],
+      "severity": "advisory",
+      "source": "features #25 — build a sitemap.xml"
+    },
+    {
+      "id": "seo.no-accidental-noindex",
+      "requirement": "Do not ship a noindex directive on pages meant to be indexed",
+      "runner": "html-assert",
+      "args": { "pattern": "<meta[^>]+name=[\"']robots[\"'][^>]+noindex", "expect": "absent" },
+      "appliesWhen": ["hasHtml"],
+      "severity": "blocking",
+      "source": "features #20 — no index tags"
+    },
+    {
+      "id": "seo.clean-slugs",
+      "requirement": "Use clean lowercase URLs without spaces or query soup",
+      "runner": "html-assert",
+      "args": { "eachMatch": "href=[\"'][^\"'#?:]*[\"']", "requires": "^href=[\"'][^\"']*[\"']$", "flags": "" },
+      "appliesWhen": ["hasHtml"],
+      "severity": "advisory",
+      "source": "features #30 — clean up url slugs"
+    },
+    {
+      "id": "seo.no-broken-internal-links",
+      "requirement": "Internal links resolve to a page that exists",
+      "runner": "browser",
+      "appliesWhen": ["hasHtml"],
+      "severity": "blocking",
+      "source": "features #27 — broken links"
+    },
+    {
+      "id": "seo.backlinks",
+      "requirement": "Build a backlink strategy",
+      "runner": "human",
+      "severity": "advisory",
+      "source": "features #29 — build a backlink strategy"
+    },
+    {
+      "id": "seo.search-console",
+      "requirement": "Verify the site in Search Console",
+      "runner": "human",
+      "severity": "advisory",
+      "source": "features #36 — verify search console"
+    }
+  ]
+}

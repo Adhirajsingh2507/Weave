@@ -51,7 +51,7 @@ const verifier: Verifier = {
 
 const engine = new Engine({
   repoPath: repo,
-  deps: { executor: new SiteExecutor(), verifier, makeHarness: (p) => new GitHarness(p) },
+  deps: { executor: new SiteExecutor(), verifier, makeHarness: (p) => new GitHarness(p), defaultPacks: [] },
 });
 await engine.init("new");
 

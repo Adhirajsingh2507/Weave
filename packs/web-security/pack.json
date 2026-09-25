@@ -1,0 +1,141 @@
+{
+  "name": "web-security",
+  "title": "Web Security",
+  "summary": "The dependency-free slice of the security lists: what can be proved from the repository and the built output, with server-side items marked not-applicable on a static site rather than quietly passing.",
+  "source": "docs/v2-inputs.md — 'Things to add before launching the website' and 'Things to add for security in the website'",
+  "items": [
+    {
+      "id": "sec.secrets.not-tracked",
+      "requirement": "Never commit .env files, private keys, or credential files",
+      "runner": "file-absent",
+      "args": { "patterns": ["(^|/)\\.env($|\\.)", "\\.pem$", "\\.p12$", "id_rsa$", "(^|/)credentials\\.json$", "(^|/)service-account.*\\.json$"] },
+      "severity": "blocking",
+      "source": "security #18, #29 — public .env files, secrets in git"
+    },
+    {
+      "id": "sec.secrets.not-in-source",
+      "requirement": "Never hardcode API keys, tokens or passwords in source; read them from the environment at runtime",
+      "runner": "text-scan",
+      "args": {
+        "patterns": [
+          "sk_live_[0-9a-z]{10,}",
+          "AKIA[0-9A-Z]{16}",
+          "ghp_[0-9A-Za-z]{20,}",
+          "-----BEGIN [A-Z ]*PRIVATE KEY-----",
+          "(api[_-]?key|secret|password)\\s*[:=]\\s*[\"'][^\"'{}$]{12,}[\"']"
+        ]
+      },
+      "severity": "blocking",
+      "source": "security #19, #30 — hardcoded secrets, secrets in JS"
+    },
+    {
+      "id": "sec.sourcemaps.not-published",
+      "requirement": "Do not publish source maps to production",
+      "runner": "file-absent",
+      "args": { "patterns": ["^dist/.*\\.map$"] },
+      "severity": "advisory",
+      "source": "security #52 — exposed source maps"
+    },
+    {
+      "id": "sec.deps.audited",
+      "requirement": "Ship no dependencies with known high or critical vulnerabilities",
+      "runner": "dep-audit",
+      "appliesWhen": ["hasDependencies"],
+      "severity": "blocking",
+      "source": "security #53 — vulnerable dependencies"
+    },
+    {
+      "id": "sec.deps.lockfile",
+      "requirement": "Commit a lockfile so builds are reproducible and dependencies are pinned",
+      "runner": "file-exists",
+      "args": { "paths": ["pnpm-lock.yaml", "package-lock.json", "yarn.lock", "bun.lockb"] },
+      "appliesWhen": ["hasDependencies"],
+      "severity": "blocking",
+      "source": "security #8 — unpinned build dependencies"
+    },
+    {
+      "id": "sec.links.noopener",
+      "requirement": "Every link opening a new tab must carry rel=\"noopener\"",
+      "runner": "html-assert",
+      "args": { "eachMatch": "<a\\b[^>]*target=[\"']_blank[\"'][^>]*>", "requires": "rel=[\"'][^\"']*noopener" },
+      "appliesWhen": ["hasHtml"],
+      "severity": "blocking",
+      "source": "security #15 — open redirects / tab-nabbing"
+    },
+    {
+      "id": "sec.scripts.no-eval",
+      "requirement": "Do not use eval or the Function constructor on user-reachable input",
+      "runner": "text-scan",
+      "args": { "scope": "scripts", "patterns": ["\\beval\\s*\\(", "new\\s+Function\\s*\\("] },
+      "appliesWhen": ["hasScripts"],
+      "severity": "blocking",
+      "source": "security #69 — insecure deserialisation / injection"
+    },
+    {
+      "id": "sec.headers.configured",
+      "requirement": "Declare security headers (HSTS, X-Content-Type-Options, Referrer-Policy, CSP) in the deploy configuration",
+      "runner": "file-exists",
+      "args": { "paths": ["vercel.json", "netlify.toml", "_headers", "public/_headers", "static/_headers"] },
+      "appliesWhen": ["hasDeployConfig"],
+      "severity": "advisory",
+      "source": "pre-launch #1, security #62 — HSTS, missing security headers"
+    },
+    {
+      "id": "sec.forms.no-get-password",
+      "requirement": "Never submit a password field over a GET form",
+      "runner": "html-assert",
+      "args": { "eachMatch": "<form\\b[^>]*method=[\"']get[\"'][\\s\\S]*?</form>", "requires": "^(?![\\s\\S]*type=[\"']password[\"'])[\\s\\S]*$" },
+      "appliesWhen": ["hasForms"],
+      "severity": "blocking",
+      "source": "security #41 — weak session management"
+    },
+    {
+      "id": "sec.auth.csrf",
+      "requirement": "Protect state-changing form submissions with a CSRF token",
+      "runner": "browser",
+      "appliesWhen": ["hasForms", "hasServer"],
+      "severity": "blocking",
+      "source": "pre-launch #2, security #36 — CSRF"
+    },
+    {
+      "id": "sec.auth.session-hygiene",
+      "requirement": "Reset sessions on password change, expire reset links, and set secure cookie flags",
+      "runner": "browser",
+      "appliesWhen": ["hasAuth"],
+      "severity": "blocking",
+      "source": "pre-launch #3, #4, #19 — session reset, reset links, cookie flags"
+    },
+    {
+      "id": "sec.auth.no-enumeration",
+      "requirement": "Do not reveal whether an account exists in login or reset responses",
+      "runner": "browser",
+      "appliesWhen": ["hasAuth"],
+      "severity": "blocking",
+      "source": "pre-launch #5, security #2 — account enumeration"
+    },
+    {
+      "id": "sec.payments.server-side-prices",
+      "requirement": "Set prices server-side and verify payment webhooks; never trust client-supplied amounts",
+      "runner": "browser",
+      "appliesWhen": ["hasPayments"],
+      "severity": "blocking",
+      "source": "pre-launch #7, #8, security #47, #48 — webhooks, front-end payment checks"
+    },
+    {
+      "id": "sec.db.least-privilege",
+      "requirement": "Restrict database permissions to what the application actually needs",
+      "runner": "human",
+      "appliesWhen": ["hasDatabase"],
+      "severity": "advisory",
+      "source": "pre-launch #20, security #57 — excessive DB permissions"
+    },
+    {
+      "id": "sec.monitoring.audit-log",
+      "requirement": "Log security events and keep a restorable backup",
+      "runner": "human",
+      "appliesWhen": ["hasServer"],
+      "severity": "advisory",
+      "source": "pre-launch #18, security #58, #60 — audit logs, backups"
+    }
+  ]
+}

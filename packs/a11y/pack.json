@@ -1,0 +1,195 @@
+{
+  "name": "a11y",
+  "title": "Accessibility",
+  "summary": "The measurable half of the accessibility floor, plus the UX laws that can be counted rather than judged. Contrast and target size need a rendered page, so they are marked unavailable until the browser worker lands.",
+  "source": "design-guide/_base.md and docs/v2-inputs.md \u2014 UI/UX Law list",
+  "items": [
+    {
+      "id": "a11y.lang",
+      "requirement": "Every page declares its language with a lang attribute on <html>",
+      "runner": "html-assert",
+      "args": {
+        "pattern": "<html[^>]+lang="
+      },
+      "appliesWhen": [
+        "hasHtml"
+      ],
+      "severity": "blocking",
+      "source": "_base.md base.a11y.semantics"
+    },
+    {
+      "id": "a11y.title",
+      "requirement": "Every page has a non-empty, descriptive <title>",
+      "runner": "html-assert",
+      "args": {
+        "pattern": "<title>[^<]{3,}</title>"
+      },
+      "appliesWhen": [
+        "hasHtml"
+      ],
+      "severity": "blocking",
+      "source": "_base.md base.a11y.semantics"
+    },
+    {
+      "id": "a11y.one-h1",
+      "requirement": "Exactly one <h1> per page, with headings in order below it",
+      "runner": "html-assert",
+      "args": {
+        "pattern": "<h1[\\s>]",
+        "expect": "count",
+        "count": 1
+      },
+      "appliesWhen": [
+        "hasHtml"
+      ],
+      "severity": "blocking",
+      "source": "_base.md base.a11y.semantics; features #37 \u2014 only 1 h1 per page"
+    },
+    {
+      "id": "a11y.img-alt",
+      "requirement": "Every meaningful image has alt text; decorative images have empty alt",
+      "runner": "html-assert",
+      "args": {
+        "eachMatch": "<img\\b[^>]*>",
+        "requires": "\\balt="
+      },
+      "appliesWhen": [
+        "hasImages"
+      ],
+      "severity": "blocking",
+      "source": "_base.md base.a11y.semantics; features #23 \u2014 add alt text to images"
+    },
+    {
+      "id": "a11y.input-labels",
+      "requirement": "Every input has a real label or an accessible name",
+      "runner": "html-assert",
+      "args": {
+        "eachMatch": "<input\\b(?![^>]*type=[\"'](hidden|submit|button)[\"'])[^>]*>",
+        "requires": "(aria-label|aria-labelledby|\\bid=)"
+      },
+      "appliesWhen": [
+        "hasForms"
+      ],
+      "severity": "blocking",
+      "source": "_base.md base.a11y.forms"
+    },
+    {
+      "id": "a11y.button-name",
+      "requirement": "Every button has visible text or an accessible name",
+      "runner": "html-assert",
+      "args": {
+        "eachMatch": "<button\\b[^>]*>\\s*</button>",
+        "requires": "aria-label"
+      },
+      "appliesWhen": [
+        "hasHtml"
+      ],
+      "severity": "blocking",
+      "source": "_base.md base.a11y.semantics"
+    },
+    {
+      "id": "a11y.focus-visible",
+      "requirement": "Never remove the focus indicator without providing a visible replacement",
+      "runner": "text-scan",
+      "args": {
+        "scope": "styles",
+        "patterns": [
+          "outline\\s*:\\s*(none|0)\\s*(;|})(?![^]{0,200}:focus-visible)"
+        ]
+      },
+      "appliesWhen": [
+        "hasStyles"
+      ],
+      "severity": "blocking",
+      "source": "_base.md base.a11y.focus-visible"
+    },
+    {
+      "id": "a11y.reduced-motion",
+      "requirement": "Honour prefers-reduced-motion wherever animation or transitions are used",
+      "runner": "text-scan",
+      "args": {
+        "scope": "styles",
+        "expect": "present",
+        "patterns": [
+          "prefers-reduced-motion"
+        ]
+      },
+      "appliesWhen": [
+        "hasStyles"
+      ],
+      "severity": "advisory",
+      "source": "_base.md base.a11y.reduced-motion"
+    },
+    {
+      "id": "a11y.skip-link",
+      "requirement": "Provide a skip-to-content link as the first focusable element",
+      "runner": "html-assert",
+      "args": {
+        "pattern": "(skip[- ]to[- ](content|main)|#main\\b)"
+      },
+      "appliesWhen": [
+        "hasHtml"
+      ],
+      "severity": "advisory",
+      "source": "features #8 \u2014 add search, skip-to-content"
+    },
+    {
+      "id": "a11y.viewport",
+      "requirement": "Declare a responsive viewport and never disable zoom",
+      "runner": "html-assert",
+      "args": {
+        "eachMatch": "<meta\\b[^>]*name=[\"']viewport[\"'][^>]*>",
+        "requires": "^(?![^]*user-scalable=no)[^]*$"
+      },
+      "appliesWhen": [
+        "hasHtml"
+      ],
+      "severity": "blocking",
+      "source": "_base.md base.responsive.reflow; features #39 \u2014 fix mobile responsiveness"
+    },
+    {
+      "id": "a11y.ux.nav-choices",
+      "requirement": "Keep primary navigation to roughly seven items or fewer",
+      "runner": "html-assert",
+      "args": {
+        "eachMatch": "<nav\\b[\\s\\S]*?</nav>",
+        "requires": "^(?:(?!(?:<a\\b[\\s\\S]*?){10}).)*$"
+      },
+      "appliesWhen": [
+        "hasHtml"
+      ],
+      "severity": "advisory",
+      "source": "UI/UX Law #1 Hick's Law, #5 Miller's Law"
+    },
+    {
+      "id": "a11y.contrast",
+      "requirement": "Body text meets 4.5:1 contrast, large text 3:1, measured against what is actually behind it",
+      "runner": "browser",
+      "appliesWhen": [
+        "hasHtml"
+      ],
+      "severity": "blocking",
+      "source": "_base.md base.a11y.contrast"
+    },
+    {
+      "id": "a11y.target-size",
+      "requirement": "Interactive targets are at least 24x24 CSS px, and 44x44 for primary actions",
+      "runner": "browser",
+      "appliesWhen": [
+        "hasHtml"
+      ],
+      "severity": "blocking",
+      "source": "_base.md base.a11y.target-size; UI/UX Law #2 Fitts's Law"
+    },
+    {
+      "id": "a11y.response-time",
+      "requirement": "Interactions respond within 400ms, or show progress",
+      "runner": "browser",
+      "appliesWhen": [
+        "hasScripts"
+      ],
+      "severity": "advisory",
+      "source": "UI/UX Law #6 Doherty threshold"
+    }
+  ]
+}

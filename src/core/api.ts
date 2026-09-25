@@ -21,7 +21,9 @@ import type { Deployer } from "./deploy.js";
 import { TemplateScaffolder } from "./scaffold.js";
 import type { Scaffolder } from "./scaffold.js";
 import { loadStyle, styleBrief } from "./design/style.js";
-import { mintCriteria } from "./criteria.js";
+import { mintCriteria, packsFor } from "./criteria.js";
+import { loadPack, runPack } from "./packs/load.js";
+import { buildSiteContext } from "./packs/context.js";
 import { buildReport } from "./report.js";
 import type { RunReport } from "./report.js";
 import { projectMetrics, runMetrics } from "./metrics.js";
@@ -61,6 +63,8 @@ export interface EngineDeps {
   scaffolder?: Scaffolder;
   /** Design guide slug used when a brief names no style. */
   defaultStyle?: string;
+  /** Policy packs used when a brief names none; [] runs no packs. */
+  defaultPacks?: string[];
 }
 
 export interface EngineOptions {
@@ -78,6 +82,7 @@ interface ResolvedDeps {
   concurrency: number;
   scaffolder: Scaffolder;
   defaultStyle?: string;
+  defaultPacks?: string[];
 }
 
 export class Engine {
@@ -102,6 +107,7 @@ export class Engine {
       concurrency: d.concurrency ?? 1,
       scaffolder: d.scaffolder ?? new TemplateScaffolder(),
       defaultStyle: d.defaultStyle,
+      defaultPacks: d.defaultPacks,
     };
   }
 
@@ -121,7 +127,11 @@ export class Engine {
   /** Autonomous driver: intake → plan → open design-approval gate (halt). */
   async run(inputs?: BriefInput): Promise<RunHandle> {
     const store = this.#graphStore();
-    const ir = compileBrief({ defaultStyle: this.#deps.defaultStyle, ...(inputs ?? {}) });
+    const ir = compileBrief({
+      defaultStyle: this.#deps.defaultStyle,
+      ...(this.#deps.defaultPacks ? { defaultPacks: this.#deps.defaultPacks } : {}),
+      ...(inputs ?? {}),
+    });
     // Fail fast on an unknown style. Left to execute time it would surface after the
     // design gate, half way through a run, as a mid-flight crash.
     if (ir.meta.style) loadStyle(ir.meta.style);
@@ -360,6 +370,78 @@ export class Engine {
     };
   }
 
+  /**
+   * Run the selected policy packs against the built site and record every outcome as evidence.
+   * A failing blocking item opens a gate: Weave records and escalates, the human decides
+   * whether to fix, waive or reject. Returns true when the run halted.
+   */
+  async #runPolicyPacks(runId: RunId): Promise<boolean> {
+    const store = this.#graphStore();
+    const node = store.getExecNode(runId, "code-qa");
+    const ir = this.#loadIR(runId);
+    const packs = ir ? packsFor(ir as never) : [];
+    if (!packs.length) {
+      if (node) store.upsertExecNode(runId, { ...node, status: "skipped" });
+      return false;
+    }
+
+    if (node) store.upsertExecNode(runId, { ...node, status: "running" });
+    await this.#events.emit({ type: "node.started", runId, data: { node: "code-qa", packs } });
+
+    const ctx = buildSiteContext(this.#repoPath);
+    const blocking: string[] = [];
+    const summary = { pass: 0, fail: 0, "not-applicable": 0, unavailable: 0, human: 0 } as Record<string, number>;
+
+    for (const name of packs) {
+      const outcomes = runPack(loadPack(name), ctx);
+      store.recordEvidence(
+        runId,
+        outcomes.map((o) => ({
+          nodeId: "code-qa",
+          criterionId: `crit:${o.itemId}`,
+          kind: "pack" as const,
+          ok: o.status === "pass",
+          status: o.status,
+          detail: `[${name}] ${o.detail}`,
+          ...(o.artifactPath ? { artifactPath: o.artifactPath } : {}),
+        })),
+      );
+      for (const o of outcomes) {
+        summary[o.status] = (summary[o.status] ?? 0) + 1;
+        if (o.status === "fail" && o.severity === "blocking") blocking.push(`${o.itemId}: ${o.detail}`);
+      }
+    }
+
+    const detail = Object.entries(summary)
+      .filter(([, n]) => n > 0)
+      .map(([k, n]) => `${n} ${k}`)
+      .join(", ");
+    if (node) {
+      store.upsertExecNode(runId, {
+        ...node,
+        status: "complete",
+        evidence: [`packs:${packs.join("+")}`, detail],
+        attempts: 1,
+      });
+    }
+    await this.#events.emit({ type: "evaluation.completed", runId, data: { packs, summary } });
+
+    // An already-approved policy gate is a waiver: do not re-gate the same run for it.
+    const waived = store
+      .gatesForRun(runId)
+      .some((g) => g.kind === "policy" && g.status === "approved");
+    if (!blocking.length || waived) return false;
+
+    const gate = await this.#openGate(
+      runId,
+      "policy",
+      `${blocking.length} blocking policy item(s) failed — fix, or approve to waive`,
+      blocking.slice(0, 10),
+    );
+    store.updateRun(runId, { status: "gated", cursor: gate.id });
+    return true;
+  }
+
   /** Persist a node's typed evidence and its per-attempt outcomes. */
   #persistOutcome(
     runId: RunId,
@@ -447,12 +529,12 @@ export class Engine {
     if (halted) return; // a gate was opened
 
     // Impl done. Per-node deterministic verify already gated code; sequential fast-forward
-    // merges = integration. Graph-level browser/visual QA need a browser worker + served URL
-    // (not wired in the v1 default path) → mark skipped, not falsely complete.
-    for (const qa of ["integration", "code-qa"]) {
-      const n = store.getExecNode(runId, qa);
-      if (n) store.upsertExecNode(runId, { ...n, status: "complete" });
-    }
+    // merges = integration.
+    const integration = store.getExecNode(runId, "integration");
+    if (integration) store.upsertExecNode(runId, { ...integration, status: "complete" });
+
+    // Policy packs run against the built site, which only exists now.
+    if (await this.#runPolicyPacks(runId)) return;
     for (const qa of ["browser-qa", "visual-qa"]) {
       const n = store.getExecNode(runId, qa);
       if (n) store.upsertExecNode(runId, { ...n, status: "skipped" });
