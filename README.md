@@ -2,12 +2,15 @@
 
 A **graph-driven autonomous engineering platform** — turns human intent + multimodal design inputs into software via bounded agent loops, with persistent state, evidence, and human gates. (Package/CLI: `weave`; MCP: `weave-mcp`.)
 
-> **Status: V2 underway, phase V2.0 shipped.** v1's vertical slice is complete (intent →
-> knowledge graph → gated build → verified result, with tree-sitter ingestion, an MCP server,
-> parallel worktrees and gated deployment). V2.0 added persisted harness state, kept gate
-> history, design→code edges written on commit, genuinely async parallel execution, a
-> zero-dependency scaffold step, and style-aware context packs drawn from **91 design guides**.
-> **18 self-checks + the design validator + `pnpm demo`, green in CI.** Credentialed adapters
+> **Status: V2 underway — V2.0, V2.1 and V2.2 shipped; V2.3 next.** v1's vertical slice is
+> complete (intent → knowledge graph → gated build → verified result, with tree-sitter
+> ingestion, an MCP server, parallel worktrees and gated deployment). V2.0 made a real
+> greenfield run possible (persisted harness state, gate history, design→code edges, async
+> parallelism, a scaffold step, style-aware context from **91 design guides**). V2.1 added
+> requirements, criteria, typed evidence, the five metrics and `weave report`. V2.2 added
+> **policy packs** — 46 items across `web-security`, `a11y`, `seo` and `performance`, each both a
+> requirement told to the agent and a check Weave runs.
+> **22 self-checks + the design validator + `pnpm demo`, green in CI.** Credentialed adapters
 > (Claude executor/decision, Playwright, real deploy) are implemented and exercised via fakes —
 > set `ANTHROPIC_API_KEY` + the `claude` CLI for real builds (see below).
 >
@@ -53,7 +56,7 @@ reduced motion, font budget — which a style may exceed but never fall below.
 ```bash
 pnpm install
 pnpm build
-pnpm check                       # 18 self-checks (IR, policy, store, loop, verify, ingest, orchestrator, parallel, resume, style, build, deploy, mcp…)
+pnpm check                       # 22 self-checks (IR, policy, store, loop, verify, ingest, orchestrator, parallel, resume, style, build, deploy, criteria, traceability, packs, policy gate, mcp…)
 node scripts/check-design.mjs    # validates the 91 design guides + their picture folders
 pnpm demo                        # end-to-end pipeline on a throwaway repo (no creds)
 

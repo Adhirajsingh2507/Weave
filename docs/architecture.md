@@ -407,4 +407,4 @@ demo-design/  reference pictures per style
 ```
 
 Seams that still need live credentials — `ClaudeDecision`, `ClaudeCodeExecutor`,
-`PlaywrightBrowserWorker` — are implemented and exercised via fakes in the 18 self-checks.
+`PlaywrightBrowserWorker` — are implemented and exercised via fakes in the 22 self-checks.

@@ -2,7 +2,7 @@
 
 > Single source of truth for the **latest** decisions. When something changes, update it here and move the superseded version to `past-info.md`.
 
-_Last updated: 2026-09-24_
+_Last updated: 2026-09-29_
 
 > **Where things stand:** v1 is complete and archived. V2 is underway — phase V2.0 has shipped.
 > The phased plan lives in `implementation-v2.md`; the raw source lists in `v2-inputs.md`.
@@ -145,7 +145,7 @@ Reliability (evidence-gated completion, graceful failure), scalability (no singl
 3. **Autonomy ≠ lack of control** — more autonomy demands stronger state, boundaries, evaluation, recovery, auditability.
 4. **Complexity must be earned** — simple loop for simple work; graph for cross-domain; multiple agents only when specialization/parallelism/isolation justify it.
 
-## Status (2026-09-24)
+## Status (2026-09-29)
 
 **v1:** complete. Phases 0–7 + ingestion + MCP + parallel worktrees + gated deployment; §115 DoD
 met. The v1 phase plan is archived in `past-info.md`.
@@ -193,11 +193,12 @@ agent and a check Weave runs:
   apply is recorded as `not-applicable` with its reason; a payments rule firing on a brochure
   site is how a report gets ignored.
 - **A blocking failure opens a `policy` gate,** it does not fail the run. Approving is a waiver,
-  recorded with its reason, and the gate does not reopen.
+  recorded with its reason, and covers exactly the items the gate named.
 
-**Known gaps carried into V2.1:** evidence is still a string array rather than typed records;
-`listGates()` spans runs, so approving by index can pick a stale gate; `browser-qa` and
-`visual-qa` are marked `skipped`; the IR has no home for the guides' shape/motion/spacing tokens.
+**Known gaps still open:** `listGates()` spans runs, so approving by index can pick a stale
+gate; `browser-qa` and `visual-qa` are marked `skipped`; the IR has no home for the guides'
+shape/motion/spacing tokens. (Typed evidence, the V2.0 gap, shipped in V2.1.) Full list in
+`to-be-discussed.md`.
 
 ## Open (see `to-be-discussed.md`)
 - **#8** — escalation framework implemented; real threshold values await calibration data, which
@@ -209,7 +210,11 @@ agent and a check Weave runs:
 **Verification now:** 22 self-checks plus the design validator. `pnpm demo` ends at
 `first-pass 75% | repair 100% | coverage 64%`, with 18 criteria passed and 0 failed.
 
-**Carried into V2.3:** the demo passes every runnable pack item, so *a pack failure driving a
+**Fixed after review (2026-09-29):** a policy waiver now covers only the items its gate named;
+`dep-audit` reports `unavailable` when the audit cannot run instead of passing; rejecting a gate
+restores the user's branch and stash. Details in `implementation-v2.md` → V2.2.
+
+**Deferred to V2.5:** the demo passes every runnable pack item, so *a pack failure driving a
 repair* is proven by `policy-gate.check` but not yet by the demo itself — staged with the
 benchmark in V2.5. Contrast and target size wait on the browser worker (V2.7).
 

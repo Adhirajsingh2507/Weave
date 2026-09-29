@@ -120,8 +120,20 @@ const depAudit: Runner = (_item, ctx) => {
   } catch (e) {
     const err = e as { stdout?: string; code?: string };
     if (err.code === "ENOENT") return { status: "unavailable", detail: "pnpm not available to audit" };
-    const out = err.stdout ?? "";
-    const advisories = (out.match(/"severity"\s*:\s*"(critical|high)"/g) ?? []).length;
+    // pnpm exits non-zero both for findings and for failing to audit at all (offline, no
+    // lockfile). Only a report carrying vulnerability counts is a verdict.
+    let vulns: Record<string, number> | undefined;
+    try {
+      vulns = (JSON.parse(err.stdout ?? "") as { metadata?: { vulnerabilities?: Record<string, number> } })
+        .metadata?.vulnerabilities;
+    } catch {
+      // not JSON — fall through to unavailable
+    }
+    if (!vulns) {
+      const reason = (err.stdout ?? "").match(/"message"\s*:\s*"([^"]+)"/)?.[1] ?? "no audit report";
+      return { status: "unavailable", detail: `audit could not run: ${reason}` };
+    }
+    const advisories = (vulns["high"] ?? 0) + (vulns["critical"] ?? 0);
     return advisories > 0
       ? { status: "fail", detail: `${advisories} high/critical advisory(ies)` }
       : { status: "pass", detail: "no high or critical advisories" };

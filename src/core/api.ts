@@ -172,6 +172,8 @@ export class Engine {
 
     if (decision === "reject") {
       store.setGateStatus(gateId, "rejected", notes);
+      // A rejected run is over: put the user back on their branch with their stash restored.
+      await this.#finishHarness(gate.runId);
       store.updateRun(gate.runId, { status: "failed", endedAt: new Date().toISOString() });
       await this.#events.emit({ type: "approval.rejected", runId: gate.runId, data: { gate: gateId } });
       return;
@@ -426,17 +428,23 @@ export class Engine {
     }
     await this.#events.emit({ type: "evaluation.completed", runId, data: { packs, summary } });
 
-    // An already-approved policy gate is a waiver: do not re-gate the same run for it.
-    const waived = store
-      .gatesForRun(runId)
-      .some((g) => g.kind === "policy" && g.status === "approved");
-    if (!blocking.length || waived) return false;
+    // Approving a policy gate waives the items it named — only those. A new blocking failure
+    // later in the same run still opens a gate.
+    const waived = new Set(
+      store
+        .gatesForRun(runId)
+        .filter((g) => g.kind === "policy" && g.status === "approved")
+        .flatMap((g) => g.evidenceRefs.map((ref) => ref.split(": ")[0])),
+    );
+    const open = blocking.filter((b) => !waived.has(b.split(": ")[0]));
+    if (!open.length) return false;
 
+    // Every item goes on the gate, untruncated: the gate's list is what an approval waives.
     const gate = await this.#openGate(
       runId,
       "policy",
-      `${blocking.length} blocking policy item(s) failed — fix, or approve to waive`,
-      blocking.slice(0, 10),
+      `${open.length} blocking policy item(s) failed — fix, or approve to waive`,
+      open,
     );
     store.updateRun(runId, { status: "gated", cursor: gate.id });
     return true;

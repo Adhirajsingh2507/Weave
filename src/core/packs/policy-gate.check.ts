@@ -127,5 +127,32 @@ assert.ok(
 await engine().resolveGate(after[0]!.id, "approve");
 assert.equal((await engine().getRun(handle.runId))?.status, "done");
 
+// ── Run 2: a waiver covers only the items it named, and rejecting restores the user ──
+writeFileSync(join(repo, "README.md"), "# policy\nuncommitted user work\n");
+const run2 = await engine().run({ projectName: "Sloppy", text: "page: home /\ncomponent: footer section" });
+await engine().resolveGate((await engine().listGates())[0]!.id, "approve");
+const first = (await engine().listGates())[0]!;
+assert.equal(first.kind, "policy");
+assert.equal(git(["stash", "list"], repo).includes("weave-autostash"), true, "user work was stashed");
+
+// While the gate is open, a new blocking violation lands on the working branch.
+const page = join(repo, "index.html");
+writeFileSync(page, readFileSync(page, "utf8").replace("</body>", `<a href="/x" target="_blank">x</a>\n</body>`));
+git(["commit", "-qam", "unsafe link"], repo);
+
+await engine().resolveGate(first.id, "approve", "waive the lang attribute only");
+const second = await engine().listGates();
+assert.equal(second.length, 1, "the new failure opens a gate despite the earlier waiver");
+assert.equal(second[0]!.kind, "policy");
+assert.ok(second[0]!.evidenceRefs.some((e) => e.startsWith("sec.links.noopener")), "names the new item");
+assert.ok(!second[0]!.evidenceRefs.some((e) => e.startsWith("a11y.lang")), "the waived item stays waived");
+
+// Rejecting ends the run and puts the user back where they were.
+await engine().resolveGate(second[0]!.id, "reject");
+assert.equal((await engine().getRun(run2.runId))?.status, "failed");
+assert.equal(git(["rev-parse", "--abbrev-ref", "HEAD"], repo), "main", "user is back on their branch");
+assert.equal(git(["stash", "list"], repo), "", "auto-stash was popped, not stranded");
+assert.match(readFileSync(join(repo, "README.md"), "utf8"), /uncommitted user work/, "user work restored");
+
 rmSync(repo, { recursive: true, force: true });
-console.log("policy gate check passed (blocking failure → gate → waiver recorded → release)");
+console.log("policy gate check passed (blocking failure → gate → per-item waiver → release; reject restores the user)");

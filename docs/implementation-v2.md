@@ -6,7 +6,7 @@
 > Sources: `../V2_planing.md` (the V2 brief), canonical §116 (V2 definition), `v2-inputs.md`
 > (the raw lists), and the decisions recorded in `current-info.md`.
 
-_Last updated: 2026-09-25_
+_Last updated: 2026-09-29_
 
 ## What V2 is
 
@@ -235,7 +235,7 @@ Weave runs.
 - **Default packs:** `web-security` and `a11y` are on by default; `seo` and `performance` are
   opt-in via `packs:` in the brief or `defaultPacks` on the engine (question 3).
 - **Blocking items open a gate, they do not fail the run** (question 4). Approving is a waiver:
-  it is recorded with its reason and the same gate does not reopen.
+  it is recorded with its reason and covers exactly the items the gate named — a new failure opens a new gate.
 
 **Shipped.**
 - 4 packs, 46 items (`web-security` 15, `a11y` 14, `seo` 10, `performance` 7), each item
@@ -259,6 +259,14 @@ it was being (correctly) marked down for.
 
 **Checks added:** `packs.check` (both directions, per item, plus applicability), `policy-gate.check`
 (blocking failure → gate → waiver recorded → release). **22 checks, CI green.**
+
+**Fixed after review (2026-09-29).** Three defects, each now asserted:
+- Approving a `policy` gate waived *every* later blocking failure in the run. The waiver now covers
+  only the items the gate named, and the gate lists all of them rather than the first ten.
+- `dep-audit` read a failed audit (offline, no lockfile) as a pass. Only a report carrying
+  vulnerability counts is a verdict; anything else is `unavailable`.
+- Rejecting any gate after execution started left the user on the `weave/<run>` branch with their
+  work in a stash — the V2.0 defect, on the reject path. Reject now restores branch and stash.
 
 **Exit criteria status.** Not-applicable-with-reason and the human checklist are done and
 asserted. *A pack failure driving a repair* is proven by `policy-gate.check` but **not yet by the
@@ -531,10 +539,11 @@ the failure faked.
 
 ## Open questions
 
-1. Metric definitions — is design-approval an intervention? (Proposal: no.)
-2. Requirements per run or per project? (Proposal: per project, versioned with the IR.)
-3. Which packs default on?
-4. Does a blocking pack item fail the run or open a gate? (Proposal: gate.)
+1. ~~Metric definitions — is design-approval an intervention?~~ **Decided (V2.1):** no.
+2. ~~Requirements per run or per project?~~ **Decided (V2.1):** per project, versioned with the IR.
+3. ~~Which packs default on?~~ **Decided (V2.2):** `web-security` + `a11y`.
+4. ~~Does a blocking pack item fail the run or open a gate?~~ **Decided (V2.2):** gate; approval
+   waives the items it names.
 5. Deploy target for the demo — Vercel, Netlify, Cloudflare Pages?
 6. Name and licence before any public launch (repo is private; `weave` is taken on npm).
 7. `terminal-ui` still has no reference pictures.
@@ -544,9 +553,9 @@ the failure faked.
 | Phase | State |
 |---|---|
 | V2.0 Real run | ✅ done, CI green |
-| V2.1 Requirements, criteria, evidence, metrics | next |
-| V2.2 Policy packs | planned |
-| V2.3 Parallel DAG | planned |
+| V2.1 Requirements, criteria, evidence, metrics | ✅ done, CI green |
+| V2.2 Policy packs | ✅ done, CI green (demo repair from a pack failure deferred to V2.5) |
+| V2.3 Parallel DAG | next |
 | V2.4 Boundaries and deploy | planned |
 | V2.5 Explorer, README, benchmark | planned |
 | V2.6 Multimodal compiler and presets | planned |

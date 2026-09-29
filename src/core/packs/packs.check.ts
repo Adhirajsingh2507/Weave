@@ -147,6 +147,8 @@ assert.equal(
   "an applicable browser check reports unavailable, never pass",
 );
 assert.equal(statusOf(appSec, "sec.db.least-privilege"), "human", "some things only a person can confirm");
+// No lockfile, so pnpm cannot audit. A failed audit is not a clean one (it used to read as pass).
+assert.equal(statusOf(appSec, "sec.deps.audited"), "unavailable", "an audit that could not run is unavailable");
 
 // Nothing may claim to pass without having been evaluated.
 for (const outcomes of [badSec, badA11y, goodSec, goodA11y, appSec]) {

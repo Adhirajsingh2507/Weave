@@ -2,6 +2,23 @@
 
 > Archive of prior thinking and superseded decisions, newest first. Never delete — this is the paper trail.
 
+## 2026-09-29 — Progress review: three defects fixed
+
+A read-through of the whole repo after V2.2 reproduced three defects; each is now asserted in a
+check (`policy-gate.check`, `packs.check`).
+
+- **Waiver scope (supersedes V2.2's "the gate does not reopen").** Any approved `policy` gate
+  silenced every later blocking failure in the run, including new ones introduced on a retry.
+  A waiver now covers exactly the items the gate named; a new failure opens a new gate. The gate
+  also lists every blocking item rather than the first ten, since the list is now what an
+  approval waives.
+- **`dep-audit` false pass.** `pnpm audit` exits non-zero both for findings and for failing to
+  run (offline, no lockfile). The runner read "no high/critical in the output" as pass. Now only
+  a report with vulnerability counts is a verdict; anything else is `unavailable`.
+- **Reject stranded the user.** Rejecting a gate after execution began set the run `failed` but
+  never restored the harness: the user stayed on `weave/<run>` with their work in
+  `weave-autostash`. Same defect class as V2.0's defect A, on the path it didn't cover.
+
 ## 2026-09-24 — V2.0 shipped, and four defects caught in review
 
 Phase V2.0 of `implementation-v2.md`: make one real greenfield run possible, fixing the four

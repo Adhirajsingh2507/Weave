@@ -2,7 +2,7 @@
 
 > Open questions not yet decided. Move each to `current-info.md` once resolved.
 
-_Last updated: 2026-09-25_
+_Last updated: 2026-09-29_
 
 ## Needs a decision before the phase that uses it
 
@@ -40,7 +40,15 @@ Struck-through rows are settled; they stay here for one phase so the reasoning i
 These are recorded in `implementation-v2.md` against the phase that fixes them, listed here so
 they are not lost:
 
-- Evidence is a string array, not typed records linked to criteria — V2.1.
+- ~~Evidence is a string array, not typed records linked to criteria~~ — shipped in V2.1.
+- **Two definitions of evidence coverage.** `metrics.ts` counts a requirement covered when any
+  evidence row exists (including not-applicable, unavailable, human); `report.ts` counts only
+  passed or failed. They agree on the demo by coincidence and will diverge on a real run.
+- **Parallel path:** a node that hits a merge conflict never has its attempts persisted, and the
+  budget ceiling is only checked on the sequential path — V2.3.
+- **Demo coverage is 7/11 requirements**, against the V2.1 exit criterion of no orphaned
+  requirement. The demo's repair is still a scripted no-op, not the natural failure of #46.
+- `weave packs add <name>` is in the V2.2 plan but not in the CLI; packs are selected in the brief.
 - `listGates()` spans runs, so approving by index can pick a stale gate from an earlier run.
 - `browser-qa` and `visual-qa` are marked `skipped`; the hybrid visual QA code exists but is
   unwired — V2.7.

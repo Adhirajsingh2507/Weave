@@ -4,10 +4,10 @@
 >
 > **Ultimate source of truth:** `../autonomous-engineering-universal-context.md` (canonical, 123 sections). This project's docs are the *distilled decided layer* over it.
 
-_Last updated: 2026-09-24_
+_Last updated: 2026-09-29_
 
 > **V2 is underway.** Identity: the control and governance layer for AI coding agents, web
-> apps first — agents execute; Weave governs, verifies, records. Phase V2.0 has shipped. The
+> apps first — agents execute; Weave governs, verifies, records. Phases V2.0–V2.2 have shipped. The
 > phased plan is `implementation-v2.md`; decisions #42–58 in `current-info.md`.
 
 ---
@@ -144,22 +144,30 @@ phase plan is archived in `past-info.md`.
 commit, genuinely async parallel execution with timeouts, a zero-dependency scaffold node, and
 style-aware context packs drawn from the 91 design guides.
 
+**V2.1:** shipped — requirement and criterion nodes, typed evidence and attempts tables, the five
+metrics computed from persisted state, and `weave report` rendering requirement → design → code →
+criterion → evidence → commit → approval.
+
+**V2.2:** shipped — 4 policy packs, 46 items, dependency-free runners, applicability facts
+(not-applicable is recorded with its reason), and a `policy` gate whose approval is a per-item
+waiver.
+
 **Design system:** 91 guides, 739 checks (~86% deterministic), 89 picture folders, validated by
 `scripts/check-design.mjs`.
 
-**Verification:** 18 self-checks + the design validator, green locally and in CI. `pnpm demo`
+**Verification:** 22 self-checks + the design validator, green locally and in CI. `pnpm demo`
 runs end to end without credentials.
 
 ## 9. Open / ongoing
 - **#8** — escalation framework implemented; threshold values await calibration data, which V2.4
   begins producing by putting the decision layer in the run path.
 - **#10 / #57** — provider routing implemented; Jev parity awaits early-access approval.
-- Metric definitions, default packs, deploy target, name and licence — see the open questions in
-  `implementation-v2.md`.
-- Carried gaps: evidence is a string array not typed records; `listGates()` spans runs; browser
-  and visual QA are `skipped`; the IR has no home for the guides' shape/motion/spacing tokens.
+- Deploy target, name and licence — see `to-be-discussed.md`. Metric definitions and default
+  packs are decided.
+- Carried gaps: `listGates()` spans runs; browser and visual QA are `skipped`; the IR has no home
+  for the guides' shape/motion/spacing tokens; the full list is in `to-be-discussed.md`.
 
 ## 10. Build plan
-See **`implementation-v2.md`** — V2.0 done; V2.1 (requirements, criteria, evidence, metrics) next,
-then packs, parallel DAG, boundaries and deploy, explorer, multimodal compiler, assets and 3D,
-with the Jev track alongside.
+See **`implementation-v2.md`** — V2.0, V2.1 and V2.2 done; V2.3 (parallel as a real DAG) next,
+then boundaries and deploy, explorer, multimodal compiler, assets and 3D, with the Jev track
+alongside.
