@@ -5,6 +5,7 @@ import { parseArgs } from "node:util";
 import { readFileSync, writeFileSync } from "node:fs";
 import { Engine, adapterDeps } from "../core/api.js";
 import { detectSandbox } from "../core/sandbox.js";
+import { doctor, renderDoctor } from "../core/doctor.js";
 import { renderReport } from "../core/report.js";
 import { DEFAULT_PACKS, listPacks, loadPack } from "../core/packs/load.js";
 import type { MultimodalInput } from "../core/intake.js";
@@ -31,12 +32,14 @@ const HELP = `weave <command>
   reject  <id> [--notes ...]      resolve a gate (reject; fails the run)
   watch                           tail the event stream
   sandbox                         show how agents are confined on this machine
+  doctor [--offline]              can this machine run the real demo? (one real model call)
 
   --repo <path>                   target repo (default: cwd)
   --concurrency <n>               impl nodes per batch (default 1)
 
 Environment:
-  ANTHROPIC_API_KEY               also judge every node diff with the decision layer
+  WEAVE_MODE=api                  API mode: agents and decisions on ANTHROPIC_API_KEY, billed
+                                  per token (default: subscription, the claude login)
   WEAVE_DEPLOY=vercel             approving pre-release deploys with Vercel (VERCEL_TOKEN,
                                   or the vercel CLI login; WEAVE_DEPLOY_PROD=1 for production)`;
 
@@ -60,6 +63,7 @@ async function main(): Promise<void> {
       suggest: { type: "string" },
       assets: { type: "string", multiple: true },
       html: { type: "string" },
+      offline: { type: "boolean" },
     },
   });
 
@@ -85,6 +89,12 @@ async function main(): Promise<void> {
         const g = loadStyle(slug);
         console.log(`${slug.padEnd(28)} ${g.summary}`);
       }
+      break;
+    }
+    case "doctor": {
+      const rows = await doctor({ offline: values.offline });
+      console.log(renderDoctor(rows));
+      if (rows.some((r) => r.status === "fail")) process.exitCode = 1;
       break;
     }
     case "sandbox": {

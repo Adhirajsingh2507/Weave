@@ -1,7 +1,7 @@
 # Setting up Weave on a new device
 
 Step by step, for Linux, macOS and Windows. Everything in **Required** is needed to build Weave,
-run its 31 self-checks and run the demo. Everything in **Optional** unlocks one capability; skip
+run its 32 self-checks and run the demo. Everything in **Optional** unlocks one capability; skip
 what you do not need. Each step says what it is for.
 
 _Last updated: 2026-09-30. Describes what works today; planned items are marked **(planned)**._
@@ -84,9 +84,11 @@ cd autodesign
 ```bash
 pnpm install --frozen-lockfile   # exactly the versions in pnpm-lock.yaml
 pnpm build                       # TypeScript → dist/
-pnpm check                       # 31 self-checks — all offline, no accounts needed
+pnpm check                       # 32 self-checks — all offline, no accounts needed
 node scripts/check-design.mjs    # validates the 91 design guides
 pnpm demo                        # the end-to-end run with stand-in agents, no accounts needed
+node dist/cli/index.js doctor    # can this machine run the real demo? (one real model call;
+                                 # --offline skips it) — names each failing item and its fix
 ```
 
 If `pnpm install` fails compiling `better-sqlite3`, install the build tools from step 1 and run
@@ -152,7 +154,7 @@ logged in (step 2).
 
 ## 5. You are ready when
 
-- [ ] `pnpm check` passes (31 checks)
+- [ ] `pnpm check` passes (32 checks)
 - [ ] `node scripts/check-design.mjs` passes
 - [ ] `pnpm demo` ends with `✓ demo complete`
 - [ ] for real runs: `claude` opens logged in to your subscription

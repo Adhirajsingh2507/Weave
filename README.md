@@ -122,7 +122,7 @@ New device? **[SETUP.md](SETUP.md)** walks through Linux, macOS and Windows (WSL
 ```bash
 pnpm install
 pnpm build
-pnpm check                       # 31 self-checks
+pnpm check                       # 32 self-checks
 node scripts/check-design.mjs    # validates the 91 guides and their picture folders
 pnpm demo                        # the end-to-end run above, no credentials
 ```

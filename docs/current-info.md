@@ -151,6 +151,11 @@ Asked and answered; the discussion continues, so these may be refined — change
 | 86 | Screenshot intake site | `https://ai-robots.apps.mdxpreview.xyz/unitree-go2` — dark, GSAP scroll-driven Go2 page. Intake reads its **design only**; its images and copy ("All rights reserved") are not reused. A full capture needs the Playwright worker (D2); the Chrome CLI shot shows only the hero. |
 | 87 | Robot model | **Unitree's own Go2 mesh** from `unitreerobotics/unitree_ros` (`robots/go2_description`), **BSD-3-Clause** — notice kept in the credits (not CC0; chosen over the CC0 options, which are cartoon mechs). 7 DAE parts (~25 MB) assembled from the URDF into one glTF and simplified to the 2 MB / 100k-triangle budget. |
 | 88 | Device | **This Linux machine only** for all work and the demo. All platforms stay supported (#82): the macOS sandbox is still built, and ships marked **NOT verified here**. |
+| 89 | Agent isolation | **Every `claude` Weave starts runs without the user's setup**: no MCP servers, no user settings/plugins/hooks, no slash commands (`--strict-mcp-config`, `--setting-sources ""`). Found in D0: agents inherited the owner's MCP servers (Vercel, GitHub, a Docker gateway on localhost). Isolated: 5.7s and api.anthropic.com only, against 59s and ten hosts. Claude Code's deny rules still hold under isolation (verified with a real agent). |
+| 90 | Push cadence | **Code and docs committed and pushed after each phase** passes its exit check; CI watched. |
+| 91 | tmux agent windows | **Their own phase, D4.5, before the first real build** (D5), so it runs in windows the owner can watch. |
+| 92 | Modes, concretely | `WEAVE_MODE=api` is the one switch; default is subscription. In subscription mode `ANTHROPIC_API_KEY` never reaches an agent, even when set in the shell. |
+| 93 | Default egress allowlist | **`api.anthropic.com` + loopback**, observed from a real subscription call (was `*.anthropic.com`). `weave doctor` re-observes it on every machine. |
 
 ## Tech stack (locked)
 | Concern | Choice |
@@ -285,7 +290,7 @@ by headless Chrome and the screenshots are evidence; visibility is judged on the
 **V2 is complete** as planned — every phase shipped, each with the caveat that no real agent
 run has exercised it.
 
-**Verification now:** 31 self-checks plus the design validator. `pnpm demo` ends at
+**Verification now:** 32 self-checks plus the design validator. `pnpm demo` ends at
 `first-pass 75% | repair 100% | coverage 64%`, 20 criteria passed and 2 failed — the two failures
 are real: the demo's stand-in host sends no HSTS or Referrer-Policy header, and the live checks
 say so. The demo also exercises the policy repair loop, acquires and places a 3D model, renders the

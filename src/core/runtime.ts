@@ -70,14 +70,37 @@ function sanitize(id: string): string {
 }
 
 /**
+ * The two ways to run (decision #75). Subscription: Claude Code on the `claude` login, no API key
+ * anywhere. API: the same agents on ANTHROPIC_API_KEY, billed per token. One setting switches.
+ */
+export type WeaveMode = "subscription" | "api";
+export function weaveMode(env: NodeJS.ProcessEnv = process.env): WeaveMode {
+  return env["WEAVE_MODE"] === "api" ? "api" : "subscription";
+}
+
+/**
+ * Every `claude` Weave starts runs without the user's own setup: no MCP servers (theirs can
+ * deploy, push, or reach a local gateway the sandbox cannot see), no user settings, plugins or
+ * hooks, no slash commands. The login still works. Measured 2026-09-30: 5.7s and one host
+ * (api.anthropic.com) isolated, against 59s and ten hosts inheriting a typical setup.
+ */
+export const ISOLATED_CLAUDE_ARGS = [
+  "--strict-mcp-config", "--mcp-config", '{"mcpServers":{}}',
+  "--setting-sources", "",
+  "--disable-slash-commands",
+];
+
+/**
  * Allow-list of environment variables an agent subprocess inherits. Everything else —
  * cloud credentials, database URLs, CI tokens, unrelated API keys — stays out of reach.
  * Enforcement lives here rather than in the prompt, which an agent can simply ignore.
+ * ANTHROPIC_API_KEY passes only in API mode: in subscription mode a stray key in the shell
+ * would silently move every agent onto per-token billing.
  */
-export function scrubbedEnv(extra: string[] = []): NodeJS.ProcessEnv {
+export function scrubbedEnv(extra: string[] = [], mode: WeaveMode = weaveMode()): NodeJS.ProcessEnv {
   const keep = [
     "PATH", "HOME", "USER", "LOGNAME", "SHELL", "LANG", "LC_ALL", "TERM", "TMPDIR",
-    "ANTHROPIC_API_KEY", // the agent's own credential, nothing else
+    ...(mode === "api" ? ["ANTHROPIC_API_KEY"] : []),
     "XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_CACHE_HOME",
     ...extra,
   ];
@@ -133,7 +156,7 @@ export class ClaudeCodeExecutor implements NodeExecutor {
     const prompt = buildPrompt(cp);
     // Layer 1, native: Claude Code's own permission rules refuse the deny-listed paths.
     const settings = JSON.stringify({ permissions: { deny: nativeDenyRules(cp.permissions.deny) } });
-    const args = ["-p", prompt, "--permission-mode", "acceptEdits", "--settings", settings];
+    const args = ["-p", prompt, "--permission-mode", "acceptEdits", "--settings", settings, ...ISOLATED_CLAUDE_ARGS];
     // Layer 2, OS: bubblewrap makes those paths (and home secrets) unreadable to anything the
     // agent spawns, including a shell that never consults the permission rules.
     const sandbox = this.#sandboxInfo();

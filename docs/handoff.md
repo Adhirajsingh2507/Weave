@@ -45,7 +45,7 @@ docs update after `84c7e6d`. CI is green on `main`.
 - **Not yet done with a real agent.** Everything is proven with stand-in agents and recorded
   readings. The calibration corpus and the benchmark are empty.
 - **Verify on any machine:** `pnpm install --frozen-lockfile && pnpm build && pnpm check`
-  (31 checks) `&& node scripts/check-design.mjs && pnpm demo`.
+  (32 checks) `&& node scripts/check-design.mjs && pnpm demo`.
 
 ## The direction just decided (#75–#83)
 
@@ -86,6 +86,5 @@ Playwright.
 ## Next steps, in order
 
 1. The design discussion (above) — record outcomes as decisions in `current-info.md`.
-2. `demo-plan.md` D0 (preflight `weave doctor`, stop passing `ANTHROPIC_API_KEY` to agents,
-   allowlist exactly the hosts the subscription login needs — observed, not guessed), then D1
-   onward, pushing docs after each phase.
+2. `demo-plan.md` D1–D4, then D4.5 (tmux), then D5. D0 is done (`weave doctor`). Code and docs
+   are pushed after each phase (#90).

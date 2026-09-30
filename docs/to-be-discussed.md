@@ -60,7 +60,7 @@ they are not lost:
   namespace is the upgrade); the OS sandbox is Linux-only; a real `claude` has not yet run inside
   bubblewrap, only a stand-in; the decision layer's `llm` tier keeps the verdict for want of a
   second classifier; a failing live check after deploy is recorded, not rolled back.
-- **Default egress allowlist is narrow** (`*.anthropic.com` + loopback). An agent that runs
+- **Default egress allowlist is narrow** (`api.anthropic.com` + loopback, observed — #93). Loopback stays open for dev servers, so a process on the user's machine listening on localhost is reachable by an agent's shell; a network namespace is the upgrade. An agent that runs
   `pnpm add` is refused the registry — which is also a risky-op. Decide whether the registry
   belongs on the default list once a real run shows how often it matters.
 - ~~`listGates()` spans runs~~ — latest run by default since V2.5 (#66).

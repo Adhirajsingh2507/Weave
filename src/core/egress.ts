@@ -20,8 +20,12 @@ export interface EgressRecord {
   count: number;
 }
 
-/** What an agent needs by default: its own API, and loopback for local dev servers. */
-export const DEFAULT_ALLOW_HOSTS = ["api.anthropic.com", "*.anthropic.com", "localhost", "127.0.0.1"];
+/**
+ * What an agent needs by default: its own API, and loopback for local dev servers. Observed, not
+ * guessed: an isolated `claude -p` on the subscription login contacts api.anthropic.com only
+ * (2026-09-30, `weave doctor` re-checks it on every machine).
+ */
+export const DEFAULT_ALLOW_HOSTS = ["api.anthropic.com", "localhost", "127.0.0.1"];
 
 /** Exact host, or `*.example.com` for the domain and every subdomain. */
 export function hostAllowed(host: string, allow: string[]): boolean {

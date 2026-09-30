@@ -60,6 +60,10 @@ egress allowlist reaching what the subscription login needs, `TYPESAFE_API_KEY` 
 - Verify which hosts the subscription login actually contacts, and allowlist exactly those —
   observed from the egress record of a real call, not guessed.
 - **Exit:** `weave doctor` passes on your machine, or names each failing item and how to fix it.
+- **Done 2026-09-30.** Observed: the isolated subscription call contacts `api.anthropic.com`
+  only (#93). Found and fixed: agents inherited the owner's MCP servers and plugins (#89).
+  `weave doctor` on this machine: login (Pro), Opus 5.5, egress, Vercel, bubblewrap and Chrome
+  pass; the five tools and gitleaks fail with their fix (D2); Jev key is marked for D8.
 
 ### D1 — Decision layer and vision through your subscription
 
@@ -104,6 +108,15 @@ egress allowlist reaching what the subscription login needs, `TYPESAFE_API_KEY` 
 - Deploy headers: the scaffold emits a `vercel.json` with the security headers the live checks
   look for (they failed in the stand-in host) and a CSP that allows the bundled viewer only.
 - **Exit:** a Playwright render shows the robot in the hero; visual QA judges it visible.
+
+### D4.5 — Agents in tmux windows (#76–#79, #91)
+
+- Subscription mode runs each agent as an interactive Claude Code session in its own tmux
+  window, in its own worktree; you can attach, watch and type.
+- Every message you type is recorded and counts as a human intervention; a repair is sent into
+  the same session as the next message; permissions are automatic within the sandbox and
+  ownership rules.
+- **Exit:** a stand-in agent run in tmux windows end to end; one real window you attach to.
 
 ### D5 — The first real build (measured)
 
@@ -171,11 +184,12 @@ egress allowlist reaching what the subscription login needs, `TYPESAFE_API_KEY` 
 
 | Phase | State |
 |---|---|
-| D0 Preflight | not started |
+| D0 Preflight | **done** (`weave doctor`) |
 | D1 Subscription decision + vision | not started |
 | D2 Tools | not started |
 | D3 Templates for real | not started |
 | D4 3D that renders | not started |
+| D4.5 Agents in tmux | not started |
 | D5 First real build | not started |
 | D6 Intake + public deploy | not started (site decided, #86) |
 | D7 Benchmark | size decided after D5 |
