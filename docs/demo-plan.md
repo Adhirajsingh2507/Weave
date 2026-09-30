@@ -89,6 +89,9 @@ egress allowlist reaching what the subscription login needs, `TYPESAFE_API_KEY` 
 - Optimisation becomes real: sharp for rasters, gltf-transform for 3D; budgets measured after.
 - CI installs the same set plus bubblewrap, so every push proves the sandbox and the real render.
 - **Exit:** CI green with every "not verified here" branch now verified.
+- **Done 2026-09-30** (#95). CI run 36738064526: sandbox (bubblewrap, `.env` unreadable), the
+  real Chrome render and all six tools run for real; `WEAVE_REQUIRE_TOOLS=1` makes any
+  unverified branch fail. `weave doctor` on this machine: **Ready** (Jev key marked for D8).
 
 ### D3 — Design templates for real
 
@@ -189,7 +192,7 @@ egress allowlist reaching what the subscription login needs, `TYPESAFE_API_KEY` 
 |---|---|
 | D0 Preflight | **done** (`weave doctor`) |
 | D1 Subscription decision + vision | **done** |
-| D2 Tools | not started |
+| D2 Tools | **done** (CI proves them) |
 | D3 Templates for real | not started |
 | D4 3D that renders | not started |
 | D4.5 Agents in tmux | not started |

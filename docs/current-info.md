@@ -157,6 +157,7 @@ Asked and answered; the discussion continues, so these may be refined — change
 | 92 | Modes, concretely | `WEAVE_MODE=api` is the one switch; default is subscription. In subscription mode `ANTHROPIC_API_KEY` never reaches an agent, even when set in the shell. |
 | 93 | Default egress allowlist | **`api.anthropic.com` + loopback**, observed from a real subscription call (was `*.anthropic.com`). `weave doctor` re-observes it on every machine. |
 | 94 | Decisions and vision, built (D1) | `ClaudeCodeDecision`, `ClaudeCodeVisionInterpreter`, `ClaudeCodeVisionExtractor`: `claude -p --json-schema`, isolated (#89), Opus 5.5, Zod-validated, one retry. Vision reads the image with the Read tool, confined to its folder. **A refusal, rate limit, different model, or second invalid answer is `ModelUnavailableError`**: on a node diff it holds the change at a risky-op gate; intake stops with the reason; visual QA records it as unavailable for the pre-release gate. A missing provider still never blocks (V2.4). API mode: `ClaudeDecision` moved to the SDK with structured outputs, Opus 5.5. |
+| 95 | Tools, built (D2) | **devDependencies**: Playwright 1.63, Lighthouse 13.5, @axe-core/playwright 4.13, sharp 0.35, @gltf-transform/cli 4.5; **gitleaks 8.30.1** by a pinned, SHA-256-verified download (`pnpm tools:gitleaks` → `.tools/bin`). Weave finds tools in its own install before PATH. **Playwright is the default browser worker** (full page, console errors, a scroll pass); Chrome CLI is the fallback. sharp re-encodes rasters (no resizing yet); gltf-transform optimises 3D. **CI installs the same set and runs with `WEAVE_REQUIRE_TOOLS=1`**: an unverified branch fails instead of passing. |
 
 ## Tech stack (locked)
 | Concern | Choice |
@@ -291,7 +292,7 @@ by headless Chrome and the screenshots are evidence; visibility is judged on the
 **V2 is complete** as planned — every phase shipped, each with the caveat that no real agent
 run has exercised it.
 
-**Verification now:** 33 self-checks plus the design validator. `pnpm demo` ends at
+**Verification now:** 34 self-checks plus the design validator. `pnpm demo` ends at
 `first-pass 75% | repair 100% | coverage 64%`, 20 criteria passed and 2 failed — the two failures
 are real: the demo's stand-in host sends no HSTS or Referrer-Policy header, and the live checks
 say so. The demo also exercises the policy repair loop, acquires and places a 3D model, renders the

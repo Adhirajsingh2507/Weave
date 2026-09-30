@@ -70,13 +70,13 @@ they are not lost:
   `claude-sonnet-5`. That is valid there, but Opus 5.5 and Sonnet 5.5 reject forced tool use, and
   the documented default model is `claude-opus-5-5`. Moving it to the SDK with structured outputs
   changes the model — and so the cost — of every decision; that is a choice to make, not a cleanup.
-- **The benchmark has never run.** It needs real agent runs (cost ≈ runs × 2 builds) and, to be
-  worth much, Lighthouse and axe installed (`npm i -g lighthouse @axe-core/cli`) and gitleaks.
+- **The benchmark has never run.** It needs real agent runs (cost ≈ runs × 2 builds). Its
+  scorers are installed and proven since D2 (#95).
 - **`demo-design/` has pictures for 6 of 91 styles**, so the MCP picture resources are thin.
 - ~~`browser-qa` and `visual-qa` are marked `skipped`~~ — wired in V2.7 (#73, #74).
-- **V2.7 ceilings.** Raster and 3D optimisation need sharp / gltf-transform; without them assets
-  are measured and budgeted, not shrunk. The Chrome CLI cannot see console errors or capture past
-  the window. Video and fonts are budgeted by size only.
+- **V2.7 ceilings.** ~~Raster and 3D optimisation need sharp / gltf-transform~~ and ~~the Chrome
+  CLI cannot see console errors~~ — closed in D2 (#95). Still open: rasters are re-encoded, not
+  resized to their pixel budget; video and fonts are budgeted by size only.
 - **3D needs a renderer.** `<model-viewer>` loads its script from a CDN, which the egress
   allowlist and a strict CSP both stop. Decide whether the scaffold vendors a renderer, or 3D
   placement requires a poster image as the fallback.

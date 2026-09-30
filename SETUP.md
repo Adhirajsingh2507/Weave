@@ -1,7 +1,7 @@
 # Setting up Weave on a new device
 
 Step by step, for Linux, macOS and Windows. Everything in **Required** is needed to build Weave,
-run its 33 self-checks and run the demo. Everything in **Optional** unlocks one capability; skip
+run its 34 self-checks and run the demo. Everything in **Optional** unlocks one capability; skip
 what you do not need. Each step says what it is for.
 
 _Last updated: 2026-09-30. Describes what works today; planned items are marked **(planned)**._
@@ -82,9 +82,11 @@ cd autodesign
 ## 3. Install, build, verify
 
 ```bash
-pnpm install --frozen-lockfile   # exactly the versions in pnpm-lock.yaml
+pnpm install --frozen-lockfile   # exactly the versions in pnpm-lock.yaml (demo tools included)
+pnpm exec playwright install chromium   # the browser Playwright renders with (~115 MB)
+pnpm tools:gitleaks              # pinned, checksum-verified gitleaks into .tools/bin
 pnpm build                       # TypeScript → dist/
-pnpm check                       # 33 self-checks — all offline, no accounts needed
+pnpm check                       # 34 self-checks — all offline, no accounts needed
 node scripts/check-design.mjs    # validates the 91 design guides
 pnpm demo                        # the end-to-end run with stand-in agents, no accounts needed
 node dist/cli/index.js doctor    # can this machine run the real demo? (one real model call;
@@ -156,7 +158,7 @@ logged in (step 2).
 
 ## 5. You are ready when
 
-- [ ] `pnpm check` passes (33 checks)
+- [ ] `pnpm check` passes (34 checks)
 - [ ] `node scripts/check-design.mjs` passes
 - [ ] `pnpm demo` ends with `✓ demo complete`
 - [ ] for real runs: `claude` opens logged in to your subscription

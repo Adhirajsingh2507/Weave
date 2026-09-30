@@ -45,7 +45,7 @@ docs update after `84c7e6d`. CI is green on `main`.
 - **Not yet done with a real agent.** Everything is proven with stand-in agents and recorded
   readings. The calibration corpus and the benchmark are empty.
 - **Verify on any machine:** `pnpm install --frozen-lockfile && pnpm build && pnpm check`
-  (33 checks) `&& node scripts/check-design.mjs && pnpm demo`.
+  (34 checks) `&& node scripts/check-design.mjs && pnpm demo`.
 
 ## The direction just decided (#75–#83)
 
@@ -78,13 +78,13 @@ Linux machine only with all platforms still supported (#88).
 ## This machine (as of 2026-09-30)
 
 Linux, Node 22.23, pnpm 9.15. bubblewrap works (the sandbox check proves `.env` unreadable).
-Google Chrome installed (renders verified). `claude` CLI 2.1.284 logged in with a **Claude
-subscription**. Vercel CLI logged in. **No `ANTHROPIC_API_KEY`** — and the owner does not want
-one for now. tmux is installed. Not installed: Lighthouse, axe, gitleaks, gltf-transform, sharp,
-Playwright.
+Google Chrome installed (renders verified). `claude` CLI 2.1.285 logged in with a **Claude Pro
+subscription**; Opus 5.5 answers through it. Vercel CLI logged in. **No `ANTHROPIC_API_KEY`** —
+and the owner does not want one for now. tmux is installed. The demo tools (D2) are installed;
+`weave doctor` says **Ready**.
 
 ## Next steps, in order
 
 1. The design discussion (above) — record outcomes as decisions in `current-info.md`.
-2. `demo-plan.md` D2–D4, then D4.5 (tmux), then D5. D0 and D1 are done. Code and docs
+2. `demo-plan.md` D3–D4, then D4.5 (tmux), then D5. D0–D2 are done. Code and docs
    are pushed after each phase (#90).
