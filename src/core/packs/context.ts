@@ -32,6 +32,37 @@ export interface SiteContext {
   packageJson?: { dependencies?: Record<string, string>; devDependencies?: Record<string, string>; scripts?: Record<string, string> };
   distFiles: SiteFile[];
   facts: Set<Applicability>;
+  /** Present only for post-deploy checks: the deployed URL and its response headers. */
+  live?: { url: string; headers: Record<string, string> };
+}
+
+/**
+ * The deployed site as a pack context: its pages fetched from the live URL, plus the headers the
+ * host actually serves. Only page and header items are meaningful here; the caller filters.
+ */
+export async function buildLiveContext(url: string, pageFiles: string[]): Promise<SiteContext | { error: string }> {
+  const htmlPages: HtmlPage[] = [];
+  let headers: Record<string, string> = {};
+  for (const file of pageFiles.length ? pageFiles : ["index.html"]) {
+    const target = new URL(file === "index.html" ? "/" : file, url);
+    try {
+      const res = await fetch(target, { signal: AbortSignal.timeout(15_000), redirect: "follow" });
+      if (!res.ok) {
+        if (file === "index.html") return { error: `${target} answered ${res.status}` };
+        continue;
+      }
+      if (file === "index.html") headers = Object.fromEntries([...res.headers].map(([k, v]) => [k.toLowerCase(), v]));
+      htmlPages.push({ path: file, html: await res.text() });
+    } catch (e) {
+      if (file === "index.html") return { error: `could not fetch ${target}: ${e instanceof Error ? e.message : String(e)}` };
+    }
+  }
+  const allText = htmlPages.map((p) => p.html).join("\n").toLowerCase();
+  const facts = new Set<Applicability>(["always"]);
+  if (htmlPages.length) facts.add("hasHtml");
+  if (/<form\b/.test(allText)) facts.add("hasForms");
+  if (/<img\b/.test(allText)) facts.add("hasImages");
+  return { repoPath: "", files: [], trackedFiles: [], htmlPages, css: "", js: "", distFiles: [], facts, live: { url, headers } };
 }
 
 const SKIP_DIRS = new Set(["node_modules", ".git", ".agent", "dist", "build", ".next", "coverage"]);
@@ -85,9 +116,12 @@ export function buildSiteContext(repoPath: string): SiteContext {
     trackedFiles = files.map((f) => f.path);
   }
 
+  // Only full documents are pages. A fragment or template partial has no <html>, <title> or
+  // <h1> of its own by design; its content is checked in the page it is assembled into.
   const htmlPages: HtmlPage[] = files
     .filter((f) => [".html", ".htm"].includes(extname(f.path).toLowerCase()))
-    .map((f) => ({ path: f.path, html: read(repoPath, f.path) }));
+    .map((f) => ({ path: f.path, html: read(repoPath, f.path) }))
+    .filter((p) => /<!doctype html|<html[\s>]/i.test(p.html));
 
   const css = files
     .filter((f) => extname(f.path).toLowerCase() === ".css")

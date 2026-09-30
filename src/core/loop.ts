@@ -1,6 +1,8 @@
 // Node loop (decision #26/#27): discover → execute → verify → record → repair,
 // bounded by a retry cap → escalate. Graph decides the route; the loop decides quality.
 
+import { describeEgress } from "./egress.js";
+import type { EgressRecord } from "./egress.js";
 import type { ContextPack, NodeExecutor } from "./runtime.js";
 import type { GitHarness } from "./runtime.js";
 
@@ -9,7 +11,21 @@ import type { GitHarness } from "./runtime.js";
  * and then discarded the moment a node passed.
  */
 export interface EvidenceRecord {
-  kind: "build" | "test" | "structural" | "dom" | "visual" | "pack" | "deploy" | "agent";
+  kind:
+    | "build"
+    | "test"
+    | "structural"
+    | "dom"
+    | "visual"
+    | "pack"
+    | "deploy"
+    | "agent"
+    /** How the agent was confined for an attempt (V2.4). */
+    | "sandbox"
+    /** Which hosts the agent contacted (V2.4). */
+    | "network"
+    /** A risk finding or a decision-layer risk verdict on the node's diff (V2.4). */
+    | "risk";
   ok: boolean;
   detail: string;
   /** Criterion this proves, where the producer knows it. */
@@ -72,25 +88,43 @@ export async function executeAndVerify(opts: {
   node: LoopNode;
   worktreeDir: string;
   retryCap?: number;
+  /** The user's repo, handed to the executor so a sandbox can hide its working tree. */
+  repoPath?: string;
 }): Promise<{
   ok: boolean;
   attempts: number;
   evidence: EvidenceRecord[];
   attemptLog: AttemptOutcome[];
   changedFiles: string[];
+  /** Hosts contacted across every attempt. */
+  egress: EgressRecord[];
 }> {
   const { executor, verifier, node, worktreeDir } = opts;
   const retryCap = opts.retryCap ?? 3;
   const evidence: EvidenceRecord[] = [];
   const attemptLog: AttemptOutcome[] = [];
+  const egress = new Map<string, EgressRecord>();
   let changedFiles: string[] = [];
 
   for (let attempt = 1; attempt <= retryCap; attempt++) {
     const startedAt = new Date().toISOString();
-    const exec = await executor.run({ contextPack: node.contextPack, worktreeDir });
+    const exec = await executor.run({
+      contextPack: node.contextPack,
+      worktreeDir,
+      ...(opts.repoPath ? { repoPath: opts.repoPath } : {}),
+    });
     changedFiles = exec.changedFiles;
     for (const ref of exec.evidenceRefs) {
       evidence.push({ kind: "agent", ok: exec.ok, detail: ref });
+    }
+    if (exec.sandbox) evidence.push({ kind: "sandbox", ok: true, detail: exec.sandbox.detail });
+    if (exec.egress) {
+      const blocked = exec.egress.filter((r) => !r.allowed);
+      evidence.push({ kind: "network", ok: blocked.length === 0, detail: `egress: ${describeEgress(exec.egress)}` });
+      for (const r of exec.egress) {
+        const seen = egress.get(r.host);
+        egress.set(r.host, seen ? { ...seen, count: seen.count + r.count } : { ...r });
+      }
     }
     const verdict = await verifier.verify(worktreeDir);
     evidence.push(...normaliseEvidence(verdict));
@@ -104,13 +138,13 @@ export async function executeAndVerify(opts: {
     });
 
     if (exec.ok && verdict.ok) {
-      return { ok: true, attempts: attempt, evidence, attemptLog, changedFiles };
+      return { ok: true, attempts: attempt, evidence, attemptLog, changedFiles, egress: [...egress.values()] };
     }
     node.contextPack.previousFailures.push(
       `attempt ${attempt}: ${exec.ok ? normaliseEvidence(verdict).filter((e) => !e.ok).map((e) => e.detail).join("; ") || "verification failed" : exec.summary}`,
     );
   }
-  return { ok: false, attempts: retryCap, evidence, attemptLog, changedFiles };
+  return { ok: false, attempts: retryCap, evidence, attemptLog, changedFiles, egress: [...egress.values()] };
 }
 
 /**

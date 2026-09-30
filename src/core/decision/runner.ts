@@ -1,4 +1,4 @@
-// DecisionRunner — the System One control point: decide → route by confidence →
+// DecisionRunner — the decision layer's control point: decide → route by confidence →
 // log to the corpus. The corpus feeds #8 calibration and #10 parity (decision #38/#39).
 
 import { appendFileSync, mkdirSync } from "node:fs";

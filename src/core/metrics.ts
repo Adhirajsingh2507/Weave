@@ -23,12 +23,48 @@ export interface RunMetrics {
   humanInterventionRate: number | null;
   /** True when the run reached done opening no gates beyond the mandatory two. */
   autonomous: boolean;
-  /** Requirements with at least one evidence record ÷ requirements. */
+  /** Requirements with a passed or failed verdict on some criterion ÷ requirements. */
   evidenceCoverage: number | null;
   /** Criteria with no runner yet — the V2.2 worklist, reported rather than hidden. */
   pendingCriteria: number;
   unplannedGates: number;
   totalGates: number;
+}
+
+export type CriterionStatus = "passed" | "failed" | "pending" | "not-applicable" | "unavailable" | "human";
+
+/** The latest verdict decides: a criterion that failed twice and then passed is passed. */
+export function latestStatus(rows: Array<{ ok: number; status?: string | null }>): CriterionStatus {
+  if (!rows.length) return "pending";
+  const last = rows[rows.length - 1]!;
+  switch (last.status ?? (last.ok === 1 ? "pass" : "fail")) {
+    case "pass":
+      return "passed";
+    case "fail":
+      return "failed";
+    case "not-applicable":
+      return "not-applicable";
+    case "unavailable":
+      return "unavailable";
+    case "human":
+      return "human";
+    default:
+      return "pending";
+  }
+}
+
+export const isVerdict = (s: CriterionStatus | undefined): boolean => s === "passed" || s === "failed";
+
+/** Latest status per criterion for a run, from its evidence rows in time order. */
+export function criterionStatuses(store: GraphStore, runId: string): Map<string, CriterionStatus> {
+  const byCriterion = new Map<string, Array<{ ok: number; status?: string | null }>>();
+  for (const e of store.evidenceFor({ runId })) {
+    if (!e.criterion_id) continue;
+    const list = byCriterion.get(e.criterion_id) ?? [];
+    list.push(e);
+    byCriterion.set(e.criterion_id, list);
+  }
+  return new Map([...byCriterion].map(([id, rows]) => [id, latestStatus(rows)]));
 }
 
 const ratio = (numerator: number, denominator: number): number | null =>
@@ -59,16 +95,15 @@ export function runMetrics(store: GraphStore, runId: string): RunMetrics {
 
   const requirements = store.query({ kind: "requirement" });
   const criteria = store.query({ kind: "criterion" });
-  const evidence = store.evidenceFor({ runId });
-  const criteriaWithEvidence = new Set(
-    evidence.map((e) => e.criterion_id).filter((id): id is string => Boolean(id)),
-  );
+  const statuses = criterionStatuses(store, runId);
 
-  // A requirement is covered when any criterion that verifies it has evidence.
+  // A requirement is covered when a criterion that verifies it has a verdict — passed or failed.
+  // not-applicable, unavailable and human are resolutions, not evidence that it holds. The
+  // report uses the same function, so the metric and the list can no longer disagree.
   let covered = 0;
   for (const req of requirements) {
     const verifying = store.neighbors(req.id).filter((e) => e.kind === "verifies" && e.to === req.id);
-    if (verifying.some((e) => criteriaWithEvidence.has(e.from))) covered++;
+    if (verifying.some((e) => isVerdict(statuses.get(e.from)))) covered++;
   }
 
   const pending = criteria.filter((c) => (c.attrs?.["runner"] ?? "") === "pending").length;

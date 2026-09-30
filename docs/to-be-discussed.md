@@ -2,7 +2,7 @@
 
 > Open questions not yet decided. Move each to `current-info.md` once resolved.
 
-_Last updated: 2026-09-29_
+_Last updated: 2026-09-30_
 
 ## Needs a decision before the phase that uses it
 
@@ -12,7 +12,7 @@ _Last updated: 2026-09-29_
 | ~~2~~ | Are requirements scoped per run or per project? | V2.1 | **Decided (V2.1):** per project, versioned with the IR. |
 | ~~3~~ | Which policy packs are on by default versus opt-in? | V2.2 | **Decided (V2.2):** `web-security` + `a11y` on; `seo` + `performance` opt-in. |
 | ~~4~~ | Does a `severity: blocking` pack item fail the run or open a gate? | V2.2 | **Decided (V2.2):** opens a `policy` gate; approving is a recorded waiver. |
-| 5 | Deploy target for the demo: Vercel, Netlify or Cloudflare Pages? | V2.4 | Vercel; the MCP connection already exists. |
+| ~~5~~ | Deploy target for the demo: Vercel, Netlify or Cloudflare Pages? | V2.4 | **Decided (V2.4):** Vercel — `VercelDeployer`, token in the release env only (#63). |
 | 6 | Name and licence before any public launch. | before launch | `weave` on npm belongs to Weights & Biases. Decide after the demo. |
 
 Struck-through rows are settled; they stay here for one phase so the reasoning is easy to find.
@@ -20,8 +20,9 @@ Struck-through rows are settled; they stay here for one phase so the reasoning i
 ## Blocked on access or data
 
 - **#8 — confidence thresholds.** The framework is implemented; real per-type values need
-  calibration data from logged `(name, confidence, outcome)`. V2.4 starts producing it by putting
-  the decision layer in the run path.
+  calibration data from logged `(name, confidence, outcome)`. Since V2.4 the decision layer is in
+  the run path (`risk.classifyOperation` on every node diff), so the first credentialed run starts
+  the corpus. **No real entries yet.**
 - **#10 / #57 — Jev.** Provider routing is implemented and the parity harness is specified.
   Waitlisted for early access. The seam also needs widening to Jev's shape: several typed
   questions per call, with choice, score and boolean-probability primitives.
@@ -41,18 +42,31 @@ These are recorded in `implementation-v2.md` against the phase that fixes them, 
 they are not lost:
 
 - ~~Evidence is a string array, not typed records linked to criteria~~ — shipped in V2.1.
-- **Two definitions of evidence coverage.** `metrics.ts` counts a requirement covered when any
-  evidence row exists (including not-applicable, unavailable, human); `report.ts` counts only
-  passed or failed. They agree on the demo by coincidence and will diverge on a real run.
-- **Parallel path:** a node that hits a merge conflict never has its attempts persisted, and the
-  budget ceiling is only checked on the sequential path — V2.3.
+- ~~**Two definitions of evidence coverage**~~ — one definition since V2.5 (#65).
+- ~~**Parallel path:** conflict attempts not persisted; budget only checked sequentially~~ — fixed
+  in V2.3.
 - **Demo coverage is 7/11 requirements**, against the V2.1 exit criterion of no orphaned
-  requirement. The demo's repair is still a scripted no-op, not the natural failure of #46.
+  requirement. The demo's repair is scripted (an `<h1>` in a fragment, caught by the real check),
+  not yet the natural failure of #46 from a real agent — needs the first credentialed run.
 - `weave packs add <name>` is in the V2.2 plan but not in the CLI; packs are selected in the brief.
-- `listGates()` spans runs, so approving by index can pick a stale gate from an earlier run.
+- **V2.4 ceilings.** The egress proxy binds only clients that honour `HTTPS_PROXY` (a network
+  namespace is the upgrade); the OS sandbox is Linux-only; a real `claude` has not yet run inside
+  bubblewrap, only a stand-in; the decision layer's `llm` tier keeps the verdict for want of a
+  second classifier; a failing live check after deploy is recorded, not rolled back.
+- **Default egress allowlist is narrow** (`*.anthropic.com` + loopback). An agent that runs
+  `pnpm add` is refused the registry — which is also a risky-op. Decide whether the registry
+  belongs on the default list once a real run shows how often it matters.
+- ~~`listGates()` spans runs~~ — latest run by default since V2.5 (#66).
+- **`ClaudeDecision` predates the SDK.** It uses raw `fetch` and a forced tool call on
+  `claude-sonnet-5`. That is valid there, but Opus 5.5 and Sonnet 5.5 reject forced tool use, and
+  the documented default model is `claude-opus-5-5`. Moving it to the SDK with structured outputs
+  changes the model — and so the cost — of every decision; that is a choice to make, not a cleanup.
+- **The benchmark has never run.** It needs real agent runs (cost ≈ runs × 2 builds) and, to be
+  worth much, Lighthouse and axe installed (`npm i -g lighthouse @axe-core/cli`) and gitleaks.
+- **`demo-design/` has pictures for 6 of 91 styles**, so the MCP picture resources are thin.
 - `browser-qa` and `visual-qa` are marked `skipped`; the hybrid visual QA code exists but is
   unwired — V2.7.
-- The IR has no home for the guides' `shape`, `motion` and `spacing` tokens — V2.6.
+- ~~The IR has no home for the guides' `shape`, `motion` and `spacing` tokens~~ — V2.6 (#68).
 - `ingest --changed` uses working-tree dirty files rather than a persisted since-last-ingest diff,
   and deletions leave stale code nodes.
 

@@ -14,6 +14,8 @@ export type ExecNodeKind =
   | "architecture"
   | "scaffold"
   | "impl"
+  /** A bounded repair of whole-site failures, run once before a human is asked (V2.5). */
+  | "repair"
   | "integration"
   | "code-qa"
   | "browser-qa"
@@ -74,4 +76,11 @@ export interface ExecNode {
   evidence?: string[];
   /** How many attempts the node took, so first-pass rate is computable. */
   attempts?: number;
+  /** Exec nodes that must complete first. Ids absent from the run's graph count as satisfied. */
+  dependsOn?: NodeId[];
+  /**
+   * Paths this node may change: exact paths, or prefixes ending in "/". Changes outside the
+   * set fail verification. Absent means unrestricted (an existing project's layout is unknown).
+   */
+  owns?: string[];
 }

@@ -1,13 +1,17 @@
-// Phase 7 — runnable end-to-end demo (no Claude/creds). Drives the real Engine with a
-// fake site generator on a throwaway repo: run → design gate → fan-out (with a repair) →
-// pre-release gate → done. Proves §115: persisted graph/state/evidence, evidence-gated
-// completion, ≥1 repair loop, human gates honored, resumable.
+// Runnable end-to-end demo (no Claude/creds) — the acceptance test every V2 phase keeps green.
+// Drives the real Engine with a fake site generator on a throwaway repo:
+//   run → design gate → DAG fan-out (components in parallel, page after its sections, one
+//   repair) → integration assembles the page → policy packs → pre-release gate → deploy →
+//   post-deploy checks against the live URL → done.
+// A local server stands in for the host, so the release and its live checks are real too.
 //
 //   pnpm demo         (builds first)   |   node scripts/demo.mjs   (after pnpm build)
 
-import { Engine, GitHarness } from "../dist/index.js";
+import { Engine, GitHarness, GraphStore, detectSandbox } from "../dist/index.js";
+import { realise } from "../dist/core/testing.js";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -22,34 +26,68 @@ writeFileSync(join(repo, "README.md"), "# demo project\n");
 git(["add", "-A"], repo);
 git(["commit", "-q", "-m", "init"], repo);
 
-// Fake generator (stands in for ClaudeCodeExecutor). It fills the scaffolded page rather than
-// writing loose fragments, so the policy packs have a real site to check. "hero" does nothing on
-// its first attempt → exercises the repair loop.
+// Fake generator (stands in for ClaudeCodeExecutor), following the V2.3 contract: each
+// component writes its own fragment, the page builds its shell, integration assembles them.
+// "hero" makes a common agent mistake on its first try — an <h1> in its section, when the page
+// already owns one — so the real check fails it and the repair loop fixes it. (Scripted; the
+// natural failure from a real agent is V2.5.)
 const failed = new Set();
 const executor = {
   name: "demo-site",
   async run(input) {
+    await new Promise((r) => setTimeout(r, 200)); // stand-in for agent time, so parallelism shows
     const id = input.contextPack.taskId.replace("impl:", "");
     if (id === "hero" && !failed.has(id)) {
       failed.add(id);
-      return { ok: true, summary: "first try (no change) → will repair", changedFiles: [], evidenceRefs: [`try:${id}`] };
+      return realise(input, `<h1>Robots that work</h1><p>Built by the demo generator.</p>`);
     }
-    const page = join(input.worktreeDir, "index.html");
-    const html = readFileSync(page, "utf8");
-    writeFileSync(
-      page,
-      html.replace(
-        new RegExp(`<section id="${id}"[^>]*>.*?</section>`, "s"),
-        `<section id="${id}" data-design-node="${id}"><h2>${id}</h2><p>Built by the demo generator.</p></section>`,
-      ),
-      "utf8",
-    );
-    return { ok: true, summary: `filled ${id}`, changedFiles: ["index.html"], evidenceRefs: [`edit:${id}`] };
+    // Another common miss: an external link opened in a new tab without rel="noopener". Every
+    // node check passes; only the whole-site security pack sees it, and the repair node fixes it.
+    if (id === "cta") {
+      return realise(input, `<h2>Book a demo</h2><p><a href="https://example.com/book" target="_blank">Talk to sales</a></p>`);
+    }
+    if (id === "repair:policy") return repairLinks(input);
+    return realise(input, `<h2>${id}</h2><p>Built by the demo generator.</p>`);
   },
 };
 
-// Real scaffolder and real deterministic verifier — only the agent is faked.
-const engine = new Engine({ repoPath: repo, deps: { executor, makeHarness: (p) => new GitHarness(p) } });
+/** The repair node's fix: add rel="noopener" to every new-tab link in the fragments. */
+function repairLinks(input) {
+  const dir = join(input.worktreeDir, "sections");
+  const changed = [];
+  for (const f of readdirSync(dir)) {
+    const path = join(dir, f);
+    const html = readFileSync(path, "utf8");
+    const fixed = html.replace(/<a\b(?![^>]*\brel=)([^>]*target="_blank")/g, '<a rel="noopener"$1');
+    if (fixed !== html) {
+      writeFileSync(path, fixed, "utf8");
+      changed.push(`sections/${f}`);
+    }
+  }
+  return { ok: true, summary: `added rel="noopener" in ${changed.join(", ")}`, changedFiles: changed, evidenceRefs: [] };
+}
+
+// Stand-in host: serves whatever the deployer published, with some security headers set.
+const host = createServer((req, res) => {
+  const file = join(repo, "dist", req.url === "/" ? "index.html" : (req.url ?? "").slice(1));
+  if (!existsSync(file)) return void res.writeHead(404).end();
+  res.writeHead(200, { "content-type": "text/html", "x-content-type-options": "nosniff", "x-frame-options": "DENY" });
+  res.end(readFileSync(file));
+});
+await new Promise((r) => host.listen(0, "127.0.0.1", r));
+const liveUrl = `http://127.0.0.1:${host.address().port}`;
+const deployer = {
+  async deploy(path, ctx) {
+    execFileSync("pnpm", ["-s", "build"], { cwd: path });
+    return { ok: true, url: liveUrl, log: `published ${ctx?.commit ?? ""}` };
+  },
+};
+
+// Real scaffolder, verifier, integration and packs — only the agent and the host are faked.
+const engine = new Engine({
+  repoPath: repo,
+  deps: { executor, makeHarness: (p) => new GitHarness(p), concurrency: 3, deployer },
+});
 await engine.init("new");
 
 console.log("→ weave run (intake → plan)");
@@ -65,15 +103,23 @@ console.log("→ approve design  (execution begins)");
 await engine.resolveGate(gates[0].id, "approve");
 const impls = (await engine.getExecGraph(h.runId)).filter((n) => n.kind === "impl");
 for (const n of impls) console.log(`  ${n.id}: ${n.status}${n.commit ? ` @ ${n.commit.slice(0, 7)}` : ""}`);
-console.log(`  repair loop exercised (hero failed once): ${failed.has("hero")}`);
+const hero = (await engine.report(h.runId)).nodeFailures.find((f) => f.nodeId === "impl:hero");
+console.log(`  repair loop exercised (hero failed once): ${failed.has("hero")}${hero ? ` — ${hero.detail.slice(0, 90)}` : ""}`);
+const repair = (await engine.getExecGraph(h.runId)).find((n) => n.id === "repair:policy");
+if (repair) console.log(`  policy repair (whole-site check failed, fixed without a human): ${repair.status}`);
 gates = await engine.listGates();
 console.log(`  gate: ${gates[0].kind} — ${gates[0].summary}`);
 
-console.log("→ approve pre-release");
+console.log("→ approve pre-release  (deploys only now)");
 await engine.resolveGate(gates[0].id, "approve");
+host.close();
+const release = new GraphStore(join(repo, ".agent", "state.db"))
+  .evidenceFor({ runId: h.runId })
+  .filter((r) => r.node_id === "release" && r.kind === "deploy");
+for (const r of release) console.log(`  ${r.ok ? "✓" : "✗"} ${r.detail}`);
 const st = await engine.status();
 const wb = `weave/${h.runId}`;
-const files = git(["ls-tree", "-r", "--name-only", wb], repo).split("\n").filter((f) => f.endsWith(".html"));
+const files = git(["ls-tree", "-r", "--name-only", wb], repo).split("\n").filter((f) => f.endsWith(".html") && !f.startsWith("scripts/"));
 console.log(`  run status: ${st.latestRun.status} | open gates: ${st.openGates}`);
 console.log(`  built files on ${wb}: ${files.join(", ")}`);
 
@@ -85,6 +131,13 @@ console.log(`  first-pass ${Math.round((m.firstPassVerificationRate ?? 0) * 100)
 const crit = report.requirements.flatMap((r) => r.criteria);
 const tally = (s) => crit.filter((c) => c.status === s).length;
 console.log(`  criteria: ${tally("passed")} passed, ${tally("failed")} failed, ${tally("not-applicable")} n/a, ${tally("unavailable")} no runner, ${tally("human")} need a person`);
+if (report.timing) {
+  console.log(`  impl wall-clock ${report.timing.wallMs}ms vs ${report.timing.serialMs}ms one at a time`);
+}
+console.log(`  agent sandbox on this machine: ${detectSandbox().detail}`);
+const explorer = join(repo, ".agent", "report.html");
+writeFileSync(explorer, await engine.reportHtml(h.runId), "utf8");
+console.log(`  explorer: ${explorer}`);
 
-console.log("\n✓ demo complete — graph/state/evidence persisted, gates honored, repair loop, resumable.");
+console.log("\n✓ demo complete — DAG, repair, integration, packs, gated deploy, live checks; all persisted.");
 console.log(`  (throwaway repo: ${repo})`);

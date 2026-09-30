@@ -4,8 +4,8 @@
 // answer to "what was built, why, and how do you know it works" — assembled from persisted
 // state, never from the model's memory.
 
-import { runMetrics } from "./metrics.js";
-import type { RunMetrics } from "./metrics.js";
+import { isVerdict, latestStatus, runMetrics } from "./metrics.js";
+import type { CriterionStatus, RunMetrics } from "./metrics.js";
 import type { GraphStore } from "./store/graph-store.js";
 
 export interface CriterionReport {
@@ -17,7 +17,7 @@ export interface CriterionReport {
   severity?: string;
   evidence: Array<{ ok: boolean; status: string; kind: string; detail: string; artifactPath?: string }>;
   /** not-applicable and unavailable are distinct from passing, and are never counted as one. */
-  status: "passed" | "failed" | "pending" | "not-applicable" | "unavailable" | "human";
+  status: CriterionStatus;
 }
 
 export interface RequirementReport {
@@ -40,6 +40,19 @@ export interface RunReport {
   metrics: RunMetrics;
   gates: Array<{ id: string; kind: string; status: string; notes?: string }>;
   orphanCode: string[];
+  /**
+   * Impl wall-clock against the sum of node durations — what parallelism bought, measured
+   * from the attempts table rather than claimed. Absent before any impl node ran.
+   */
+  timing?: { wallMs: number; serialMs: number };
+  /** Every failed check, by node, deduplicated — the repair trail. */
+  nodeFailures: Array<{ nodeId: string; detail: string }>;
+  /** The execution graph as it ended: what ran, in what order, depending on what. */
+  nodes: Array<{ id: string; kind: string; status: string; dependsOn: string[]; commit?: string; attempts?: number }>;
+  /** Every attempt with its timing — the failure/repair timeline and the parallelism, drawn. */
+  attempts: Array<{ nodeId: string; attempt: number; startedAt: string; endedAt?: string; ok: boolean }>;
+  /** How each node was confined and what it touched: sandbox, network and risk records. */
+  boundaries: Array<{ nodeId: string; kind: string; ok: boolean; detail: string }>;
 }
 
 export function buildReport(store: GraphStore, runId: string): RunReport {
@@ -111,7 +124,7 @@ export function buildReport(store: GraphStore, runId: string): RunReport {
       criteria,
       // Only an actual verdict counts as covered. not-applicable, unavailable and human are
       // resolutions, but they are not evidence that the requirement holds.
-      covered: criteria.some((c) => c.status === "passed" || c.status === "failed"),
+      covered: criteria.some((c) => isVerdict(c.status)),
     });
   }
 
@@ -129,26 +142,52 @@ export function buildReport(store: GraphStore, runId: string): RunReport {
       ...(g.notes ? { notes: g.notes } : {}),
     })),
     orphanCode: store.gaps().orphanCode,
+    ...timingOf(store, runId),
+    nodes: execNodes.map((n) => ({
+      id: n.id,
+      kind: n.kind,
+      status: n.status,
+      dependsOn: n.dependsOn ?? [],
+      ...(n.commit ? { commit: n.commit } : {}),
+      ...(n.attempts !== undefined ? { attempts: n.attempts } : {}),
+    })),
+    attempts: store.attemptsFor(runId).map((a) => ({
+      nodeId: a.node_id,
+      attempt: a.attempt,
+      startedAt: a.started_at,
+      ...(a.ended_at ? { endedAt: a.ended_at } : {}),
+      ok: a.exec_ok === 1 && a.verify_ok === 1,
+    })),
+    boundaries: [
+      ...new Map(
+        evidence
+          .filter((e) => ["sandbox", "network", "risk"].includes(e.kind) && e.node_id)
+          .map((e) => [`${e.node_id}\u0000${e.kind}\u0000${e.detail}`, { nodeId: e.node_id!, kind: e.kind, ok: e.ok === 1, detail: e.detail }]),
+      ).values(),
+    ],
+    nodeFailures: [
+      ...new Map(
+        evidence
+          // Every real failure, whatever it proved or failed to prove: a check tied to a criterion
+          // (an <h1> in a fragment, a policy item) is as much the repair trail as an ownership
+          // breach. not-applicable, unavailable and human are not failures.
+          .filter((e) => e.ok === 0 && (e.status ?? "fail") === "fail" && e.node_id)
+          .map((e) => [`${e.node_id}\u0000${e.detail}`, { nodeId: e.node_id!, detail: e.detail }]),
+      ).values(),
+    ],
   };
 }
 
-function latestStatus(rows: Array<{ ok: number; status?: string }>): CriterionReport["status"] {
-  if (!rows.length) return "pending";
-  const last = rows[rows.length - 1]!;
-  switch (last.status ?? (last.ok === 1 ? "pass" : "fail")) {
-    case "pass":
-      return "passed";
-    case "fail":
-      return "failed";
-    case "not-applicable":
-      return "not-applicable";
-    case "unavailable":
-      return "unavailable";
-    case "human":
-      return "human";
-    default:
-      return "pending";
-  }
+function timingOf(store: GraphStore, runId: string): { timing?: RunReport["timing"] } {
+  const impl = new Set(store.getExecGraph(runId).filter((n) => n.kind === "impl").map((n) => n.id));
+  const spans = store
+    .attemptsFor(runId)
+    .filter((a) => impl.has(a.node_id) && a.ended_at)
+    .map((a) => [Date.parse(a.started_at), Date.parse(a.ended_at!)] as const);
+  if (!spans.length) return {};
+  const wallMs = Math.max(...spans.map(([, end]) => end)) - Math.min(...spans.map(([start]) => start));
+  const serialMs = spans.reduce((sum, [start, end]) => sum + (end - start), 0);
+  return { timing: { wallMs, serialMs } };
 }
 
 /** Distinct symbols, because "not applicable" is not a failure and must not read as one. */
@@ -177,6 +216,11 @@ export function renderReport(report: RunReport): string {
   out.push(`  human intervention        ${pct(m.humanInterventionRate)} (${m.unplannedGates} unplanned of ${m.totalGates} gates)`);
   out.push(`  evidence coverage         ${pct(m.evidenceCoverage)}`);
   out.push(`  criteria awaiting runners ${m.pendingCriteria}`);
+  if (report.timing) {
+    const { wallMs, serialMs } = report.timing;
+    const speedup = wallMs > 0 ? ` (${(serialMs / wallMs).toFixed(1)}× from parallelism)` : "";
+    out.push(`  impl wall-clock           ${wallMs}ms vs ${serialMs}ms run one at a time${speedup}`);
+  }
   out.push("");
 
   const covered = report.requirements.filter((r) => r.covered).length;
@@ -218,6 +262,12 @@ export function renderReport(report: RunReport): string {
     for (const c of failed) {
       out.push(`  ✗ ${c.id}${c.severity ? ` [${c.severity}]` : ""} — ${c.evidence.at(-1)?.detail ?? c.rule}`);
     }
+  }
+
+  if (report.nodeFailures.length) {
+    out.push("");
+    out.push("Failed node checks (the repair trail):");
+    for (const f of report.nodeFailures) out.push(`  ✗ ${f.nodeId} — ${f.detail}`);
   }
 
   if (report.gates.length) {

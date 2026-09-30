@@ -11,6 +11,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Engine } from "./api.js";
+import { realise } from "./testing.js";
 import { GitHarness } from "./runtime.js";
 import { renderReport } from "./report.js";
 import { MANDATORY_GATES } from "./metrics.js";
@@ -40,17 +41,7 @@ const agent: NodeExecutor = {
     if (id === "hero" && n <= 2) {
       return { ok: true, summary: "no change yet", changedFiles: [], evidenceRefs: [`try:${id}`] };
     }
-    const page = join(input.worktreeDir, "index.html");
-    const html = readFileSync(page, "utf8");
-    writeFileSync(
-      page,
-      html.replace(
-        new RegExp(`<section id="${id}"[^>]*>.*?</section>`, "s"),
-        `<section id="${id}" data-design-node="${id}"><h2>${id}</h2><p>Built.</p></section>`,
-      ),
-      "utf8",
-    );
-    return { ok: true, summary: `filled ${id}`, changedFiles: ["index.html"], evidenceRefs: [`edit:${id}`] };
+    return realise(input);
   },
 };
 
@@ -78,7 +69,7 @@ const report = await engine().report(handle.runId);
 const heroReq = report.requirements.find((r) => r.id === "req:design:hero");
 assert.ok(heroReq, "hero requirement present");
 assert.equal(heroReq!.designNodeId, "hero", "requirement covers its design node");
-assert.ok(heroReq!.codeFiles.includes("index.html"), "requirement resolves to real code");
+assert.ok(heroReq!.codeFiles.includes("sections/hero.html"), "requirement resolves to real code");
 assert.ok(heroReq!.commits.length > 0, "requirement resolves to a commit");
 assert.ok(heroReq!.criteria.length > 0, "requirement has criteria");
 assert.ok(

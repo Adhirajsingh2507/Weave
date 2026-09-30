@@ -113,6 +113,28 @@ for (const id of ["a11y.lang", "a11y.title", "a11y.one-h1", "a11y.img-alt", "a11
   assert.equal(statusOf(goodA11y, id), "pass", `${id} should pass on the fixed site`);
 }
 
+// ── Headers are what the host serves: unavailable on disk, decided against the live site ──
+const HEADERS = ["sec.headers.nosniff", "sec.headers.frame", "sec.headers.hsts", "sec.headers.referrer"];
+for (const id of HEADERS) assert.equal(statusOf(goodSec, id), "unavailable", `${id} cannot be decided before release`);
+const liveGood = runPack(loadPack("web-security"), {
+  ...goodCtx,
+  live: {
+    url: "https://site.test",
+    headers: {
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "DENY",
+      "strict-transport-security": "max-age=63072000; includeSubDomains",
+      "referrer-policy": "strict-origin-when-cross-origin",
+    },
+  },
+});
+for (const id of HEADERS) assert.equal(statusOf(liveGood, id), "pass", `${id} should pass when the host sends it`);
+const liveBad = runPack(loadPack("web-security"), {
+  ...goodCtx,
+  live: { url: "https://site.test", headers: { "x-content-type-options": "sniff-away", "x-frame-options": "ALLOWALL" } },
+});
+for (const id of HEADERS) assert.equal(statusOf(liveBad, id), "fail", `${id} should fail when the header is missing or wrong`);
+
 // ── Applicability: the difference between a useful pack and noise ──
 // A brochure site has no auth, payments or database, so those items must not fire.
 assert.ok(!goodCtx.facts.has("hasAuth"), "a static page is not an auth surface");

@@ -4,10 +4,10 @@
 >
 > **Ultimate source of truth:** `../autonomous-engineering-universal-context.md` (canonical, 123 sections). This project's docs are the *distilled decided layer* over it.
 
-_Last updated: 2026-09-29_
+_Last updated: 2026-09-30_
 
 > **V2 is underway.** Identity: the control and governance layer for AI coding agents, web
-> apps first — agents execute; Weave governs, verifies, records. Phases V2.0–V2.2 have shipped. The
+> apps first — agents execute; Weave governs, verifies, records. Phases V2.0–V2.6 have shipped. The
 > phased plan is `implementation-v2.md`; decisions #42–58 in `current-info.md`.
 
 ---
@@ -26,7 +26,7 @@ A **graph-driven autonomous engineering platform** that turns human intent + mul
 - **Execution / agent graph** — how work *moves* (fixed skeleton + one impl node per unrealized design node).
 - **Loop** — local quality inside each node (discover → execute → verify → record → repair).
 - **Harness** — each node's bounded env (context pack, git worktree, permissions).
-- **Decision layer (System One)**, cross-cutting — every structured decision (route, score, classify, map, extract, gate-eval) is a typed probabilistic call with calibrated confidence. **Generation (System Two) = Claude Code.** Slogan: *the decision layer decides, Claude Code creates.*
+- **Decision layer**, cross-cutting — every structured decision (route, score, classify, map, extract, gate-eval) is a typed probabilistic call with calibrated confidence. **Generation (the execution layer) = Claude Code.** Slogan: *the decision layer decides, Claude Code creates.*
 
 ## 3. The four invariants (canonical §108–§111) + deterministic-first
 1. No important transition without a **reason, a state change, and (where applicable) evidence**.
@@ -42,8 +42,8 @@ TypeScript · Node 24 LTS (runs on ≥22.6) · pnpm · Zod (Standard-Schema-comp
 Design/flow: headless core + thin adapters (transport-agnostic commands/queries/events); local-first `.agent/`; both new + modify repos; **Claude Code only** runtime via `NodeExecutor`; evidence-gated completion.
 Ingestion: tiered (tree-sitter cheap sweep + on-demand deep parse); git-diff freshness; file/module nodes + on-demand symbols; **full multi-package monorepo orchestration**; grammars TS/TSX/JS/JSX → JSON/CSS/HTML → Python.
 Mapping: two layers + confidence edges; `orphan code` + `unrealized design` first-class; provenance by_construction | inferred | human_confirmed.
-Decision layer: System One control plane; **our Claude-structured wrapper now → Jev later** behind one `Decision` interface; tiered escalation (System One → LLM → human); typed versioned decision schemas.
-Design intake: **IR canonical + versioned**, design-subgraph projected with stable IDs; v1 modalities text/screenshot/code/assets; System Two interprets → System One normalizes; **separate independent acceptance-criteria pass**; per-field provenance; re-compile + diff.
+Decision layer: Decision-layer control plane; **our Claude-structured wrapper now → Jev later** behind one `Decision` interface; tiered escalation (decision layer → LLM → human); typed versioned decision schemas.
+Design intake: **IR canonical + versioned**, design-subgraph projected with stable IDs; v1 modalities text/screenshot/code/assets; Execution layer interprets → decision layer normalizes; **separate independent acceptance-criteria pass**; per-field provenance; re-compile + diff.
 Execution: **fixed template + dynamic fan-out**; **retry cap (3) + cost/step budget**; default gates = design-approval, low-confidence, risky-op, pre-release; **deployment out of v1** (later gated).
 Sandbox: **git worktree per node**; **sequential (parallel-ready abstraction)**; network **allow + audit/gate**; FS write-scoped + secrets denied; **dedicated working branch off HEAD, auto-stash, git = checkpoint/rollback**.
 Store: SQLite/Postgres for graph+state; files for artifacts + event log.
@@ -63,9 +63,9 @@ Transport-agnostic **commands / queries / events**:
 - Execution model is **coarse/autonomous-only** for v1; per-node control deferred.
 
 ### 6.3 Design Compiler (intake front door)
-Inputs (text, screenshots→vision LLM, existing code→tree-sitter, asset folders→manifest) → System Two interprets → System One normalizes discrete/enum fields (+confidence; low → gate) → **Design IR** (canonical, versioned, provenance per field) → project to **design-subgraph** (stable IDs so mapping edges rebind) → **separate criteria pass** authors measurable acceptance criteria (independent of compiler + implementer). Re-compile → IR v2 → diff → graph update.
+Inputs (text, screenshots→vision LLM, existing code→tree-sitter, asset folders→manifest) → Execution layer interprets → decision layer normalizes discrete/enum fields (+confidence; low → gate) → **Design IR** (canonical, versioned, provenance per field) → project to **design-subgraph** (stable IDs so mapping edges rebind) → **separate criteria pass** authors measurable acceptance criteria (independent of compiler + implementer). Re-compile → IR v2 → diff → graph update.
 
-**Design IR (Zod):** `version, meta, visualLanguage, typography, colors, layout, components, pages, interactions, animations, assets, responsiveRules, constraints, provenance` — every element a stable `id`; enum fields normalized by System One.
+**Design IR (Zod):** `version, meta, visualLanguage, typography, colors, layout, components, pages, interactions, animations, assets, responsiveRules, constraints, provenance, designTokens` — every element a stable `id`; enum fields normalized by the decision layer; `designTokens` carries the chosen guide (V2.6).
 
 ### 6.4 Knowledge graph & code↔design mapping
 Code nodes (from FS ingestion, ground truth) + design nodes (from IR, intent) are distinct layers in one graph, joined by many-to-many `realizes`/`realized_by` edges carrying confidence + provenance + timestamp. **Unrealized design** = the work list; **orphan code** = review flag. New-project mappings by construction; modify-existing inferred (via `map.classifyFileToDesign` + gate on low confidence).
@@ -80,7 +80,7 @@ Fixed skeleton `INTAKE → PLAN → DESIGN ANALYSIS → ARCHITECTURE → [impl f
 Per-node **Context Pack** (task, relevant nodes/files, constraints, prior failures, permissions). Git is isolation + checkpoint + rollback: `run` cuts a dedicated **working branch** off HEAD (auto-stash dirty tree), each node runs in its **own worktree** (sequential in v1, parallel-ready), success commits + advances the branch, failure discards the worktree. Network allowed + audited/gated; FS write-scoped to repo, secrets denied. Later tiers: Docker, Vercel Sandbox, cloud.
 
 ### 6.8 Decision layer, escalation & policy
-System One = classify/route/score/extract/map/verify → typed value + calibrated confidence. Provider = our Claude-structured wrapper now → Jev later, one interface. **Escalation:** `confidence ≥ high → accept; ≥ mid → System Two LLM; else → human gate` (`resolveEscalation`, implemented). Placeholders 0.85/0.6, mapping 0.9. Security-sensitive **outcomes** gate at the value level. **Provider routing** (`providerFor`) defaults to Claude-wrapper; per-type swap to Jev after a **parity harness** (record → replay → compare agreement + calibration) passes. v1 decision catalog: `ingest.classifyFileRole, interpret.normalizeField, map.classifyFileToDesign, criteria.normalizeMeasurable, qa.scoreEvidence, risk.classifyOperation, route.branch, gate.evaluate`.
+Decision layer = classify/route/score/extract/map/verify → typed value + calibrated confidence. Provider = our Claude-structured wrapper now → Jev later, one interface. **Escalation:** `confidence ≥ high → accept; ≥ mid → execution-layer LLM; else → human gate` (`resolveEscalation`, implemented). Placeholders 0.85/0.6, mapping 0.9. Security-sensitive **outcomes** gate at the value level. **Provider routing** (`providerFor`) defaults to Claude-wrapper; per-type swap to Jev after a **parity harness** (record → replay → compare agreement + calibration) passes. v1 decision catalog: `ingest.classifyFileRole, interpret.normalizeField, map.classifyFileToDesign, criteria.normalizeMeasurable, qa.scoreEvidence, risk.classifyOperation, route.branch, gate.evaluate`.
 
 ### 6.9 Quality, evidence & visual QA
 Deterministic-first (build/typecheck/lint/tests/a11y/perf). Independent evaluator = decision layer (not the implementer). Baselines snapshotted at intake (modify mode). Gate-tests derived from independent criteria. **Visual QA (hybrid):** vision LLM extracts structured facts → decision layer scores vs criteria → low-confidence pixel re-check. Human gates via the escalation ladder.
@@ -152,22 +152,37 @@ criterion → evidence → commit → approval.
 (not-applicable is recorded with its reason), and a `policy` gate whose approval is a per-item
 waiver.
 
+**V2.3:** shipped — parallelism as a DAG: scaffold → components → pages → integration, ownership
+by construction (components write fragments, pages own their file), conflicts re-run on the new
+tip, an integration node that assembles and checks the whole site, and measured wall-clock.
+
+**V2.4:** shipped — agents confined by Claude Code's deny rules, bubblewrap (secrets masked, the
+checkout hidden) and an egress proxy (allowlist + audit); risky diffs parked behind a `risky-op`
+gate, judged by deterministic rules and, with credentials, the decision layer; Vercel release
+with deploy evidence and post-deploy checks against the live URL.
+
+**V2.5:** shipped — the static explorer (`weave report --html`), one coverage definition, gates
+scoped to a run, a bounded whole-site repair before a policy gate, the benchmark harness (not yet
+run) and the outcome-first README.
+
+**V2.6:** shipped — every guide token carried in the IR, screenshot and URL intake with
+confidence-gated readings, style suggestion, and the guides as MCP resources.
+
 **Design system:** 91 guides, 739 checks (~86% deterministic), 89 picture folders, validated by
 `scripts/check-design.mjs`.
 
-**Verification:** 22 self-checks + the design validator, green locally and in CI. `pnpm demo`
-runs end to end without credentials.
+**Verification:** 29 self-checks + the design validator. `pnpm demo` runs end to end without
+credentials, including a gated deploy to a local stand-in host.
 
 ## 9. Open / ongoing
 - **#8** — escalation framework implemented; threshold values await calibration data, which V2.4
   begins producing by putting the decision layer in the run path.
 - **#10 / #57** — provider routing implemented; Jev parity awaits early-access approval.
-- Deploy target, name and licence — see `to-be-discussed.md`. Metric definitions and default
-  packs are decided.
+- Name and licence — see `to-be-discussed.md`. Metric definitions, default packs and the deploy
+  target (Vercel) are decided.
 - Carried gaps: `listGates()` spans runs; browser and visual QA are `skipped`; the IR has no home
   for the guides' shape/motion/spacing tokens; the full list is in `to-be-discussed.md`.
 
 ## 10. Build plan
-See **`implementation-v2.md`** — V2.0, V2.1 and V2.2 done; V2.3 (parallel as a real DAG) next,
-then boundaries and deploy, explorer, multimodal compiler, assets and 3D, with the Jev track
-alongside.
+See **`implementation-v2.md`** — V2.0–V2.6 done; a first credentialed run next, then V2.7 (assets
+and 3D), with the Jev track alongside.

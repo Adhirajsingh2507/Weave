@@ -1,4 +1,4 @@
-// Decision layer (System One) seam (decisions #13-#18, #29, #38).
+// Decision layer seam (decisions #13-#18, #29, #38).
 // unstructured state in -> typed probabilistic decision out (+ calibrated confidence).
 // Provider now: our own wrapper on Claude structured outputs; Jev later. Same interface.
 

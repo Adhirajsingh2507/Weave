@@ -9,6 +9,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Engine } from "./api.js";
 import type { ExecInput, ExecResult, NodeExecutor } from "./runtime.js";
+import { realise } from "./testing.js";
 import { GitHarness } from "./runtime.js";
 import type { Verifier } from "./loop.js";
 
@@ -26,7 +27,7 @@ writeFileSync(join(repo, "README.md"), "# temp\n");
 git(["add", "-A"], repo);
 git(["commit", "-q", "-m", "init"], repo);
 
-// Fake executor: writes <designId>.html; fails the FIRST attempt for "nav" to exercise repair.
+// Fake executor: follows the fragment contract; fails the FIRST attempt for "nav" to exercise repair.
 const failedOnce = new Set<string>();
 class SiteExecutor implements NodeExecutor {
   readonly name = "fake-site";
@@ -36,9 +37,7 @@ class SiteExecutor implements NodeExecutor {
       failedOnce.add(id);
       return { ok: true, summary: "first attempt (no file)", changedFiles: [], evidenceRefs: [`try:${id}`] };
     }
-    const file = `${id}.html`;
-    writeFileSync(join(input.worktreeDir, file), `<!-- ${id} -->\n`);
-    return { ok: true, summary: `wrote ${file}`, changedFiles: [file], evidenceRefs: [`edit:${file}`] };
+    return realise(input);
   }
 }
 // Verifier (deterministic): the node must have produced an uncommitted change in its worktree.
@@ -77,8 +76,8 @@ assert.equal(gates.length, 1);
 assert.equal(gates[0]!.kind, "pre-release");
 
 // artifacts are on the working branch.
-assert.ok(existsSync(join(repo, "hero.html")));
-assert.ok(existsSync(join(repo, "nav.html")));
+assert.ok(existsSync(join(repo, "sections", "hero.html")));
+assert.ok(existsSync(join(repo, "sections", "nav.html")));
 assert.ok(failedOnce.has("nav")); // repair loop happened
 
 // approve pre-release → run done.

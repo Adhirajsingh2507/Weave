@@ -8,6 +8,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Engine } from "../api.js";
+import { realise } from "../testing.js";
 import { GitHarness } from "../runtime.js";
 import type { ScaffoldInput, ScaffoldResult, Scaffolder } from "../scaffold.js";
 import type { ExecInput, ExecResult, NodeExecutor } from "../runtime.js";
@@ -46,18 +47,7 @@ const sloppyScaffolder: Scaffolder = {
 const agent: NodeExecutor = {
   name: "fake-agent",
   async run(input: ExecInput): Promise<ExecResult> {
-    const id = input.contextPack.taskId.replace("impl:", "");
-    const page = join(input.worktreeDir, "index.html");
-    const html = readFileSync(page, "utf8");
-    writeFileSync(
-      page,
-      html.replace(
-        new RegExp(`<section id="${id}"[^>]*>.*?</section>`, "s"),
-        `<section id="${id}" data-design-node="${id}"><h2>${id}</h2></section>`,
-      ),
-      "utf8",
-    );
-    return { ok: true, summary: id, changedFiles: ["index.html"], evidenceRefs: [] };
+    return realise(input);
   },
 };
 

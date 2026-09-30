@@ -6,6 +6,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Engine } from "./api.js";
+import { realise } from "./testing.js";
 import { GitHarness } from "./runtime.js";
 import type { ExecInput, ExecResult, NodeExecutor } from "./runtime.js";
 import type { Verifier } from "./loop.js";
@@ -25,9 +26,7 @@ git(["commit", "-q", "-m", "init"], repo);
 class Writer implements NodeExecutor {
   readonly name = "w";
   async run(input: ExecInput): Promise<ExecResult> {
-    const id = input.contextPack.taskId.replace("impl:", "");
-    writeFileSync(join(input.worktreeDir, `${id}.txt`), id);
-    return { ok: true, summary: id, changedFiles: [`${id}.txt`], evidenceRefs: [] };
+    return realise(input);
   }
 }
 const verifier: Verifier = {
@@ -51,8 +50,8 @@ assert.equal(impls.length, 3);
 assert.ok(impls.every((n) => n.status === "complete" && n.commit), "all impls complete");
 
 const wb = `weave/${h.runId}`;
-const files = git(["ls-tree", "-r", "--name-only", wb], repo).split("\n").filter((f) => f.endsWith(".txt")).sort();
-assert.deepEqual(files, ["a.txt", "b.txt", "c.txt"], "all files integrated onto working branch");
+const files = git(["ls-tree", "-r", "--name-only", wb], repo).split("\n").filter((f) => f.startsWith("sections/")).sort();
+assert.deepEqual(files, ["sections/a.html", "sections/b.html", "sections/c.html"], "all fragments integrated onto working branch");
 
 const g2 = await engine.listGates();
 assert.equal(g2[0]!.kind, "pre-release");

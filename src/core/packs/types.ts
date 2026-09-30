@@ -12,6 +12,7 @@ export type RunnerId =
   | "text-scan"
   | "dep-audit"
   | "file-size"
+  | "http-header" // response headers of the deployed site — evaluated post-deploy (V2.4)
   | "browser" // needs the browser worker — unavailable until V2.7
   | "human";
 

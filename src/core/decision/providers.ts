@@ -1,4 +1,4 @@
-// Decision providers (System One). ClaudeDecision = our wrapper on Claude structured
+// Decision providers (the decision layer). ClaudeDecision = our wrapper on Claude structured
 // outputs via the Messages API (tool-forced JSON). FakeDecision = deterministic, for
 // tests/offline. Both implement the same `Decision` interface (decision #14/#29).
 
@@ -7,7 +7,7 @@ import type { Decision, DecisionRequest, DecisionResult } from "./index.js";
 export interface ClaudeDecisionOptions {
   /** Defaults to env ANTHROPIC_API_KEY. */
   apiKey?: string;
-  /** System One is meant to be fast/cheap; Sonnet is a safe default. */
+  /** The decision layer is meant to be fast/cheap; Sonnet is a safe default. */
   model?: string;
   baseUrl?: string;
 }

@@ -7,6 +7,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Engine } from "./api.js";
+import { realise } from "./testing.js";
 import { GitHarness } from "./runtime.js";
 import type { ExecInput, ExecResult, NodeExecutor } from "./runtime.js";
 import type { Verifier } from "./loop.js";
@@ -28,8 +29,7 @@ const executor: NodeExecutor = {
   async run(input: ExecInput): Promise<ExecResult> {
     const id = input.contextPack.taskId.replace("impl:", "");
     if (id === "b" && bBroken) return { ok: true, summary: "b broken", changedFiles: [], evidenceRefs: [] };
-    writeFileSync(join(input.worktreeDir, `${id}.txt`), id);
-    return { ok: true, summary: id, changedFiles: [`${id}.txt`], evidenceRefs: [] };
+    return realise(input);
   },
 };
 const verifier: Verifier = {
@@ -67,8 +67,8 @@ assert.equal(gates[0]!.kind, "pre-release");
 await engine.resolveGate(gates[0]!.id, "approve");
 assert.equal((await engine.getRun(h.runId))?.status, "done");
 const wb = `weave/${h.runId}`;
-const files = git(["ls-tree", "-r", "--name-only", wb], repo).split("\n").filter((f) => f.endsWith(".txt")).sort();
-assert.deepEqual(files, ["a.txt", "b.txt", "c.txt"]);
+const files = git(["ls-tree", "-r", "--name-only", wb], repo).split("\n").filter((f) => f.startsWith("sections/")).sort();
+assert.deepEqual(files, ["sections/a.html", "sections/b.html", "sections/c.html"]);
 
 rmSync(repo, { recursive: true, force: true });
 console.log("parallel halt cleanup + resume check passed");

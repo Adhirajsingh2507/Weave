@@ -6,11 +6,12 @@
 // work offline, in CI, and inside a fresh worktree.
 
 import { execFile } from "node:child_process";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
 import { styleTokensCss } from "./design/style.js";
 import type { StyleGuide } from "./design/style.js";
+import type { PageLayout } from "./plan.js";
 
 const run = promisify(execFile);
 
@@ -19,13 +20,20 @@ export interface ScaffoldInput {
   projectName: string;
   /** Chosen design guide; its tokens become styles/tokens.css. */
   style?: StyleGuide;
-  /** Design node ids the agents will implement, used to seed the page outline. */
+  /** Component ids to slot into index.html when the IR has no pages. */
   sections?: string[];
+  /** Pages and their component slots. Takes precedence over `sections`. */
+  pages?: PageLayout[];
 }
 
 export interface ScaffoldResult {
   files: string[];
   summary: string;
+  /**
+   * True when this step created the template project, so the fragment contract holds:
+   * components write sections/<id>.html, pages own their file, integration assembles.
+   */
+  contract?: boolean;
 }
 
 export interface Scaffolder {
@@ -55,6 +63,8 @@ export class TemplateScaffolder implements Scaffolder {
 
   async scaffold(input: ScaffoldInput): Promise<ScaffoldResult> {
     const { repoPath, projectName, style, sections = [] } = input;
+    const pages: Array<Pick<PageLayout, "file" | "sections"> & { id?: string; name?: string }> =
+      input.pages?.length ? input.pages : [{ file: "index.html", sections }];
     const files: string[] = [];
 
     // tokens.css is generated from the design guide and owned by Weave, so it is the one
@@ -81,12 +91,17 @@ export class TemplateScaffolder implements Scaffolder {
     write(repoPath, "scripts/build.mjs", BUILD_SCRIPT, files);
     write(repoPath, "scripts/check.mjs", CHECK_SCRIPT, files);
     write(repoPath, "styles/base.css", BASE_CSS, files);
-    writeIfAbsent(repoPath, "index.html", indexHtml(projectName, sections), files);
+    for (const page of pages) {
+      const title = page.file === "index.html" ? projectName : `${page.name ?? page.id} — ${projectName}`;
+      const heading = page.file === "index.html" ? projectName : (page.name ?? page.id ?? projectName);
+      writeIfAbsent(repoPath, page.file, pageHtml(title, heading, page.sections, page.id), files);
+    }
     writeIfAbsent(repoPath, ".gitignore", "node_modules/\ndist/\n", files);
 
     return {
       files,
       summary: `scaffolded ${files.length} files (${style ? style.title : "no style"}, zero dependencies)`,
+      contract: true,
     };
   }
 }
@@ -116,7 +131,7 @@ export class CommandScaffolder implements Scaffolder {
 }
 
 const BUILD_SCRIPT = `// Dependency-free build: copy the site into dist/ and fail on missing entry points.
-import { cpSync, existsSync, mkdirSync, rmSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readdirSync, rmSync } from "node:fs";
 
 if (!existsSync("index.html")) {
   console.error("build: index.html is missing");
@@ -127,8 +142,8 @@ mkdirSync("dist", { recursive: true });
 cpSync("index.html", "dist/index.html");
 if (existsSync("styles")) cpSync("styles", "dist/styles", { recursive: true });
 if (existsSync("assets")) cpSync("assets", "dist/assets", { recursive: true });
-for (const page of ["about.html", "products.html", "research.html"]) {
-  if (existsSync(page)) cpSync(page, \`dist/\${page}\`);
+for (const page of readdirSync(".").filter((f) => f.endsWith(".html"))) {
+  cpSync(page, \`dist/\${page}\`);
 }
 console.log("build: ok");
 `;
@@ -151,6 +166,14 @@ for (const page of pages) {
   if (!/<meta[^>]+name=["']viewport["']/i.test(html)) failures.push(\`\${page}: missing viewport meta\`);
   for (const img of html.match(/<img\\b[^>]*>/gi) ?? []) {
     if (!/\\balt=/i.test(img)) failures.push(\`\${page}: <img> without alt text\`);
+  }
+}
+
+// Fragments are assembled into a page that already has its one <h1>.
+const fragments = existsSync("sections") ? readdirSync("sections").filter((f) => f.endsWith(".html")) : [];
+for (const f of fragments) {
+  if (/<h1[\\s>]/i.test(readFileSync("sections/" + f, "utf8"))) {
+    failures.push(\`sections/\${f}: a section must not contain an <h1> — the page owns it; use <h2>\`);
   }
 }
 
@@ -184,29 +207,86 @@ img, video { max-width: 100%; height: auto; }
 }
 `;
 
-function indexHtml(projectName: string, sections: string[]): string {
+function pageHtml(title: string, heading: string, sections: string[], pageId?: string): string {
   const placeholders = sections
     // data-placeholder is what lets verification tell "stubbed" from "built" — without it a
     // no-op agent passes, because the scaffold already put the element on the page.
     .map((s) => `    <section id="${s}" data-design-node="${s}" data-placeholder><!-- ${s}: not built yet --></section>`)
     .join("\n");
+  // The page node builds the shell around the slots and drops this marker when it does.
+  const body = pageId ? `<body id="${pageId}" data-design-node="${pageId}" data-placeholder>` : "<body>";
   return `<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>${projectName}</title>
-  <meta name="description" content="${projectName}">
+  <title>${title}</title>
+  <meta name="description" content="${title}">
   <link rel="stylesheet" href="styles/tokens.css">
   <link rel="stylesheet" href="styles/base.css">
 </head>
-<body>
+${body}
   <a class="skip-link" href="#main">Skip to content</a>
   <main id="main">
-    <h1>${projectName}</h1>
+    <h1>${heading}</h1>
 ${placeholders}
   </main>
 </body>
 </html>
 `;
+}
+
+export interface AssemblyResult {
+  /** Section ids whose fragment is now in their page. */
+  assembled: string[];
+  /** Slots still holding a placeholder with no fragment to fill them. */
+  missing: string[];
+  /** Page files that changed. */
+  files: string[];
+}
+
+const esc = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/**
+ * Integration's deterministic half: put each sections/<id>.html into its page's slot.
+ * Idempotent — an assembled fragment sits between markers, so re-assembly replaces it.
+ */
+export function assembleFragments(
+  repoPath: string,
+  pages: Array<Pick<PageLayout, "file" | "sections">>,
+): AssemblyResult {
+  const result: AssemblyResult = { assembled: [], missing: [], files: [] };
+  for (const page of pages) {
+    const path = join(repoPath, page.file);
+    if (!existsSync(path)) continue;
+    const before = readFileSync(path, "utf8");
+    let html = before;
+    for (const id of page.sections) {
+      const fragPath = join(repoPath, "sections", `${id}.html`);
+      const marked = new RegExp(`<!-- weave:fragment ${esc(id)} -->[\\s\\S]*?<!-- /weave:fragment ${esc(id)} -->`);
+      const slot = new RegExp(
+        `<([a-z]+)\\b[^>]*data-design-node=["']${esc(id)}["'][^>]*\\bdata-placeholder\\b[^>]*>[\\s\\S]*?</\\1>`,
+        "i",
+      );
+      if (!existsSync(fragPath)) {
+        if (slot.test(html)) result.missing.push(id);
+        continue;
+      }
+      const block = `<!-- weave:fragment ${id} -->\n${readFileSync(fragPath, "utf8").trim()}\n<!-- /weave:fragment ${id} -->`;
+      if (marked.test(html)) html = html.replace(marked, () => block);
+      else if (slot.test(html)) html = html.replace(slot, () => block);
+      else continue;
+      // A component cannot edit the page, so its stylesheet is linked here.
+      const css = `styles/sections/${id}.css`;
+      if (existsSync(join(repoPath, css)) && !html.includes(`href="${css}"`)) {
+        html = html.replace("</head>", `  <link rel="stylesheet" href="${css}">\n</head>`);
+      }
+      result.assembled.push(id);
+    }
+    if (html !== before) {
+      writeFileSync(path, html, "utf8");
+      result.files.push(page.file);
+    }
+  }
+  return result;
 }

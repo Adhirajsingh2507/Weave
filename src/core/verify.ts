@@ -60,10 +60,11 @@ export class DeterministicVerifier implements Verifier {
         out = res.stdout;
       } catch (e) {
         passed = false;
-        const err = e as { stdout?: Buffer | string; message?: string; killed?: boolean };
+        const err = e as { stdout?: Buffer | string; stderr?: Buffer | string; message?: string; killed?: boolean };
         out = err.killed
           ? `check '${c.name}' timed out after ${this.#timeoutMs}ms`
-          : (err.stdout?.toString() ?? err.message ?? String(e));
+          // Tools report failures on stderr as often as stdout; the repair brief needs the reason.
+          : `${err.stdout?.toString() ?? ""}${err.stderr?.toString() ?? ""}`.trim() || (err.message ?? String(e));
       }
       ok = ok && passed;
       evidence.push(this.#record(c, passed, out));

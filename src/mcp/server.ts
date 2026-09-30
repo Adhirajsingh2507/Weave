@@ -1,16 +1,29 @@
 // MCP adapter (Post-V1, decided next delivery mode): the headless Engine exposed as MCP
 // tools over stdio. Thin wrapper — same core, another frontend.
 
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { extname, join } from "node:path";
+import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { Engine } from "../core/api.js";
+import { Engine, adapterDeps } from "../core/api.js";
+import { GUIDE_DIR, listStyles, loadStyle, suggestStyles } from "../core/design/style.js";
+
+/** Reference pictures live beside the guides, one folder per style. */
+const PICTURE_DIR = join(GUIDE_DIR, "..", "demo-design");
+const IMAGE_TYPES: Record<string, string> = { ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp", ".gif": "image/gif" };
+
+function picturesOf(slug: string): string[] {
+  const dir = join(PICTURE_DIR, slug);
+  if (!/^[a-z0-9-]+$/.test(slug) || !existsSync(dir)) return [];
+  return readdirSync(dir).filter((f) => IMAGE_TYPES[extname(f).toLowerCase()]).sort();
+}
 
 type ToolResult = { content: Array<{ type: "text"; text: string }> };
 const asText = (v: unknown): ToolResult => ({ content: [{ type: "text", text: JSON.stringify(v, null, 2) }] });
 
 export function createMcpServer(repoPath: string): McpServer {
-  const engine = new Engine({ repoPath });
+  const engine = new Engine({ repoPath, deps: adapterDeps() });
   const server = new McpServer({ name: "weave", version: "0.0.0" });
 
   server.registerTool(
@@ -20,8 +33,82 @@ export function createMcpServer(repoPath: string): McpServer {
   );
   server.registerTool(
     "run",
-    { description: "Intake + plan → design-approval gate", inputSchema: { text: z.string().optional(), name: z.string().optional() } },
-    async ({ text, name }) => asText(await engine.run({ text, projectName: name })),
+    {
+      description:
+        "Intake + plan → the intake gate. Give a line-directive brief, and optionally a style slug (see list_styles), " +
+        "screenshot paths, or a URL to read the design from.",
+      inputSchema: {
+        text: z.string().optional(),
+        name: z.string().optional(),
+        style: z.string().optional(),
+        screenshots: z.array(z.string()).optional(),
+        url: z.string().optional(),
+      },
+    },
+    async ({ text, name, style, screenshots, url }) =>
+      asText(
+        await engine.run({
+          ...(text || style ? { text: [style ? `style: ${style}` : "", text ?? ""].filter(Boolean).join("\n") } : {}),
+          ...(name ? { projectName: name } : {}),
+          ...(screenshots?.length ? { screenshots } : {}),
+          ...(url ? { url } : {}),
+        }),
+      ),
+  );
+
+  // ── Design presets (V2.6): the 91 guides, browsable and choosable by example ──
+  server.registerTool(
+    "list_styles",
+    { description: "The 91 design guides: slug, title, what each is for and against, and how many reference pictures it has", inputSchema: {} },
+    async () =>
+      asText(
+        listStyles().map((slug) => {
+          const g = loadStyle(slug);
+          return { slug, title: g.title, summary: g.summary, bestFor: g.bestFor, avoidFor: g.avoidFor, pictures: picturesOf(slug).length };
+        }),
+      ),
+  );
+  server.registerTool(
+    "suggest_styles",
+    { description: "Three design guides that fit a brief, with the reasons, from each guide's best_for and avoid_for", inputSchema: { brief: z.string() } },
+    async ({ brief }) => asText(suggestStyles(brief)),
+  );
+  server.registerResource(
+    "style-guide",
+    new ResourceTemplate("style://{slug}", {
+      list: async () => ({
+        resources: listStyles().map((slug) => ({ uri: `style://${slug}`, name: loadStyle(slug).title, mimeType: "text/markdown" })),
+      }),
+    }),
+    { description: "A design guide: tokens, checks, and the look in words", mimeType: "text/markdown" },
+    async (uri, { slug }) => {
+      const s = String(slug);
+      if (!listStyles().includes(s)) throw new Error(`unknown style '${s}'`);
+      return { contents: [{ uri: uri.href, mimeType: "text/markdown", text: readFileSync(join(GUIDE_DIR, `${s}.md`), "utf8") }] };
+    },
+  );
+  server.registerResource(
+    "style-picture",
+    new ResourceTemplate("style-picture://{slug}/{file}", {
+      list: async () => ({
+        resources: listStyles().flatMap((slug) =>
+          picturesOf(slug).map((file) => ({
+            uri: `style-picture://${slug}/${file}`,
+            name: `${slug}: ${file}`,
+            mimeType: IMAGE_TYPES[extname(file).toLowerCase()]!,
+          })),
+        ),
+      }),
+    }),
+    { description: "A reference picture for a design guide" },
+    async (uri, { slug, file }) => {
+      const s = String(slug);
+      const f = String(file);
+      // Only files the listing would offer: no paths, no traversal.
+      if (!picturesOf(s).includes(f)) throw new Error(`no picture '${f}' for style '${s}'`);
+      const mimeType = IMAGE_TYPES[extname(f).toLowerCase()]!;
+      return { contents: [{ uri: uri.href, mimeType, blob: readFileSync(join(PICTURE_DIR, s, f)).toString("base64") }] };
+    },
   );
   server.registerTool(
     "ingest",
@@ -30,7 +117,14 @@ export function createMcpServer(repoPath: string): McpServer {
   );
   server.registerTool("status", { description: "Project status", inputSchema: {} }, async () => asText(await engine.status()));
   server.registerTool("gaps", { description: "Unrealized-design + orphan-code", inputSchema: {} }, async () => asText(await engine.gaps()));
-  server.registerTool("gates", { description: "List open human gates", inputSchema: {} }, async () => asText(await engine.listGates()));
+  server.registerTool(
+    "gates",
+    {
+      description: "List open human gates of the latest run (or one run, or every run)",
+      inputSchema: { runId: z.string().optional(), all: z.boolean().optional() },
+    },
+    async ({ runId, all }) => asText(await engine.listGates({ ...(runId ? { runId } : {}), ...(all ? { all } : {}) })),
+  );
   server.registerTool(
     "resolve_gate",
     { description: "Approve or reject a gate", inputSchema: { id: z.string(), decision: z.enum(["approve", "reject"]), notes: z.string().optional() } },

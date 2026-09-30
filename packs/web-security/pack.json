@@ -81,6 +81,42 @@
       "source": "pre-launch #1, security #62 — HSTS, missing security headers"
     },
     {
+      "id": "sec.headers.nosniff",
+      "requirement": "Serve X-Content-Type-Options: nosniff so browsers never guess a response's type",
+      "runner": "http-header",
+      "args": { "header": "x-content-type-options", "pattern": "^nosniff$" },
+      "appliesWhen": ["hasHtml"],
+      "severity": "advisory",
+      "source": "security #62 — missing security headers"
+    },
+    {
+      "id": "sec.headers.frame",
+      "requirement": "Refuse framing by other sites with X-Frame-Options: DENY or SAMEORIGIN",
+      "runner": "http-header",
+      "args": { "header": "x-frame-options", "pattern": "^(deny|sameorigin)$" },
+      "appliesWhen": ["hasHtml"],
+      "severity": "advisory",
+      "source": "security #62 — clickjacking, missing security headers"
+    },
+    {
+      "id": "sec.headers.hsts",
+      "requirement": "Serve Strict-Transport-Security with a max-age so browsers only use HTTPS",
+      "runner": "http-header",
+      "args": { "header": "strict-transport-security", "pattern": "max-age=\\d+" },
+      "appliesWhen": ["hasHtml"],
+      "severity": "advisory",
+      "source": "pre-launch #1 — HSTS"
+    },
+    {
+      "id": "sec.headers.referrer",
+      "requirement": "Serve a Referrer-Policy so full URLs do not leak to other sites",
+      "runner": "http-header",
+      "args": { "header": "referrer-policy" },
+      "appliesWhen": ["hasHtml"],
+      "severity": "advisory",
+      "source": "security #62 — missing security headers"
+    },
+    {
       "id": "sec.forms.no-get-password",
       "requirement": "Never submit a password field over a GET form",
       "runner": "html-assert",

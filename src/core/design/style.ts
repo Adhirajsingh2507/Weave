@@ -25,6 +25,7 @@ export interface StyleGuide {
   summary: string;
   bestFor: string[];
   avoidFor: string[];
+  aliases: string[];
   tokens: Record<string, unknown>;
   checks: StyleCheck[];
   variants?: Array<Record<string, unknown>>;
@@ -186,6 +187,7 @@ export function loadStyle(slug: string, dir: string = GUIDE_DIR): StyleGuide {
     summary: String(fm["summary"] ?? ""),
     bestFor: asList(fm["best_for"]),
     avoidFor: asList(fm["avoid_for"]),
+    aliases: asList(fm["aliases"]),
     tokens: (fm["tokens"] as Record<string, unknown>) ?? {},
     checks: Array.isArray(fm["checks"]) ? (fm["checks"] as StyleCheck[]) : [],
     variants: Array.isArray(fm["variants"]) ? (fm["variants"] as Array<Record<string, unknown>>) : undefined,
@@ -289,4 +291,55 @@ export function styleBrief(style: StyleGuide): string {
   ]
     .filter(Boolean)
     .join("\n");
+}
+
+// ── Style suggestion (V2.6) ───────────────────────────────
+// Deterministic first: a guide already says what it is for and what it is not for. Score a
+// brief against that and explain the score. A decision-layer pass can rank these later; it
+// should not be needed to know that a robotics launch is not a bakery.
+
+export interface StyleSuggestion {
+  slug: string;
+  title: string;
+  score: number;
+  /** Why: the best_for / alias phrases the brief matched, and any avoid_for it hit. */
+  reasons: string[];
+}
+
+const STOP = new Set(["the", "and", "for", "with", "that", "this", "our", "are", "you", "your", "into", "from", "page", "site", "website", "landing", "section", "component", "style", "anything"]);
+
+function words(text: string): string[] {
+  return (text.toLowerCase().match(/[a-z][a-z0-9-]+/g) ?? [])
+    .map((w) => w.replace(/(ies)$/, "y").replace(/s$/, ""))
+    .filter((w) => w.length >= 3 && !STOP.has(w));
+}
+
+/** Same word, or one a prefix of the other when both are long enough to mean it (robot/robotic). */
+const related = (a: string, b: string): boolean =>
+  a === b || (a.length >= 5 && b.length >= 5 && (a.startsWith(b) || b.startsWith(a)));
+
+function phraseHits(brief: string[], phrases: string[]): string[] {
+  return phrases.filter((p) => words(p).some((w) => brief.some((b) => related(b, w))));
+}
+
+/** The n guides that fit a brief best, each with its reasons. Guides that match nothing are left out. */
+export function suggestStyles(brief: string, n = 3, dir: string = GUIDE_DIR): StyleSuggestion[] {
+  const briefWords = words(brief);
+  return listStyles(dir)
+    .map((slug) => {
+      const g = loadStyle(slug, dir);
+      const good = phraseHits(briefWords, g.bestFor);
+      const alias = phraseHits(briefWords, [g.title, ...g.aliases]);
+      const bad = phraseHits(briefWords, g.avoidFor);
+      const score = good.length * 3 + alias.length * 2 - bad.length * 4;
+      const reasons = [
+        ...good.map((p) => `best for ${p}`),
+        ...alias.map((p) => `known as ${p}`),
+        ...bad.map((p) => `but avoid for ${p}`),
+      ];
+      return { slug, title: g.title, score, reasons };
+    })
+    .filter((s) => s.score > 0)
+    .sort((a, b) => b.score - a.score || a.slug.localeCompare(b.slug))
+    .slice(0, n);
 }

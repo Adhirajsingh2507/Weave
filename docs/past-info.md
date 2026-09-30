@@ -2,6 +2,56 @@
 
 > Archive of prior thinking and superseded decisions, newest first. Never delete — this is the paper trail.
 
+## 2026-09-30 — V2.5 and V2.6 shipped; what they superseded
+
+Asked before building, unanswered, so defaults were taken and recorded: no credentialed run (no
+key on this machine), no heavy benchmark dependencies, 3 runs per arm.
+
+Superseded:
+- **Coverage.** The metric counted a requirement covered on any evidence row (not-applicable and
+  unavailable included); the report counted only verdicts. Both now count verdicts (#65).
+- **`listGates()` across every run.** Now the latest run unless asked (#66).
+- **V2.2's "a blocking item opens a gate".** A bounded automatic repair comes first (#67).
+- **"The IR has no home for shape/motion/spacing"** (a known gap since the design-system work).
+  `designTokens` carries every guide token (#68). Spacing turned out to need CSS lengths: the
+  kinetic-typography guide spaces sections by `100vh`, and the IR gave way to the guide.
+- **"System One / System Two"** in the living docs and code (#70). The canonical doc and this
+  file keep the old terms.
+- **The raw-HTTP pattern for Claude calls.** New Claude calls go through `@anthropic-ai/sdk`;
+  `ClaudeDecision` is left as it was, with the reason, in `to-be-discussed.md`.
+
+Found while building: the verifier dropped stderr, so every failing `pnpm check` reached the
+agent's repair brief with no reason. No real agent has run yet, so no real repair was affected —
+but the first one would have retried blind on the scaffold's own checks. The explorer's repair
+trail is what exposed it.
+
+## 2026-09-29 — V2.3 and V2.4 shipped; what they superseded
+
+Decisions taken before building V2.4 (asked, not assumed): the network policy is a proxy
+allowlist + audit rather than a network namespace; the decision layer judges every node diff when
+credentials exist; the deploy target is Vercel. Recorded as #61–#63.
+
+Superseded:
+- **#31 "Sequential by default, parallel-ready."** Replaced by the DAG scheduler (#59). The
+  separate sequential path, which fast-forwarded each node into the working branch, is gone — a
+  batch of one takes the batch path and gets a `--no-ff` integration commit like any other.
+- **The plan's conflict handling ("rebase the node branch and re-verify").** Replaced by
+  re-running the node on the new tip (#60). A rebase replays the same textual change and hits
+  the same conflict a merge did.
+- **Pages as section slots.** The V2.0 scaffold slotted every impl node — pages included — into
+  `index.html` as a `<section>`. Pages now own their file and are marked on `<body>`.
+- **`ContextPack.permissions.write: ["**"]`.** It now carries the node's ownership set, so the
+  write scope the agent is told matches what verification enforces.
+- **"Every .html file is a page"** in the pack runners. Only full documents are pages; fragments
+  are checked where they are assembled.
+- **Evidence coverage of the demo went from 18 passed / 0 failed to 20 / 2.** Not a regression:
+  the two failures are live header checks (HSTS, Referrer-Policy) against a stand-in host that
+  does not send them. Before V2.4 nothing could see headers at all.
+
+Caught while building the checks: the sandbox check's "checkout `.env` is hidden" assertion
+passed vacuously, because the harness's auto-stash swept the untracked `.env` away. Real `.env`
+files are gitignored and stay put; the check now models that and asserts the file survived.
+
 ## 2026-09-29 — Progress review: three defects fixed
 
 A read-through of the whole repo after V2.2 reproduced three defects; each is now asserted in a

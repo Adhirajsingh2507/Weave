@@ -1,97 +1,173 @@
 # Weave
 
-A **graph-driven autonomous engineering platform** — turns human intent + multimodal design inputs into software via bounded agent loops, with persistent state, evidence, and human gates. (Package/CLI: `weave`; MCP: `weave-mcp`.)
+**Coding agents write the code. Weave governs the run: what they may touch, how their work is
+checked, what a person must approve, and a record of every step.**
 
-> **Status: V2 underway — V2.0, V2.1 and V2.2 shipped; V2.3 next.** v1's vertical slice is
-> complete (intent → knowledge graph → gated build → verified result, with tree-sitter
-> ingestion, an MCP server, parallel worktrees and gated deployment). V2.0 made a real
-> greenfield run possible (persisted harness state, gate history, design→code edges, async
-> parallelism, a scaffold step, style-aware context from **91 design guides**). V2.1 added
-> requirements, criteria, typed evidence, the five metrics and `weave report`. V2.2 added
-> **policy packs** — 46 items across `web-security`, `a11y`, `seo` and `performance`, each both a
-> requirement told to the agent and a check Weave runs.
-> **22 self-checks + the design validator + `pnpm demo`, green in CI.** Credentialed adapters
-> (Claude executor/decision, Playwright, real deploy) are implemented and exercised via fakes —
-> set `ANTHROPIC_API_KEY` + the `claude` CLI for real builds (see below).
->
-> Docs: start with `docs/information.md`; the plan is `docs/implementation-v2.md`. An
-> outcome-first rewrite of this README is phase V2.5.
+(Package/CLI: `weave`; MCP server: `weave-mcp`. Private, pre-release.)
 
-## The idea in one breath
-- **Knowledge graph** = what the project *is* (design ↔ code, two layers joined by confidence-weighted mapping edges).
-- **Execution graph** = how work moves (fixed skeleton + one impl node per *unrealized design node*).
-- **Loop** = local quality inside each node (discover → execute → verify → record → repair).
-- **Harness** = each node's bounded env (context pack, git worktree, permissions).
-- **Decision layer (System One)** decides/scores/classifies; **Claude Code (System Two)** creates.
+## The problem
 
-## Layout
+A coding agent can build a website from a paragraph. What it cannot give you is a reason to
+trust the result:
+
+- **"Done" is the agent's opinion.** Nothing independent checks that each requirement was met.
+- **Nothing is bounded.** The agent can read your `.env`, add dependencies, and reach any host.
+- **Nothing is remembered.** The next session starts from zero; there is no record of what was
+  decided, built, failed, repaired or approved.
+- **Parallel agents collide.** Two agents editing the same page produce a merge conflict, not a site.
+
+## What Weave does
+
+You give it a brief — a few lines of text, a screenshot, or a live URL — and a style. Weave:
+
+1. **Turns intent into a checkable plan.** The brief becomes a versioned design document; every
+   page, section and constraint becomes a requirement with criteria, written *before* any code
+   exists so the implementer cannot grade its own work.
+2. **Runs agents inside boundaries.** Each piece of work runs in its own git worktree, owns only
+   its own files, cannot read secrets (bubblewrap on Linux, plus Claude Code's own deny rules),
+   and reaches only allowlisted hosts. Anything risky — a new dependency, a migration, a deletion,
+   a secret — is held for approval.
+3. **Verifies with evidence, not opinion.** Build, structural checks, 50 policy-pack items
+   (security, accessibility, SEO, performance) and style rules run on every piece and on the
+   assembled site. Failures go back to the agent with the reason; whole-site failures get one
+   automatic repair before a person is asked.
+4. **Asks a person at the points that matter** — design approval, uncertain readings, risky
+   changes, blocked policy items, release — and records every answer.
+5. **Records everything.** Every requirement traces to its design, code, criteria, evidence,
+   commit and approval. One command renders it as a self-contained page.
+
+## See it
+
+No credentials needed:
+
+```bash
+pnpm install && pnpm demo
 ```
-src/
-  index.ts          public core API surface (one stable contract)
-  core/
-    api.ts          Engine — commands / queries / events
-    types.ts        shared primitives
-    ir/schema.ts    Design IR (Zod, canonical/versioned)
-    graph/types.ts  KG + execution graph node/edge kinds
-    decision/       Decision (System One) seam + v1 catalog
-    runtime.ts      NodeExecutor seam + GitHarness (sandbox)
-    state.ts        .agent/ layout
-    events/         append-only event log + subscribe
-    scaffold.ts     zero-dependency project template (runs before any agent)
-    design/style.ts reads design-guide/*.md → tokens, agent brief, checks
-  cli/index.ts      first adapter (thin) over the core
-design-guide/       91 style guides + _base.md floor + styles.json
-demo-design/        reference pictures, one folder per style
-docs/               the living design (start with information.md)
+
+The demo builds a robotics landing page with a stand-in agent that makes two common mistakes,
+and shows Weave catching and repairing both:
+
 ```
+→ approve design  (execution begins)
+  impl:cta, impl:features, impl:hero: complete      components built in parallel
+  impl:home: complete                               the page, after its sections
+  repair loop exercised (hero failed once)          an <h1> inside a section, caught by the check
+  policy repair: complete                           a new-tab link without rel=noopener, caught by
+                                                    the security pack on the assembled site
+→ approve pre-release  (deploys only now)
+  ✓ deployed c675089 to http://127.0.0.1:…
+  ✗ post-deploy checks: 10 passed, 2 failed         the host sends no HSTS or Referrer-Policy
+  impl wall-clock 4.3s vs 6.8s one at a time
+  explorer: …/.agent/report.html
+```
+
+The explorer (`weave report --html out.html`) is one file — no scripts, no network — with the
+outcome metrics, the dependency graph as it ran, every attempt on a timeline, each requirement
+with its evidence, the repair trail, the gates and the boundary records.
+
+## What is different from running an agent yourself
+
+| | An agent session | A Weave run |
+|---|---|---|
+| Who decides it is done | the agent | criteria written before the code, checked by tools |
+| Secrets and network | whatever the agent's process can reach | masked, hidden and allowlisted, with a record |
+| Risky changes | applied | held behind a gate, named |
+| Parallel work | one session, or conflicts | a dependency graph with file ownership |
+| Afterwards | a chat log | a traceable record: requirement → code → evidence → commit → approval |
+
+**Is the result actually better?** `scripts/benchmark.mjs` answers that with third-party tools
+only (Lighthouse, axe, gitleaks, `pnpm audit`) — never Weave's own checks — over N paired runs,
+with variance and the runs Weave loses. **It has not been run yet**: it needs real agent runs and
+their cost. Until it has, the claim above is about control and evidence, not about quality.
+
+## How it works
+
+```
+brief / screenshot / URL
+   │  intake: compile to a versioned design (IR); uncertain readings gate
+   ▼
+knowledge graph ── requirements + criteria (frozen before implementation)
+   │
+   ▼  plan: scaffold → components ─┬→ pages → integration → policy packs → release
+   │                               └ (parallel, each in its own worktree, owning its files)
+   ▼
+node loop: execute → verify → record → repair  (bounded retries, then a gate)
+```
+
+- **Decision layer** — every structured judgement (normalising a reading, classifying a diff's
+  risk) is a typed call with a confidence; low confidence goes to a person. Deterministic checks
+  are always preferred where they exist.
+- **Execution layer** — Claude Code does the building, behind the `NodeExecutor` seam.
+- **State** — `.agent/` in your repo: the design, a SQLite graph of requirements, evidence,
+  attempts and gates, and an append-only event log. Truth lives there, not in a model's memory.
 
 ## Design system
-91 style guides, each carrying machine-readable tokens and style-specific checks (739 checks,
-~86% deterministic). A brief selects one with `style: swiss-design`; its tokens become the
-project's `styles/tokens.css`, and the agent is told the rules its work will be judged against.
-`design-guide/_base.md` is the floor every style inherits — contrast, focus, target size,
-reduced motion, font budget — which a style may exceed but never fall below.
+
+91 style guides in `design-guide/`, each with machine-readable tokens and style-specific checks
+(739 checks, ~86% deterministic). `style: swiss-design` in a brief selects one; its tokens travel
+in the design document and become the project's `styles/tokens.css`. `weave styles --suggest
+"a robotics launch"` proposes three with reasons. `_base.md` is the floor every style inherits.
 
 ## Quickstart
+
 ```bash
 pnpm install
 pnpm build
-pnpm check                       # 22 self-checks (IR, policy, store, loop, verify, ingest, orchestrator, parallel, resume, style, build, deploy, criteria, traceability, packs, policy gate, mcp…)
-node scripts/check-design.mjs    # validates the 91 design guides + their picture folders
-pnpm demo                        # end-to-end pipeline on a throwaway repo (no creds)
-
-node dist/cli/index.js init      # create .agent/ (+ state.db) in cwd
-node dist/cli/index.js status    # initialized? latest run + open gates + gap counts
-node dist/cli/index.js graph     # unrealized-design + orphan-code
-node dist/cli/index.js ingest    # (existing repos) sweep code → dependency graph (tree-sitter)
+pnpm check                       # 29 self-checks
+node scripts/check-design.mjs    # validates the 91 guides and their picture folders
+pnpm demo                        # the end-to-end run above, no credentials
 ```
 
-## Real Claude-built site (end to end)
-Needs `ANTHROPIC_API_KEY` (Decision layer) and the `claude` CLI on PATH (code generation).
+### A real build
+
+Needs the `claude` CLI on PATH; `ANTHROPIC_API_KEY` adds the decision layer (risk judgement on
+every diff, and screenshot intake).
+
+`weave` is `node <weave>/dist/cli/index.js`; `pnpm link --global` in this repo puts it on PATH.
+
 ```bash
-export ANTHROPIC_API_KEY=sk-...            # your key
-cd /path/to/your/new/project && git init && git commit --allow-empty -m init
-node <weave>/dist/cli/index.js init
-node <weave>/dist/cli/index.js run --brief <weave>/examples/robotics-landing.brief --name robotics-landing
-node <weave>/dist/cli/index.js gates       # → design-approval gate id
-node <weave>/dist/cli/index.js approve <design-gate-id>   # fan-out: Claude Code builds each component on a worktree, per-node verify, commit
-node <weave>/dist/cli/index.js status      # watch progress / find the pre-release gate
-node <weave>/dist/cli/index.js approve <pre-release-gate-id>   # verified build on the working branch
+cd /path/to/new/project && git init && git commit --allow-empty -m init
+weave init
+weave run --brief <weave>/examples/robotics-landing.brief --name robotics-landing
+#   or: weave run --screenshot mock.png --brief two-sentences.txt
+#   or: weave run --url https://example.com
+weave gates                                     # the intake gate
+weave approve <gate-id> --concurrency 3          # builds: components in parallel, pages after
+weave gates                                     # risky-op / policy gates if any, then pre-release
+weave approve <pre-release-gate-id>             # the verified build is on weave/<run>
+weave report --html report.html                  # the whole run, one file
 ```
-`run` intakes + plans and stops at the design gate; approving drives the fan-out through the node loop (real `ClaudeCodeExecutor`) to a verified build on the `weave/<run>` branch. Deployment is off by default; provide a `Deployer` (e.g. `CommandDeployer("vercel", ["--prod"])`) to make the pre-release approval deploy. For a creds-free walkthrough of the same flow, run `pnpm demo`.
 
-## MCP server (delivery mode)
-```bash
-node dist/mcp/bin.js               # or the `weave-mcp` bin — stdio MCP server
-```
-Exposes the Engine as MCP tools (`init`, `run`, `ingest`, `status`, `gaps`, `gates`, `resolve_gate`, `exec_graph`) for any MCP client.
+`weave sandbox` says how agents are confined on this machine. Deployment is off by default;
+`WEAVE_DEPLOY=vercel` (with `VERCEL_TOKEN` or a `vercel login`) makes pre-release approval deploy
+and re-check the live site. The token reaches only the `vercel` process — never an agent.
 
-## Deploy to GitHub
-Runs `pnpm build` + `pnpm check` first (aborts if either fails — never pushes a broken tree), then: first run creates a **private** repo `Weave`; every run stages, commits, and pushes. Requires `pnpm` and the GitHub CLI (`gh`) authenticated.
+### MCP
+
 ```bash
-./scripts/deploy.sh "your commit message"     # or: pnpm ship "your commit message"
+weave-mcp          # stdio MCP server
 ```
-Overrides: `WEAVE_REPO=<name>` and `WEAVE_VISIBILITY=private|public`.
+
+Tools: `init`, `run` (with `style`, `screenshots`, `url`), `gates`, `resolve_gate`, `status`,
+`gaps`, `ingest`, `exec_graph`, `list_styles`, `suggest_styles`. Resources: every guide
+(`style://<slug>`) and its reference pictures (`style-picture://<slug>/<file>`), so a client can
+browse styles by example and pick one.
+
+## Status
+
+V2.0–V2.6 shipped (see `docs/implementation-v2.md`). Proven with stand-in agents and recorded
+readings; **not yet exercised with a real Claude Code run**, so the calibration corpus and the
+benchmark are empty. Next: V2.7 (assets and 3D).
+
+Docs: `docs/information.md` is the overview, `docs/current-info.md` the decisions,
+`docs/architecture.md` the design, `docs/to-be-discussed.md` what is open.
+
+### Publishing this repo
+
+`./scripts/deploy.sh "message"` (or `pnpm ship`) runs build + checks first and never pushes a
+broken tree. Requires `gh`; `WEAVE_REPO` and `WEAVE_VISIBILITY` override the defaults.
 
 ## Stack
-TypeScript · Node 24 LTS (runs on ≥22.6) · pnpm · Zod · tree-sitter (ingestion) · Playwright (browser/visual QA) · SQLite→Postgres · Claude Code runtime. See `docs/current-info.md`.
+
+TypeScript · Node ≥22.6 · pnpm · Zod · SQLite · tree-sitter · the Anthropic SDK · Claude Code ·
+bubblewrap (optional) · Playwright (optional, V2.7).

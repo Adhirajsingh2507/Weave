@@ -166,6 +166,22 @@ const human: Runner = (item) => ({
   detail: `needs a person: ${item.requirement}`,
 });
 
+/**
+ * A response header on the deployed site. Headers are set by the host, not the files, so before
+ * release there is nothing to check — that is `unavailable`, never a pass.
+ */
+const httpHeader: Runner = (item, ctx) => {
+  if (!ctx.live) return { status: "unavailable", detail: "checked against the deployed site, after release" };
+  const name = arg<string>(item, "header", "").toLowerCase();
+  const pattern = arg<string | undefined>(item, "pattern", undefined);
+  const value = ctx.live.headers[name];
+  if (value === undefined) return { status: "fail", detail: `${ctx.live.url} sends no ${name} header` };
+  if (pattern && !new RegExp(pattern, "i").test(value)) {
+    return { status: "fail", detail: `${name}: "${value}" does not match ${pattern}` };
+  }
+  return { status: "pass", detail: `${name}: ${value}` };
+};
+
 export const RUNNERS: Record<string, Runner> = {
   "file-exists": fileExists,
   "file-absent": fileAbsent,
@@ -173,6 +189,7 @@ export const RUNNERS: Record<string, Runner> = {
   "text-scan": textScan,
   "dep-audit": depAudit,
   "file-size": fileSize,
+  "http-header": httpHeader,
   browser,
   human,
 };

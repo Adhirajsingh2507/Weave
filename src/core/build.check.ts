@@ -13,6 +13,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "no
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Engine } from "./api.js";
+import { realise } from "./testing.js";
 import { GitHarness } from "./runtime.js";
 import type { ExecInput, ExecResult, NodeExecutor } from "./runtime.js";
 
@@ -28,19 +29,12 @@ writeFileSync(join(repo, "README.md"), "# greenfield\n");
 git(["add", "-A"], repo);
 git(["commit", "-q", "-m", "init"], repo);
 
-/** Stands in for the coding agent: fills its section in the scaffolded page. */
+/** Stands in for the coding agent: follows the fragment contract. */
 const agent: NodeExecutor = {
   name: "fake-agent",
   async run(input: ExecInput): Promise<ExecResult> {
     const id = input.contextPack.taskId.replace("impl:", "");
-    const page = join(input.worktreeDir, "index.html");
-    const html = readFileSync(page, "utf8");
-    const filled = html.replace(
-      new RegExp(`<section id="${id}"[^>]*>.*?</section>`, "s"),
-      `<section id="${id}" data-design-node="${id}"><h2>${id}</h2><p>Built by ${input.contextPack.taskId}.</p></section>`,
-    );
-    writeFileSync(page, filled, "utf8");
-    return { ok: true, summary: `filled ${id}`, changedFiles: ["index.html"], evidenceRefs: [`edit:${id}`] };
+    return realise(input, `<h2>${id}</h2><p>Built by ${input.contextPack.taskId}.</p>`);
   },
 };
 

@@ -6,6 +6,10 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
+import { DEFAULT_ALLOW_HOSTS, EgressProxy } from "./egress.js";
+import type { EgressRecord } from "./egress.js";
+import { detectSandbox, wrapCommand } from "./sandbox.js";
+import type { SandboxInfo } from "./sandbox.js";
 
 const run = promisify(execFile);
 
@@ -17,14 +21,16 @@ export interface ContextPack {
   relevantFiles: string[];
   constraints: string[];
   previousFailures: string[];
-  /** FS baseline: write-scoped to repo, secrets denied. */
-  permissions: { write: string[]; deny: string[] };
+  /** FS baseline: write scope (the node's ownership), secrets denied, outbound hosts allowed. */
+  permissions: { write: string[]; deny: string[]; allowHosts?: string[] };
 }
 
 export interface ExecInput {
   contextPack: ContextPack;
   /** Isolated git worktree dir this node runs in. */
   worktreeDir: string;
+  /** The user's repo. A sandboxing executor hides its working tree from the agent. */
+  repoPath?: string;
 }
 
 export interface ExecResult {
@@ -32,6 +38,18 @@ export interface ExecResult {
   summary: string;
   changedFiles: string[];
   evidenceRefs: string[];
+  /** Every host the agent contacted, from the executor's egress proxy. */
+  egress?: EgressRecord[];
+  /** How the agent was confined — recorded per node, never assumed. */
+  sandbox?: SandboxInfo;
+}
+
+/** What an executor can do and how it is confined (V2.4). Recorded, not trusted blindly. */
+export interface ExecutorCapabilities {
+  canShell: boolean;
+  canNetwork: boolean;
+  /** True only when an OS or native sandbox actually confines the agent. */
+  sandboxed: boolean;
 }
 
 /**
@@ -40,6 +58,7 @@ export interface ExecResult {
  */
 export interface NodeExecutor {
   readonly name: string;
+  readonly capabilities?: ExecutorCapabilities;
   run(input: ExecInput): Promise<ExecResult>;
 }
 
@@ -59,6 +78,7 @@ export function scrubbedEnv(extra: string[] = []): NodeJS.ProcessEnv {
   const keep = [
     "PATH", "HOME", "USER", "LOGNAME", "SHELL", "LANG", "LC_ALL", "TERM", "TMPDIR",
     "ANTHROPIC_API_KEY", // the agent's own credential, nothing else
+    "XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_CACHE_HOME",
     ...extra,
   ];
   const env: NodeJS.ProcessEnv = {};
@@ -79,25 +99,63 @@ export class ClaudeCodeExecutor implements NodeExecutor {
   #timeoutMs: number;
   /** A minimal env keeps the user's other credentials out of the agent's process. */
   #env: NodeJS.ProcessEnv;
+  #sandbox: "auto" | "off";
+  #allowHosts: string[];
 
-  constructor(opts: { bin?: string; timeoutMs?: number; env?: NodeJS.ProcessEnv } = {}) {
+  constructor(
+    opts: {
+      bin?: string;
+      timeoutMs?: number;
+      env?: NodeJS.ProcessEnv;
+      /** "auto" confines the agent with bubblewrap where the machine supports it. */
+      sandbox?: "auto" | "off";
+      /** Outbound hosts the agent may reach when the context pack names none. */
+      allowHosts?: string[];
+    } = {},
+  ) {
     this.#bin = opts.bin ?? "claude";
     this.#timeoutMs = opts.timeoutMs ?? 10 * 60_000;
     this.#env = opts.env ?? scrubbedEnv();
+    this.#sandbox = opts.sandbox ?? "auto";
+    this.#allowHosts = opts.allowHosts ?? DEFAULT_ALLOW_HOSTS;
+  }
+
+  get capabilities(): ExecutorCapabilities {
+    return { canShell: true, canNetwork: true, sandboxed: this.#sandboxInfo().backend !== "none" };
+  }
+
+  #sandboxInfo(): SandboxInfo {
+    return this.#sandbox === "off" ? { backend: "none", detail: "unsandboxed: disabled by configuration" } : detectSandbox();
   }
 
   async run(input: ExecInput): Promise<ExecResult> {
-    const prompt = buildPrompt(input.contextPack);
+    const cp = input.contextPack;
+    const prompt = buildPrompt(cp);
+    // Layer 1, native: Claude Code's own permission rules refuse the deny-listed paths.
+    const settings = JSON.stringify({ permissions: { deny: nativeDenyRules(cp.permissions.deny) } });
+    const args = ["-p", prompt, "--permission-mode", "acceptEdits", "--settings", settings];
+    // Layer 2, OS: bubblewrap makes those paths (and home secrets) unreadable to anything the
+    // agent spawns, including a shell that never consults the permission rules.
+    const sandbox = this.#sandboxInfo();
+    const command =
+      sandbox.backend === "bwrap"
+        ? wrapCommand(this.#bin, args, { worktreeDir: input.worktreeDir, repoPath: input.repoPath, deny: cp.permissions.deny })
+        : { cmd: this.#bin, args };
+    // Layer 3, network: every outbound host is recorded; off-list hosts are refused.
+    const proxy = new EgressProxy(cp.permissions.allowHosts ?? this.#allowHosts);
+    const proxyUrl = await proxy.start();
+    const env = { ...this.#env, ...EgressProxy.env(proxyUrl), CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1" };
+
     let summary = "";
     try {
       // Async on purpose: a sync spawn blocks the event loop, which silently made
       // parallel node execution run one agent at a time.
-      const { stdout } = await run(this.#bin, ["-p", prompt, "--permission-mode", "acceptEdits"], {
+      const { stdout } = await run(command.cmd, command.args, {
         cwd: input.worktreeDir,
         encoding: "utf8",
         maxBuffer: 64 * 1024 * 1024,
         timeout: this.#timeoutMs,
-        env: this.#env,
+        env,
       });
       summary = stdout.trim();
     } catch (err) {
@@ -110,14 +168,26 @@ export class ClaudeCodeExecutor implements NodeExecutor {
           : (e.message ?? String(err)),
         changedFiles: [],
         evidenceRefs: [],
+        egress: proxy.records,
+        sandbox,
       };
+    } finally {
+      await proxy.stop();
     }
-    const changedFiles = git(["status", "--porcelain"], input.worktreeDir)
+    const changedFiles = git(["status", "--porcelain", "-uall"], input.worktreeDir)
       .split("\n")
       .filter(Boolean)
       .map((l) => l.slice(3));
-    return { ok: true, summary, changedFiles, evidenceRefs: [] };
+    return { ok: true, summary, changedFiles, evidenceRefs: [], egress: proxy.records, sandbox };
   }
+}
+
+/** Context-pack deny globs as Claude Code permission rules (gitignore-style paths). */
+export function nativeDenyRules(deny: string[]): string[] {
+  return deny.flatMap((glob) => {
+    const path = glob.startsWith("**") || glob.startsWith("/") ? glob : `./${glob}`;
+    return [`Read(${path})`, `Edit(${path})`];
+  });
 }
 
 function buildPrompt(cp: ContextPack): string {
@@ -276,11 +346,57 @@ export class GitHarness {
     return { ok: true };
   }
 
+  /**
+   * Commit a node's work and keep its branch, but drop the worktree — the node is waiting on a
+   * risky-op gate. The branch survives the process, so a later one can integrate it.
+   */
+  async parkNode(nodeId: string, message: string): Promise<string> {
+    const sha = await this.commitDetached(nodeId, message);
+    const wt = this.#worktrees.get(nodeId);
+    if (wt) {
+      git(["worktree", "remove", "--force", wt.dir], this.#repoPath);
+      this.#worktrees.delete(nodeId);
+    }
+    return sha;
+  }
+
+  /** Merge a parked node's branch into the working branch after its gate was approved. */
+  async integrateParked(nodeId: string): Promise<{ ok: boolean }> {
+    const branch = `weave/node/${sanitize(nodeId)}`;
+    try {
+      git(["merge", "--no-ff", "-m", `integrate ${nodeId} (approved)`, branch], this.#repoPath);
+    } catch {
+      try {
+        git(["merge", "--abort"], this.#repoPath);
+      } catch {
+        /* nothing to abort */
+      }
+      return { ok: false };
+    }
+    try {
+      git(["branch", "-D", branch], this.#repoPath);
+    } catch {
+      /* already gone */
+    }
+    return { ok: true };
+  }
+
   /** Discard a failed node's worktree + branch = instant rollback. */
   async discardNode(nodeId: string): Promise<void> {
     const wt = this.#worktrees.get(nodeId);
     if (!wt) return;
     this.#removeWorktree(nodeId, wt);
+  }
+
+  /** Delete every node branch without a live worktree — node branches are transient. */
+  pruneNodeBranches(): void {
+    for (const b of git(["branch", "--list", "weave/node/*", "--format=%(refname:short)"], this.#repoPath).split("\n")) {
+      try {
+        if (b.trim()) git(["branch", "-D", b.trim()], this.#repoPath);
+      } catch {
+        // still checked out in a live worktree — not ours to remove
+      }
+    }
   }
 
   /** Discard every still-open worktree + branch (cleanup when a parallel batch halts). */
@@ -291,6 +407,8 @@ export class GitHarness {
   /** Return to the base branch and restore an auto-stashed working tree. */
   async finish(): Promise<void> {
     if (this.#baseBranch) git(["checkout", this.#baseBranch], this.#repoPath);
+    // A node branch still here was parked behind a gate the run never passed; the run is over.
+    this.pruneNodeBranches();
     if (this.#stashed) {
       git(["stash", "pop"], this.#repoPath);
       this.#stashed = false;

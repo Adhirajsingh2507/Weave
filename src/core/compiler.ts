@@ -7,6 +7,7 @@
 //   asset: robot 3d robot.glb
 
 import { DesignIRSchema } from "./ir/schema.js";
+import { loadStyle } from "./design/style.js";
 import type { DesignIR } from "./ir/schema.js";
 
 export interface BriefInput {
@@ -59,6 +60,9 @@ export function compileBrief(input: BriefInput): DesignIR {
       ...(style ? { style } : {}),
       ...(packs ? { packs } : {}),
     },
+    // The IR carries the guide's tokens, not just its name, so the design is complete in one
+    // canonical document. An unknown slug throws here — at intake, not half way through a run.
+    ...(style ? { designTokens: loadStyle(style).tokens } : {}),
     visualLanguage: { mood: "clean" },
     pages,
     components,

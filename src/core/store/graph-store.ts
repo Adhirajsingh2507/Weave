@@ -9,6 +9,7 @@ import { computeGaps } from "../graph/project.js";
 import type { DesignGraph, Gaps } from "../graph/project.js";
 import type { Edge, ExecNode, KgNode, KgNodeKind, MappingProvenance } from "../graph/types.js";
 import type { Gate, GateStatus, NodeId, RunRecord } from "../types.js";
+import type { EvidenceRecord } from "../loop.js";
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS kg_nodes (
@@ -50,6 +51,9 @@ CREATE TABLE IF NOT EXISTS exec_nodes (
   -- passed rather than discarding it the moment the commit lands.
   evidence       TEXT,
   attempts       INTEGER,
+  -- The DAG and the file-ownership contract (V2.3), both JSON arrays.
+  depends_on     TEXT,
+  owns           TEXT,
   PRIMARY KEY (run_id, id)
 );
 -- Typed evidence, replacing the string arrays that used to be thrown away on success.
@@ -113,6 +117,7 @@ interface ExecRow {
   run_id: string; id: string; kind: string;
   design_node_id: string | null; status: string; commit: string | null;
   evidence: string | null; attempts: number | null;
+  depends_on: string | null; owns: string | null;
 }
 interface GateRow {
   id: string; run_id: string; kind: string; status: string;
@@ -175,6 +180,8 @@ function toExec(r: ExecRow): ExecNode {
     commit: r.commit ?? undefined,
     evidence: r.evidence ? (JSON.parse(r.evidence) as string[]) : undefined,
     attempts: r.attempts ?? undefined,
+    ...(r.depends_on ? { dependsOn: JSON.parse(r.depends_on) as string[] } : {}),
+    ...(r.owns ? { owns: JSON.parse(r.owns) as string[] } : {}),
   };
 }
 
@@ -182,7 +189,7 @@ function toExec(r: ExecRow): ExecNode {
 export interface EvidenceInput {
   nodeId?: string;
   criterionId?: string;
-  kind: "build" | "test" | "structural" | "dom" | "visual" | "pack" | "deploy" | "agent";
+  kind: EvidenceRecord["kind"];
   ok: boolean;
   /** Defaults to pass/fail from `ok`; packs use the fuller set. */
   status?: "pass" | "fail" | "not-applicable" | "unavailable" | "human";
@@ -363,7 +370,7 @@ export class GraphStore {
     const execCols = new Set(
       (this.#db.prepare(`PRAGMA table_info(exec_nodes)`).all() as Array<{ name: string }>).map((c) => c.name),
     );
-    for (const [name, type] of [["evidence", "TEXT"], ["attempts", "INTEGER"]] as Array<[string, string]>) {
+    for (const [name, type] of [["evidence", "TEXT"], ["attempts", "INTEGER"], ["depends_on", "TEXT"], ["owns", "TEXT"]] as Array<[string, string]>) {
       if (!execCols.has(name)) this.#db.exec(`ALTER TABLE exec_nodes ADD COLUMN ${name} ${type}`);
     }
   }
@@ -424,8 +431,8 @@ export class GraphStore {
   upsertExecNode(runId: string, node: ExecNode): void {
     this.#db
       .prepare(
-        `INSERT OR REPLACE INTO exec_nodes (run_id, id, kind, design_node_id, status, "commit", evidence, attempts)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT OR REPLACE INTO exec_nodes (run_id, id, kind, design_node_id, status, "commit", evidence, attempts, depends_on, owns)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         runId,
@@ -436,6 +443,8 @@ export class GraphStore {
         node.commit ?? null,
         node.evidence ? JSON.stringify(node.evidence) : null,
         node.attempts ?? null,
+        node.dependsOn ? JSON.stringify(node.dependsOn) : null,
+        node.owns ? JSON.stringify(node.owns) : null,
       );
   }
 
@@ -443,7 +452,7 @@ export class GraphStore {
     return (
       this.#db
         .prepare(
-          `SELECT run_id, id, kind, design_node_id, status, "commit", evidence, attempts FROM exec_nodes WHERE run_id = ?`,
+          `SELECT run_id, id, kind, design_node_id, status, "commit", evidence, attempts, depends_on, owns FROM exec_nodes WHERE run_id = ?`,
         )
         .all(runId) as ExecRow[]
     ).map(toExec);
@@ -452,7 +461,7 @@ export class GraphStore {
   getExecNode(runId: string, id: NodeId): ExecNode | undefined {
     const row = this.#db
       .prepare(
-        `SELECT run_id, id, kind, design_node_id, status, "commit", evidence, attempts FROM exec_nodes WHERE run_id = ? AND id = ?`,
+        `SELECT run_id, id, kind, design_node_id, status, "commit", evidence, attempts, depends_on, owns FROM exec_nodes WHERE run_id = ? AND id = ?`,
       )
       .get(runId, id) as ExecRow | undefined;
     return row ? toExec(row) : undefined;

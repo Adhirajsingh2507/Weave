@@ -2,7 +2,7 @@
 
 > Single source of truth for the **latest** decisions. When something changes, update it here and move the superseded version to `past-info.md`.
 
-_Last updated: 2026-09-29_
+_Last updated: 2026-09-30_
 
 > **Where things stand:** v1 is complete and archived. V2 is underway — phase V2.0 has shipped.
 > The phased plan lives in `implementation-v2.md`; the raw source lists in `v2-inputs.md`.
@@ -17,7 +17,7 @@ Not "AI + loop → website." The mental model is four separated layers:
 - **Loop** — local execution quality inside each meaningful node (discover → execute → verify → record → retry/repair).
 - **Harness** — each node's bounded environment (context pack, tools, sandbox, permissions, memory, checkpoints).
 
-Cross-cutting **Decision layer (System One)** sits over all of these: every structured decision — routing, scoring, classification, code↔design mapping, entity extraction, gate evaluation — is a typed probabilistic call, not free-form reasoning. Generation (writing code/design) is **System Two** (Claude Code). Slogan: **the decision layer decides, Claude Code creates.**
+Cross-cutting **Decision layer** sits over all of these: every structured decision — routing, scoring, classification, code↔design mapping, entity extraction, gate evaluation — is a typed probabilistic call, not free-form reasoning. Generation (writing code/design) is the **execution layer** (Claude Code). Slogan: **the decision layer decides, Claude Code creates.**
 
 Guiding shift: stop asking *"what's the perfect prompt?"*, ask *"what workflow reliably produces the artifact?"*
 
@@ -39,9 +39,9 @@ The ultimate reference is **`../autonomous-engineering-universal-context.md`** (
 | 10 | Graph freshness | **Git-diff driven** — re-ingest only files changed since last ingest. |
 | 11 | Graph granularity | **File/module nodes by default**; symbol-level nodes materialized on demand when a task deep-parses a file. |
 | 12 | Code↔design mapping | **Two node layers + confidence edges.** Code nodes (FS) and design nodes (intent) stay distinct, joined by many-to-many `realizes`/`realized_by` edges carrying confidence + provenance. First-class states: **orphan code** (file, no design) and **unrealized design** (concept, no code). |
-| 13 | Decision layer | **System One control plane.** Makes all structured decisions: graph routing, evidence scoring, code↔design mapping, entity extraction, QA judging, independent gate evaluation. Claude Code (System Two) does all generation. |
+| 13 | Decision layer | **Decision-layer control plane.** Makes all structured decisions: graph routing, evidence scoring, code↔design mapping, entity extraction, QA judging, independent gate evaluation. Claude Code (the execution layer) does all generation. |
 | 14 | Decision provider | **Structured-output LLM wrapper now → swap to Jev later**, behind one `Decision` interface. Same typed API either way. |
-| 15 | Escalation | **Tiered: System One → System Two LLM → human gate**, driven by calibrated confidence. Thresholds are per-decision-type and versioned. |
+| 15 | Escalation | **Tiered: decision layer → execution-layer LLM → human gate**, driven by calibrated confidence. Thresholds are per-decision-type and versioned. |
 | 16 | Visual QA | **Hybrid.** Vision LLM extracts structured facts from a screenshot → decision layer scores facts vs acceptance criteria → low-confidence triggers a deliberate vision-LLM re-check of the actual screenshot. |
 | 17 | Decision schemas | Every decision point has a **predefined, typed, versioned schema** (in `.agent/policies/decisions/`). No untyped decisions. |
 | 18 | Mapping provenance | Every mapping edge records **confidence + provenance** (`by_construction` \| `inferred` \| `human_confirmed`) **+ timestamp**. New-project mappings are by-construction (high confidence); modify-existing mappings are inferred and confirmable. |
@@ -50,7 +50,7 @@ The ultimate reference is **`../autonomous-engineering-universal-context.md`** (
 | 21 | State/graph store | Structured state + graph in **SQLite** (local `.agent/`) / **Postgres** (hosted); artifacts + event log stay as files in `.agent/`. |
 | 22 | Design source of truth | **Design IR is canonical, versioned**; design-subgraph is projected from it. Design nodes get **stable IDs from IR element IDs** so mapping edges rebind across IR versions. |
 | 23 | v1 intake modalities | **text, screenshots (vision LLM), existing code (tree-sitter), asset folders (manifest)**. URL/Figma/video/3D-deep/PDF stubbed behind the same interface. |
-| 24 | Compiler internals | **System Two interprets → System One normalizes discrete/enum fields (+confidence)**; low-confidence → gate. Provenance recorded per field. Re-compile = IR v2 → diff → graph update. |
+| 24 | Compiler internals | **Execution layer interprets → decision layer normalizes discrete/enum fields (+confidence)**; low-confidence → gate. Provenance recorded per field. Re-compile = IR v2 → diff → graph update. |
 | 25 | Acceptance criteria | **Separate independent pass** (not compiler, not implementer) authors measurable criteria from **intent + IR**, bound to design elements, stored & versioned separately. Resolves the evaluation-leakage concern by construction. |
 | 26 | Execution-graph generation | **Fixed template skeleton + dynamic fan-out.** Canonical skeleton (intake→plan→design→[impl fan-out]→integrate→QA→gate→release); the dynamic part is one impl+loop node per **unrealized design node**. Predictable + inspectable, still project-shaped. |
 | 27 | Run safety ceilings | **Both.** Per-node repair **retry cap** (default 3) → escalate; plus a run **cost/step budget** → halt to gate when exceeded. Both configurable in `policies/`. |
@@ -85,7 +85,7 @@ The ultimate reference is **`../autonomous-engineering-universal-context.md`** (
 | 37 | tree-sitter grammars (#6) | **TS/TSX/JS/JSX first**, then JSON/CSS/HTML, then Python; others via added grammars (file-tree-only until then). |
 | 38 | Confidence thresholds (#8) | **Resolver implemented + self-checked** (`resolveEscalation` + `ThresholdPolicy` in `src/core/policy/`). Placeholders: default high 0.85 / mid 0.6; `map.classifyFileToDesign` high 0.9. Security-sensitive **outcomes** gate at the value level (separate from the confidence resolver). Values await calibration from logged (name, confidence, outcome). |
 | 39 | Jev adoption (#10) | **Provider-routing seam implemented** (`providerFor` + `ProviderPolicy`). Stay on Claude-wrapper by default; swap **per-decision-type behind a flag** once access + a **parity harness** (record → replay → compare agreement + calibration per type) passes. Harness execution awaits Jev access. No caller changes. |
-| 40 | Design IR schema (#3) | Zod-validated; every element has a **stable `id`**; discrete/enum fields are what System One normalizes. Sketch in `architecture.md` → Design Compiler. |
+| 40 | Design IR schema (#3) | Zod-validated; every element has a **stable `id`**; discrete/enum fields are what decision layer normalizes. Sketch in `architecture.md` → Design Compiler. |
 | 41 | Stubbed-modality order (#3) | Add after v1 core in order: **URL → Figma → PDF → deep video/3D**, behind the existing input interface. |
 
 **#1 delivery-mode order:** CLI (done) → **MCP is the next and only additional adapter for now**; plugin + website deferred to future versions (order decided then).
@@ -110,6 +110,22 @@ The ultimate reference is **`../autonomous-engineering-universal-context.md`** (
 | 56 | Name and licence | **Deferred until launch.** `weave` on npm belongs to Weights & Biases; no licence while private. |
 | 57 | Jev | **Waitlisted.** Widen the `Decision` seam to typed multi-question calls and build the parity harness; adapter when access lands. |
 | 58 | Docs convention | Per `v2-inputs.md` item 80: keep `current-info.md` current, phase the plan, move superseded content to `past-info.md`. |
+
+## V2.3 / V2.4 decisions (2026-09-29)
+| # | Decision | Value |
+|---|----------|-------|
+| 59 | Parallel contract | **Ownership by construction.** Components write `sections/<id>.html` (+ `styles/sections/<id>.css`); a page owns its file (+ `styles/pages/<id>.css`); shared files belong to the scaffold and integration. A change outside a node's ownership fails verification, naming the file. Enforced only in the template's layout — for a project the template did not create, ownership is off and the record says so. Supersedes #31 (sequential by default). |
+| 60 | Merge conflicts | **Re-run the node once on the new tip**, then gate. Replaces the plan's "rebase and re-verify": a rebase cannot resolve a textual conflict a merge could not. |
+| 61 | Network policy | **Local proxy allowlist + audit.** Every host a node contacts is evidence; off-list hosts are refused and are a risk finding. Enforced for clients that honour `HTTPS_PROXY` (Claude Code does); a network namespace is the upgrade path. |
+| 62 | Risk classification | **Deterministic rules always gate** (dependency change, migration, deletion, secret-shaped content or file, blocked egress). The decision layer (`risk.classifyOperation`) judges **every** node diff when `ANTHROPIC_API_KEY` is set, can add a gate but never remove one, and writes every verdict to the corpus. |
+| 63 | Deploy target (#5) | **Vercel.** `VercelDeployer` builds and uploads `dist/`; the token reaches the `vercel` CLI through its own environment only, never argv, and never the agent. `CommandDeployer` remains for anything else. |
+| 65 | Coverage | **One definition**: a requirement is covered when a verifying criterion has a passed or failed verdict. The metric and the report share the function. |
+| 66 | Gate listing | **Latest run by default**; a run id or `all` widens it. |
+| 67 | Whole-site repair | **One bounded `repair:policy` node before a policy gate**, verified against the exact failing items on its own assembled worktree. A second failure goes to the person. |
+| 68 | IR tokens | **`designTokens` under the guides' own names**, core typed, long tail passed through, spacing under `layout` and allowed CSS lengths. Supersedes "the IR has no home for shape/motion/spacing". |
+| 69 | Multimodal intake | **Text wins; readings add.** Screenshots via Claude vision (official SDK, structured outputs, refusal fallback), URLs parsed deterministically. Enum fields normalised with confidence; anything not accepted — and any style chosen from a reading — opens a `low-confidence` intake gate naming each field. Figma stays client-side. |
+| 70 | Terminology | **Decision layer / execution layer.** "System One / System Two" retired outside the canonical doc and history. |
+| 64 | OS sandbox | **bubblewrap on Linux**: home secrets and deny-listed files masked, the user's checkout hidden (only `.git` kept). Layered under Claude Code's own deny rules (`--settings`). Where bubblewrap cannot run, each node records that it ran unsandboxed. |
 
 ## Tech stack (locked)
 | Concern | Choice |
@@ -169,8 +185,8 @@ met. The v1 phase plan is archived in `past-info.md`.
 **Design system:** 91 guides in `design-guide/`, 739 checks (~86% deterministic), 89 picture
 folders in `demo-design/`, validated by `scripts/check-design.mjs`.
 
-**Verification:** 18 self-checks plus the design validator, green locally and in CI on every
-push. `pnpm demo` runs end to end with no credentials.
+**Verification (at V2.0):** 18 self-checks plus the design validator. See "Verification now"
+below for the current count.
 
 **Credentialed adapters** (implemented, exercised via fakes): `ClaudeDecision` (API key),
 `ClaudeCodeExecutor` (`claude` CLI), `PlaywrightBrowserWorker` (playwright).
@@ -195,20 +211,57 @@ agent and a check Weave runs:
 - **A blocking failure opens a `policy` gate,** it does not fail the run. Approving is a waiver,
   recorded with its reason, and covers exactly the items the gate named.
 
-**Known gaps still open:** `listGates()` spans runs, so approving by index can pick a stale
-gate; `browser-qa` and `visual-qa` are marked `skipped`; the IR has no home for the guides'
-shape/motion/spacing tokens. (Typed evidence, the V2.0 gap, shipped in V2.1.) Full list in
-`to-be-discussed.md`.
+**V2.3:** shipped. Parallelism is a property of the graph:
+
+- **A DAG, not a batch.** scaffold → components → pages (a page waits for its own sections) →
+  integration. The scheduler runs the ready frontier, capped by `concurrency`; a batch of one is
+  the sequential case, on the same path.
+- **Ownership by construction** (#59). A node that edits outside its set fails verification and
+  the report names the file.
+- **Conflicts re-run on the new tip** once (#60), with both tries on the evidence trail.
+- **Integration earns its name**: it assembles fragments into their pages (idempotently) and runs
+  build + check on the whole site. Two sections that each pass alone can still break the page.
+- **The report measures parallelism**: impl wall-clock against the serial sum (demo: 2.9s vs 4.9s).
+
+**V2.4:** shipped. Boundaries that live outside the prompt, and a release that holds a secret:
+
+- **Three layers per agent**: Claude Code's own deny rules, bubblewrap (#64), and the egress
+  proxy (#61). Proven on this machine: unsandboxed, a probe agent reads both the worktree's and
+  the checkout's `.env`; sandboxed, it reads neither.
+- **Risky-op gates** (#62). A risky node is committed to its own branch and parked; one gate per
+  batch lists every finding; approving integrates, rejecting discards.
+- **Release** (#63): deploy evidence records URL, commit and log; the packs' page and header
+  items re-run against the live URL. Four header items and an `http-header` runner bring the
+  packs to 50 items. A live failure is recorded, not rolled back.
+
+**Known gaps still open:** `browser-qa` and `visual-qa` are marked `skipped` (V2.7). Stale-gate
+listing (V2.5) and the IR token gap (V2.6) are closed. Full list in `to-be-discussed.md`.
 
 ## Open (see `to-be-discussed.md`)
 - **#8** — escalation framework implemented; real threshold values await calibration data, which
   V2.4 starts producing by putting the decision layer in the run path.
 - **#10 / #57** — provider routing implemented; Jev parity awaits access.
-- Metric definitions (#1, #2) and default packs (#3, #4) are decided — see above.
-- Deploy target (#5), name and licence (#6) remain open.
+- Metric definitions (#1, #2), default packs (#3, #4) and the deploy target (#5 → Vercel, #63)
+  are decided. Name and licence (#6) remain open.
+- **The corpus has no real entries yet.** The decision layer is in the run path (#62), but a real
+  run with `ANTHROPIC_API_KEY` is what fills it — the wiring is proven with a fake provider.
 
-**Verification now:** 22 self-checks plus the design validator. `pnpm demo` ends at
-`first-pass 75% | repair 100% | coverage 64%`, with 18 criteria passed and 0 failed.
+**V2.5:** shipped. The explorer (`weave report --html`): the whole run as one self-contained file.
+The benchmark harness, third-party scorers only — **not yet run**. A pack failure now drives one
+bounded repair before a person is asked. The README is outcome-first.
+
+**V2.6:** shipped. The IR carries every token of the chosen guide (2,226 leaves across 91 guides,
+checked). Screenshots and URLs are intake; uncertain readings gate. Style suggestion with reasons.
+The 91 guides and their pictures are MCP resources a client can browse and choose from.
+
+**Verification now:** 29 self-checks plus the design validator. `pnpm demo` ends at
+`first-pass 75% | repair 100% | coverage 64%`, 20 criteria passed and 2 failed — the two failures
+are real: the demo's stand-in host sends no HSTS or Referrer-Policy header, and the live checks
+say so. The demo also exercises the policy repair loop and writes the explorer.
+
+**Not yet done with a real agent.** Every phase is proven with stand-in agents and recorded
+readings. No credentialed run has happened, so the calibration corpus and the benchmark are
+empty, and real Claude Code has not run inside bubblewrap.
 
 **Fixed after review (2026-09-29):** a policy waiver now covers only the items its gate named;
 `dep-audit` reports `unavailable` when the audit cannot run instead of passing; rejecting a gate
@@ -218,4 +271,5 @@ restores the user's branch and stash. Details in `implementation-v2.md` → V2.2
 repair* is proven by `policy-gate.check` but not yet by the demo itself — staged with the
 benchmark in V2.5. Contrast and target size wait on the browser worker (V2.7).
 
-**Next:** V2.3 — parallelism as a real DAG. Plan in `implementation-v2.md`.
+**Next:** a first credentialed run (it closes more open items than any new phase), then V2.7 —
+assets and 3D. Plan in `implementation-v2.md`.

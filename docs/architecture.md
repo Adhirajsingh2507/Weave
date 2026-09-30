@@ -2,7 +2,41 @@
 
 > The living architecture. Improve in place as decisions firm up. Reflects `current-info.md`.
 
-_Last updated: 2026-09-24_
+_Last updated: 2026-09-30_
+
+## What V2.5 and V2.6 changed
+
+- **The report is a document.** `explorer.ts` renders a run — metrics, DAG, attempt timeline,
+  requirements with evidence, repair trail, gates, boundaries — as one self-contained HTML file.
+- **Whole-site failures get one repair.** A blocking policy failure spawns a `repair:policy` node
+  (kind `repair`) that owns fragments and pages and must make the exact failing items pass.
+- **Intake is multimodal** (`intake.ts`). Execution layer reads (Claude vision via the SDK, or a
+  URL's HTML) → decision layer normalises enum fields with confidence → uncertain readings
+  gate. The IR records every interpretation and carries the chosen guide's tokens.
+- **The design system is served.** Guides and pictures are MCP resources; `suggestStyles` ranks
+  guides for a brief from their own `best_for` / `avoid_for`.
+
+## What V2.3 and V2.4 changed
+
+- **The fan-out is a DAG.** `ExecNode.dependsOn` orders scaffold → components/assets → pages →
+  integration; a topological scheduler runs the ready frontier up to `concurrency`. A batch of
+  one is the sequential case, on the same path.
+- **Ownership by construction.** Each impl node declares `owns`: a component its fragment
+  (`sections/<id>.html`, `styles/sections/<id>.css`), a page its file. Verification fails a
+  change outside the set and names the file. Shared files (`tokens.css`, `base.css`) belong to
+  the scaffold. Off for projects the template did not create.
+- **Integration is a real node.** It assembles fragments into their pages between
+  `weave:fragment` markers (idempotent) and runs build + check on the whole site.
+- **Conflicts re-run on the new tip** once before a gate.
+- **Three boundaries per agent** (`runtime.ts`, `sandbox.ts`, `egress.ts`): Claude Code's deny
+  rules via `--settings`; bubblewrap masking home secrets and deny-listed files and hiding the
+  user's checkout; a loopback proxy that relays allowlisted hosts, refuses the rest, and records
+  every host as evidence.
+- **Risk sits between verify and integrate** (`risk.ts`). Deterministic findings always gate;
+  the decision layer (`risk.classifyOperation`) may add a gate and writes the corpus. A risky node
+  is committed to its branch and parked (`status: blocked`) behind one `risky-op` gate per batch.
+- **Release produces evidence.** The deployer is told the commit; the engine records URL, commit
+  and log, then re-runs the packs' page and header items against the live URL.
 
 ## What V2.0 changed
 
@@ -22,8 +56,9 @@ The structure below still holds. These are the deltas, so read them first:
 - **Execution is genuinely async.** The executor and verifier no longer block the event loop, so
   the parallel worktree path actually overlaps; both carry timeouts.
 - **Gates keep history.** Ids are sequenced, notes are recorded and reach the next attempt.
-- **Naming.** "System One / System Two" is retained below for continuity with the canonical doc,
-  but is being retired in favour of **decision layer** and **execution layer** (phase V2.5).
+- **Naming.** "System One / System Two" is retired (V2.5): the **decision layer** decides,
+  scores and classifies; the **execution layer** (Claude Code) creates. The canonical doc keeps
+  the old terms; `past-info.md` records the rename.
 
 Phase plan: `implementation-v2.md`.
 
@@ -136,16 +171,16 @@ run() ─► create dedicated WORKING BRANCH off HEAD   (dirty tree → auto-sta
 - **Checkpoint/rollback = git:** dedicated working branch, per-node commits; revert on failure; gate reviews the diff. `state.db` records which commit corresponds to which node/run.
 - **Later isolation tiers** (same worker abstraction): Docker, Vercel Sandbox, cloud workers.
 
-## Decision layer (System One) vs generation (System Two)
+## Decision layer vs execution layer
 Two kinds of work, cleanly split (after Kahneman, via TypeSafe's naming):
 
-| | System One — Decision layer | System Two — Generation |
+| | Decision layer | Execution layer |
 |---|---|---|
 | Does | classify, route, score, extract, map, verify, judge | write code, design components, deliberate reasoning |
 | Shape | unstructured state in → **typed probabilistic decision** out (+ calibrated confidence) | prompt → free-form artifacts (code, design) |
 | Provider | `Decision` interface: **our own wrapper on Claude structured outputs now → Jev later** | Claude Code |
 | Speed/cost | ~100ms, ~free (Jev); cheap either way | slow, expensive |
-| Guarantees | no type errors, no hallucination, calibrated confidence (Jev) | none — output must be verified by System One + evidence |
+| Guarantees | no type errors, no hallucination, calibrated confidence (Jev) | none — output must be verified by the decision layer + evidence |
 
 **The decision layer decides; Claude Code creates.** This is what makes the graph's routing/scoring/gating concrete rather than hand-wavy.
 
@@ -155,18 +190,18 @@ Every decision point has a **predefined, typed, versioned schema** in `.agent/po
 ```
 decision needed
       │
-System One (typed probabilistic call)
+Decision layer (typed probabilistic call)
       │
  confidence ≥ high?  ──yes──► auto-accept
       │ no
- confidence ≥ mid?   ──yes──► System Two LLM (deliberate call)
+ confidence ≥ mid?   ──yes──► execution-layer LLM (deliberate call)
       │ no / ambiguous
       ▼
    HUMAN GATE
 ```
 Thresholds are per-decision-type and versioned. This is "put the human at the expensive boundary," made measurable.
 
-**Starting thresholds (placeholders until calibration):** high ≥ 0.85 (auto-accept) · 0.6–0.85 (→ System Two LLM) · < 0.6 (→ human gate). Per-type overrides in `policies/`: inferred mappings and risky ops use stricter high (≥ 0.9); **security-sensitive decisions always gate regardless of confidence**. Calibration: log `(decision, confidence, eventual outcome)` → reliability curve → adjust thresholds per type.
+**Starting thresholds (placeholders until calibration):** high ≥ 0.85 (auto-accept) · 0.6–0.85 (→ execution-layer LLM) · < 0.6 (→ human gate). Per-type overrides in `policies/`: inferred mappings and risky ops use stricter high (≥ 0.9); **security-sensitive decisions always gate regardless of confidence**. Calibration: log `(decision, confidence, eventual outcome)` → reliability curve → adjust thresholds per type.
 
 ### Provider constraints (Jev, when adopted)
 - **No vision** — Jev scores structured state, not images (see Visual QA below).
@@ -181,7 +216,7 @@ Default provider is **our own Claude-structured wrapper**. Adopt Jev **per-decis
 |---|---|---|
 | interpreter / generation | Claude (Claude Code) | — |
 | visual-QA extract + re-check | Claude vision | — |
-| Decision wrapper (System One) | Claude structured outputs (Zod) + elicited confidence | — |
+| Decision wrapper (decision layer) | Claude structured outputs (Zod) + elicited confidence | — |
 | criteria pass | Claude — separate call from intent + IR, frozen pre-implementation | **structural** (pre-impl, from intent) |
 | independent evaluator (gate) | Claude — separate call/prompt, isolated from implementer context | procedural |
 
@@ -267,9 +302,9 @@ inputs
   ├─ existing code ─► tree-sitter ───────┤ (reconcile with intent)
   └─ asset folders ─► manifest (type/size/dims)
                                          ▼
-                            draft interpretation (System Two)
+                            draft interpretation (execution layer)
                                          │
-              System One normalizes discrete/enum fields (+ calibrated confidence)
+              decision layer normalizes discrete/enum fields (+ calibrated confidence)
                                          │   low-confidence → HUMAN GATE
                                          ▼
                     DESIGN IR  (canonical · versioned · provenance per field)
@@ -290,13 +325,13 @@ inputs
 Decisions baked in:
 - **IR is canonical**; the design-subgraph is projected from it. Design nodes carry **stable IDs from IR element IDs** so mapping edges survive re-projection.
 - **v1 modalities:** text, screenshots (vision LLM), existing code (tree-sitter), asset folders (manifest). URL / Figma / deep video / 3D-understanding / PDF are **stubbed behind the same input interface**, added later.
-- **Interpretation split:** System Two (LLM/vision) interprets → System One normalizes discrete fields with confidence → low-confidence interpretations open a gate. Confidence is present from intake.
+- **Interpretation split:** The execution layer (LLM/vision) interprets → decision layer normalizes discrete fields with confidence → low-confidence interpretations open a gate. Confidence is present from intake.
 - **Acceptance criteria:** authored by a **separate independent pass** (not the compiler, not the implementer) from intent + IR → independent by construction; stored & versioned separately, bound to design elements.
 - **Provenance:** every IR field / design node records which input produced it (also serves responsible-AI asset-ownership tracking).
 - **Re-compilation:** adding/changing an input produces **IR v2**, diffed against v1; the graph updates from the diff. Incremental live-merge deferred.
 
 ### Design IR schema (Zod sketch)
-Canonical, versioned, Zod-validated. Every element carries a **stable `id`** (used for graph projection + mapping-edge rebind). Enum/discrete fields (marked ⟐) are what System One normalizes with confidence.
+Canonical, versioned, Zod-validated. Every element carries a **stable `id`** (used for graph projection + mapping-edge rebind). Enum/discrete fields (marked ⟐) are what decision layer normalizes with confidence.
 ```ts
 DesignIR = {
   version, meta: { projectName, createdAt, sourceInputs: InputRef[] },
@@ -399,7 +434,8 @@ workers arrive). Runs on Node ≥22.6, targets 24 LTS. Current layout is listed 
 ```
 src/core/     api (Engine) · types · ir · graph · decision · policy · store · runtime
               loop · verify · scaffold · design/style · browser · visual · compiler
-              plan · deploy · ingest · state · events
+              plan · deploy · ingest · state · events · sandbox · egress · risk
+              packs/ · report · metrics · criteria · testing (check double)
 src/mcp/      MCP server (weave-mcp)
 src/cli/      CLI adapter
 design-guide/ 91 style guides + _base.md floor + styles.json
@@ -407,4 +443,4 @@ demo-design/  reference pictures per style
 ```
 
 Seams that still need live credentials — `ClaudeDecision`, `ClaudeCodeExecutor`,
-`PlaywrightBrowserWorker` — are implemented and exercised via fakes in the 22 self-checks.
+`PlaywrightBrowserWorker` — are implemented and exercised via fakes in the 25 self-checks.

@@ -11,6 +11,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Engine } from "./api.js";
+import { realise } from "./testing.js";
 import { GitHarness } from "./runtime.js";
 import type { ExecInput, ExecResult, NodeExecutor } from "./runtime.js";
 import type { Verifier } from "./loop.js";
@@ -30,9 +31,7 @@ git(["commit", "-q", "-m", "init"], repo);
 const executor: NodeExecutor = {
   name: "fake",
   async run(input: ExecInput): Promise<ExecResult> {
-    const id = input.contextPack.taskId.replace("impl:", "");
-    writeFileSync(join(input.worktreeDir, `${id}.html`), `<!-- ${id} -->\n`);
-    return { ok: true, summary: id, changedFiles: [`${id}.html`], evidenceRefs: [] };
+    return realise(input);
   },
 };
 const verifier: Verifier = {
@@ -80,7 +79,7 @@ assert.equal(done?.stashed, false, "nothing left to restore");
 
 // The build still happened: the impl commit is on the working branch.
 const built = git(["ls-tree", "-r", "--name-only", `weave/${handle.runId}`], repo);
-assert.match(built, /hero\.html/, "node work committed to the working branch");
+assert.match(built, /sections\/hero\.html/, "node work committed to the working branch");
 
 rmSync(repo, { recursive: true, force: true });
 console.log("cross-process resume (branch + stash restored by a later process) check passed");

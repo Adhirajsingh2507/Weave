@@ -6,7 +6,7 @@
 > Sources: `../V2_planing.md` (the V2 brief), canonical §116 (V2 definition), `v2-inputs.md`
 > (the raw lists), and the decisions recorded in `current-info.md`.
 
-_Last updated: 2026-09-29_
+_Last updated: 2026-09-30_
 
 ## What V2 is
 
@@ -41,9 +41,9 @@ adapter until something demands a second one.
 
 ```
 V2.0 ✅ ──┬─► V2.1 ✅─┬─► V2.2 ✅─┐
-          │          │          ├─► V2.5 ──► V2.6 ──► V2.7
-          ├─► V2.3 ──┘          │
-          └─► V2.4 ─────────────┘
+          │          │          ├─► V2.5 ✅─► V2.6 ✅─► V2.7
+          ├─► V2.3 ✅┘          │
+          └─► V2.4 ✅───────────┘
                      Jev track runs alongside, gated on access
 ```
 
@@ -275,7 +275,7 @@ moves to V2.5, with the benchmark.
 
 ---
 
-## V2.3 — Parallel as a real DAG
+## V2.3 — Parallel as a real DAG ✅ DONE
 
 **Goal.** Dependencies, shared contracts, file ownership and conflict handling — so parallelism
 is a property of the graph rather than a batch size.
@@ -323,9 +323,48 @@ undifferentiated batch, and nothing stops two agents editing the same file.
 - **Ownership too strict** blocks legitimate shared edits. Mitigation: shared files are edited by
   designated nodes, not forbidden outright.
 
+**Shipped.**
+- `ExecNode.dependsOn` and `owns`, persisted. The planner derives scaffold → components/assets →
+  pages → integration; a page depends on its own sections, and a component no page lists belongs
+  to the home page. The home page is always `index.html`.
+- A topological scheduler runs the ready frontier, capped by `concurrency`. The old sequential
+  path is gone: a batch of one takes the same path, so both get the same guarantees.
+- The fragment contract (decision #59): components write `sections/<id>.html`, pages own their
+  file, the scaffold marks each page `<body … data-placeholder>` for its page node to remove.
+- Ownership enforced in verification; the report gained **Failed node checks**, which names the
+  file.
+- Conflicts re-run the node once on the new tip (decision #60 — **deviation from task 5**: a
+  rebase cannot resolve a textual conflict that a merge could not, so the plan's "rebase and
+  re-verify" would always fail the same way).
+- The integration node assembles fragments between `weave:fragment` markers (idempotent, links
+  each section's stylesheet) and runs build + check on the whole site; a failure opens a gate.
+- The report records impl wall-clock against the serial sum.
+
+**Defects fixed on the way.** Retrying after a gate or a conflict overwrote the node's earlier
+attempt rows — attempts are now numbered after the ones already recorded. A node that hit a
+merge conflict never had its attempts persisted, and the budget ceiling was only checked on the
+sequential path. `findDesignMarker` matched filenames by substring, so a component called `a`
+was "realised" by `package.json`. The pack runners treated every `.html` file as a page, so each
+fragment failed `lang`, `title` and one-`h1` — only full documents are pages now. Custom
+scaffolders stopped receiving `sections` once pages were passed; they get both.
+
+**Checks added:** `dag.check` — the DAG (a page never starts before its sections, components
+overlap, fragments land in the right page, timing recorded), ownership (the offending file is
+named) and conflict (re-run on the new tip, no human, both tries recorded). A mutation that makes
+the scheduler ignore dependencies fails it.
+
+**Exit criteria status.**
+- N components build concurrently with zero merge conflicts on the demo brief — ✅ by
+  construction.
+- A deliberately conflicting node is re-run once and succeeds, both attempts in the trail — ✅ in
+  `dag.check`, on a project the template did not create; the template's contract makes the
+  conflict impossible in the demo.
+- An out-of-bounds write fails verification and the report says which file — ✅.
+- Wall-clock drops measurably and is recorded — ✅ (demo: 2.9s vs 4.9s serial).
+
 ---
 
-## V2.4 — Boundaries and deploy
+## V2.4 — Boundaries and deploy ✅ DONE
 
 **Goal.** Enforcement that lives outside the prompt, and a release step that can hold a secret
 an agent never sees.
@@ -368,9 +407,64 @@ an agent never sees.
 - **Sandboxing breaks tooling** — dev servers and Playwright need care. Mitigation: the browser
   worker runs outside the agent sandbox, against built output.
 
+**Decided before building** (see `current-info.md` #61–#63): the network policy is a local
+proxy allowlist plus audit; the decision layer judges every node diff when credentials are set;
+the deploy target is Vercel.
+
+**Shipped.**
+- `sandbox.ts` — bubblewrap: home secrets (`~/.ssh`, cloud and registry credentials, the Vercel
+  login, …) and deny-listed worktree files masked, the user's checkout hidden with only `.git`
+  kept. Capability detection; `weave sandbox` prints the verdict for the machine.
+- `ClaudeCodeExecutor` layers Claude Code's own deny rules (`--settings`), bubblewrap and the
+  egress proxy, and sets `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC`. `NodeExecutor.capabilities`
+  (`canShell`, `canNetwork`, `sandboxed`); every attempt records how it was confined and which
+  hosts it contacted.
+- `egress.ts` — a per-run CONNECT/HTTP proxy on loopback: allowlisted hosts relayed, others
+  refused with 403, every host counted.
+- `risk.ts` — deterministic findings on the staged diff: dependency changes named by package,
+  migrations, deletions, secret-shaped content (the web-security pack's own patterns) or files,
+  blocked egress. The decision layer adds its verdict when configured and logs it to the corpus.
+  Risky nodes are committed to their branch and parked; one `risky-op` gate per batch; approving
+  merges, rejecting discards. A batch that halts for another reason resets its parked nodes, so
+  nothing is ever integrated without its own review.
+- Release: the deployer is told the commit; deploy evidence records URL, commit and the log file;
+  the packs' page and header items re-run against the live URL. New `http-header` runner and four
+  header items (`nosniff`, `frame`, `hsts`, `referrer`) — packs are now 50 items. `VercelDeployer`
+  (token through the child's environment only); `CommandDeployer` is async and takes an explicit
+  env. The CLI and MCP server configure both from the environment (`ANTHROPIC_API_KEY`,
+  `WEAVE_DEPLOY=vercel`); the CLI gained `--concurrency` and `sandbox`.
+
+**Checks added:** `sandbox.check` (glob matching, env scrub, the proxy both ways, and the real
+executor running a probe agent that tries to read both `.env` files and reach a blocked host),
+`risky-op.check` (dependency named, parked, integrated on approval; cosmetic diff passes; egress
+gates; the decision layer adds a gate and writes the corpus; a provider outage is recorded, not
+fatal; reject discards the branch). `deploy.check` gained deploy evidence and live checks against
+a real local server, plus the Vercel token path. `packs.check` gained both-directions fixtures for
+the header items. **25 checks.**
+
+A flaw caught while building the check: an untracked `.env` is swept into the harness's
+auto-stash, so "the checkout's `.env` is hidden" passed vacuously. The check now uses a gitignored
+`.env`, as real projects do, and asserts it survived the stash. The control run (sandbox off)
+reads both secrets; sandboxed, neither.
+
+**Exit criteria status.**
+- An agent cannot read `.env` from inside a node, on this machine — ✅ (bubblewrap 0.11 here).
+- A node that adds a dependency opens a `risky-op` gate naming the package — ✅ in
+  `risky-op.check`. In the template's layout a component cannot reach `package.json` at all —
+  ownership fails it first.
+- The demo deploys only after approval and records post-deploy evidence against the live URL — ✅
+  against a local stand-in host.
+- The decision corpus has real entries from a real run — ❌ **not yet**: it needs a credentialed
+  run. The wiring is proven with a fake provider.
+
+**Known ceilings.** The proxy binds clients that honour `HTTPS_PROXY`; a process that ignores it
+is not blocked (network namespace = upgrade path). The OS layer is Linux-only. A real `claude`
+inside bubblewrap has not been exercised — only a stand-in binary. The `llm` escalation tier has no
+separate classifier yet, so it keeps the verdict. A failing live check is recorded, not rolled back.
+
 ---
 
-## V2.5 — Graph explorer, README, benchmark
+## V2.5 — Graph explorer, README, benchmark ✅ DONE (benchmark not yet run)
 
 **Goal.** Make the work visible and quantified — the two things V2_planing asks for that no
 amount of architecture supplies.
@@ -409,9 +503,51 @@ amount of architecture supplies.
 - **Explorer scope creep** toward an interactive editor. Canonical §94 warns against exactly
   that; it stays a read-only report until something forces otherwise.
 
+**Defaults taken without an answer** (the questions asked at the end of V2.4 went unanswered):
+no credentialed run — there is no key here; no new heavy dependencies, so Lighthouse, axe and
+gitleaks are used when installed and reported unavailable otherwise; 3 runs per arm by default.
+
+**Shipped.**
+- **Two fixes the explorer would otherwise have displayed.** One definition of coverage — a
+  requirement is covered when a verifying criterion has a passed or failed verdict — used by both
+  the metric and the report (`criterionStatuses`, `latestStatus`, `isVerdict` in `metrics.ts`).
+  `listGates()` is scoped to the latest run by default; `{ runId }` or `{ all: true }` widen it
+  (CLI `gates --all|--run`, MCP `gates` arguments).
+- **Explorer** (`explorer.ts`, `weave report --html <file>`, `Engine.reportHtml`): one file, no
+  scripts, no external references, light and dark. Outcome tiles, the DAG drawn in layers, every
+  attempt on one clock (parallelism and repairs visible), requirements with their evidence,
+  the repair trail, gates, and the sandbox/network/risk records. The report gained `nodes`,
+  `attempts` and `boundaries` to feed it.
+- **Policy repair loop** — the V2.2 exit criterion deferred twice. A blocking pack failure on the
+  assembled site gets one bounded `repair:policy` node before a gate: the failures are its brief,
+  it owns the fragments and pages, and it passes only when those exact items pass on its own
+  assembled worktree. Then integration and the packs run again. The demo exercises it.
+- **Benchmark** (`benchmark.ts`, `scripts/benchmark.mjs`): arms interleaved per run, a loopback
+  server so browser scorers see the site as served, scorers probed and reported unavailable
+  rather than dropped, mean ± sd per arm and a head-to-head that counts losses.
+- **README rewritten** outcome-first; "System One/Two" retired for decision layer / execution
+  layer across the living docs and code comments.
+
+**Defects fixed on the way.** The verifier kept only stdout, and the scaffold's `check.mjs`
+reports on stderr — so a failing check reached the agent's repair brief as "check failed:" with
+no reason. The repair trail listed only failures with no criterion, hiding exactly the
+interesting ones (an `<h1>` in a fragment, a policy item). The explorer's first render cut the
+graph off; the second scaled it unreadable.
+
+**Checks added:** `report-html.check` (self-contained, complete, escaped, the repair trail carries
+its reasons), `benchmark.check` (the arithmetic, interleaving, unavailable scorers, a loss in the
+table, no path traversal from the site server).
+
+**Exit criteria status.**
+- One HTML file tells the whole story of a run — ✅, checked visually in both themes.
+- A newcomer can say what Weave does after the first screen of the README — rewritten for it;
+  only a newcomer can confirm.
+- A benchmark table with an independent scorer and honest variance — **❌ not yet**: the harness
+  is built and checked, but no real runs exist. The README says so.
+
 ---
 
-## V2.6 — Multimodal compiler and presets in MCP
+## V2.6 — Multimodal compiler and presets in MCP ✅ DONE
 
 **Goal.** Replace the line-directive parser with real intake, and expose the 91 style guides
 through MCP so a style can be chosen by example.
@@ -448,6 +584,45 @@ through MCP so a style can be chosen by example.
   in the demo.
 - **IR churn** ripples into projection and mapping. Mitigation: extend, never rename; IR is
   versioned.
+
+**Shipped.**
+- **IR `designTokens`**: the chosen guide's tokens under the guide's own key names (#53). The
+  core every guide shares is typed; the long tail passes through. Spacing is under `layout`,
+  where the guides put it, and accepts CSS lengths — `kinetic-typography` spaces sections by
+  `100vh`, and the guide is the spec. Also: `url` input kind, `meta.interpretations`.
+- **Multimodal intake** (`intake.ts`): the execution layer reads screenshots (Claude vision
+  through the official SDK, structured outputs, server-side refusal fallback on); the decision
+  layer normalises each enum field with a confidence (`interpret.normalizeField`, logged to the
+  corpus); without a provider, only exact readings are trusted. Explicit text always wins. A URL
+  is read deterministically — title, landmarks, headed sections. Provenance per element.
+- **Uncertain readings gate.** Any interpretation not accepted turns the intake gate into a
+  `low-confidence` gate naming each field, what was read, the confidence and the alternatives.
+  A style chosen from a reading is always confirmed by a person.
+- **Style suggestion** (`suggestStyles`): deterministic scoring against each guide's
+  `best_for`, aliases and `avoid_for`, with reasons; `weave styles --suggest`.
+- **Presets in MCP**: every guide as a `style://` resource, every reference picture as a
+  `style-picture://` blob resource (only listed files — no traversal), `list_styles` and
+  `suggest_styles` tools, and `run` taking `style`, `screenshots` and `url`.
+- **Figma is client-side by design**: an MCP client with Figma access passes the IR to `run`; the
+  engine does not call another server's tools.
+
+**New dependency:** `@anthropic-ai/sdk` — the vision call follows the SDK's documented path
+rather than hand-written HTTP. The existing `ClaudeDecision` still uses raw `fetch` with a forced
+tool call on `claude-sonnet-5`; that works on Sonnet 5 but would 400 on Opus 5.5 or Sonnet 5.5, so
+moving it is recorded in `to-be-discussed.md`, not done silently.
+
+**Checks added:** `ir-tokens.check` (all 91 guides: 2,226 token leaves reach the IR unchanged;
+suggestions explained; nothing suggested for a brief that matches nothing), `intake-vision.check`
+(recorded reading: exact accepted, fuzzy gated, decision layer earns confidence and fills the
+corpus, text wins, URL read, and a screenshot plus two sentences → gated intake → styled build),
+`mcp.check` rewritten as a real client round-trip over the in-memory transport.
+
+**Exit criteria status.**
+- "This screenshot plus two sentences" produces a valid IR and a styled build — ✅ with a
+  recorded reading; live vision awaits a key.
+- Low-confidence interpretations open a gate rather than guessing — ✅.
+- An MCP client can list styles, see pictures, and select one — ✅, only 6 of 91 styles have
+  pictures to see (`demo-design/` is mostly empty).
 
 ---
 
@@ -510,11 +685,11 @@ One project — the robotics landing page from `examples/robotics-landing.brief`
 |---|---|
 | V2.0 ✅ | Scaffold, styled build, gates honoured, resumable across processes |
 | V2.1 ✅ | `weave report` with a full traceability chain and the five metrics |
-| V2.2 ⚠ | Not-applicable explained ✅; a pack failure driving a repair — deferred to V2.5 |
-| V2.3 | Components building concurrently; a conflict auto-rebased |
-| V2.4 | A risky-op gate on a dependency change; deploy after approval |
-| V2.5 | The HTML explorer, and a benchmark table against a plain agent run |
-| V2.6 | A screenshot as intake |
+| V2.2 ✅ | Not-applicable explained ✅; a pack failure driving a repair ✅ (landed in V2.5) |
+| V2.3 ✅ | Components building concurrently ✅; a conflict re-run on the new tip — proven in `dag.check`, impossible in the demo by construction |
+| V2.4 ✅ | Deploy after approval with live checks ✅; a risky-op gate on a dependency change — proven in `risky-op.check`, the demo's ownership contract stops it first |
+| V2.5 ✅ | The HTML explorer ✅; a pack failure driving a repair ✅ (closes V2.2's deferral); the benchmark table — needs real runs |
+| V2.6 ✅ | A screenshot as intake — proven with a recorded reading in `intake-vision.check`; the demo stays text-only so it needs no key |
 | V2.7 | The 3D asset placed within budget |
 
 **Failure staging: natural.** The demo's failure comes from a strict check agents commonly miss
@@ -544,7 +719,7 @@ the failure faked.
 3. ~~Which packs default on?~~ **Decided (V2.2):** `web-security` + `a11y`.
 4. ~~Does a blocking pack item fail the run or open a gate?~~ **Decided (V2.2):** gate; approval
    waives the items it names.
-5. Deploy target for the demo — Vercel, Netlify, Cloudflare Pages?
+5. ~~Deploy target for the demo?~~ **Decided (V2.4):** Vercel.
 6. Name and licence before any public launch (repo is private; `weave` is taken on npm).
 7. `terminal-ui` still has no reference pictures.
 
@@ -555,9 +730,9 @@ the failure faked.
 | V2.0 Real run | ✅ done, CI green |
 | V2.1 Requirements, criteria, evidence, metrics | ✅ done, CI green |
 | V2.2 Policy packs | ✅ done, CI green (demo repair from a pack failure deferred to V2.5) |
-| V2.3 Parallel DAG | next |
-| V2.4 Boundaries and deploy | planned |
-| V2.5 Explorer, README, benchmark | planned |
-| V2.6 Multimodal compiler and presets | planned |
-| V2.7 Assets and 3D | planned |
+| V2.3 Parallel DAG | ✅ done |
+| V2.4 Boundaries and deploy | ✅ done (corpus awaits a credentialed run) |
+| V2.5 Explorer, README, benchmark | ✅ done (benchmark awaits real runs) |
+| V2.6 Multimodal compiler and presets | ✅ done (live vision awaits a key) |
+| V2.7 Assets and 3D | next |
 | Jev track | blocked on access |

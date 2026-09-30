@@ -1,10 +1,18 @@
 // Public core API — the one stable surface all frontends (CLI/MCP/HTTP/in-process) call.
 
-export { Engine } from "./core/api.js";
+export { Engine, adapterDeps, DENY_PATHS } from "./core/api.js";
+export { detectSandbox, wrapCommand, sandboxArgs, globToRegExp, HOME_SECRETS } from "./core/sandbox.js";
+export type { SandboxInfo, SandboxPolicy } from "./core/sandbox.js";
+export { EgressProxy, hostAllowed, DEFAULT_ALLOW_HOSTS } from "./core/egress.js";
+export type { EgressRecord } from "./core/egress.js";
+export { classifyChanges, stagedChanges } from "./core/risk.js";
+export type { RiskFinding, Change } from "./core/risk.js";
+export { buildLiveContext } from "./core/packs/context.js";
 export type { EngineOptions, EngineDeps } from "./core/api.js";
 export { compileBrief } from "./core/compiler.js";
 export type { BriefInput } from "./core/compiler.js";
-export { buildExecGraph, implNodes } from "./core/plan.js";
+export { buildExecGraph, implNodes, pageLayout, readyNodes, isOwned, componentOwns } from "./core/plan.js";
+export type { PageLayout } from "./core/plan.js";
 export { ingestRepo, inferMappings } from "./core/ingest/sweep.js";
 export type { IngestResult, MappingResult } from "./core/ingest/sweep.js";
 export { parseFile, languageOf } from "./core/ingest/parse.js";
@@ -17,17 +25,18 @@ export type { Pack, PackItem, CheckOutcome, CheckStatus, RunnerId, Applicability
 export type { SiteContext } from "./core/packs/context.js";
 export type { CriteriaResult, CriterionRunner } from "./core/criteria.js";
 export { buildReport, renderReport } from "./core/report.js";
+export { renderExplorer } from "./core/explorer.js";
 export type { RunReport, RequirementReport, CriterionReport } from "./core/report.js";
-export { runMetrics, projectMetrics, MANDATORY_GATES } from "./core/metrics.js";
-export type { RunMetrics, ProjectMetrics } from "./core/metrics.js";
+export { runMetrics, projectMetrics, MANDATORY_GATES, latestStatus, criterionStatuses } from "./core/metrics.js";
+export type { RunMetrics, ProjectMetrics, CriterionStatus } from "./core/metrics.js";
 export { loadBaseChecks } from "./core/design/style.js";
-export { TemplateScaffolder, CommandScaffolder } from "./core/scaffold.js";
-export type { Scaffolder, ScaffoldInput, ScaffoldResult } from "./core/scaffold.js";
+export { TemplateScaffolder, CommandScaffolder, assembleFragments } from "./core/scaffold.js";
+export type { Scaffolder, ScaffoldInput, ScaffoldResult, AssemblyResult } from "./core/scaffold.js";
 export { loadStyle, listStyles, styleBrief, styleTokensCss, parseFrontmatter, GUIDE_DIR } from "./core/design/style.js";
 export type { StyleGuide, StyleCheck } from "./core/design/style.js";
 export { scrubbedEnv } from "./core/runtime.js";
-export { CommandDeployer, FakeDeployer } from "./core/deploy.js";
-export type { Deployer, DeployResult } from "./core/deploy.js";
+export { CommandDeployer, FakeDeployer, VercelDeployer } from "./core/deploy.js";
+export type { Deployer, DeployResult, DeployContext } from "./core/deploy.js";
 export { createMcpServer, startMcpServer } from "./mcp/server.js";
 export * from "./core/types.js";
 export { EventLog } from "./core/events/index.js";
@@ -55,11 +64,12 @@ export type {
   ThresholdPolicy,
   ProviderPolicy,
 } from "./core/policy/index.js";
-export { ClaudeCodeExecutor, GitHarness } from "./core/runtime.js";
+export { ClaudeCodeExecutor, GitHarness, nativeDenyRules } from "./core/runtime.js";
 export type {
   ContextPack,
   ExecInput,
   ExecResult,
+  ExecutorCapabilities,
   NodeExecutor,
 } from "./core/runtime.js";
 export { ClaudeDecision, FakeDecision } from "./core/decision/providers.js";
