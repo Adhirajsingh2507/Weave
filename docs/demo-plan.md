@@ -19,12 +19,12 @@ _Last updated: 2026-09-30_
 | Agents' billing | **Your Claude subscription** — Weave stops passing `ANTHROPIC_API_KEY` into agents |
 | Decision layer + vision | **Through your subscription**, via the `claude` CLI — no API key, no extra bill |
 | Decision model | **Claude Opus 5.5**; if your plan refuses or rate-limits it, **Weave stops and asks** — no silent switch |
-| Jev | You have access; **you are requesting the API docs** |
+| Jev | Access and **docs received** (#84); everything incl. diffs may be sent (#85) |
 | 3D rendering | **Bundle Google's model-viewer** into the scaffold, so models render offline and under the allowlist |
-| Robot model | **Both**: I shortlist CC0 robot models with source and licence for your approval, and you may supply your own |
+| Robot model | **Unitree's Go2 mesh** (`unitree_ros`, BSD-3-Clause, notice credited), assembled and simplified to budget (#87) |
 | Tools | **Project devDependencies** (Playwright, Lighthouse, axe, sharp, gltf-transform; gitleaks via a download step) |
 | Design templates | **Styled for real**, **style checks run on the rendered page**, reference pictures as **links only** |
-| Screenshot intake | **Capture a real website** — you give the URL |
+| Screenshot intake | **The ai-robots Unitree Go2 page** (#86) — design read only |
 | Recording | **A one-command script + a runbook with talking points**; you record it |
 | Deploy | Vercel (CLI already logged in), project **`weave-robotics-demo`**, the generated site's code **private** |
 | App | **The robotics landing page** (decision #45) |
@@ -36,11 +36,11 @@ _Last updated: 2026-09-30_
 
 ## Open inputs (asked when the phase needs them)
 
-1. **The website URL** for screenshot intake — you said you will give it.
-2. **Jev API documentation** — you are requesting it. **Not received yet** (checked 2026-09-30).
-3. **Your description of how Weave should look** — the design discussion in progress.
-4. **Robot model**: approve one of my CC0 candidates, or supply yours.
-5. **Benchmark size** — after the first build's usage is known.
+1. **Your description of how Weave should look** — the design discussion in progress.
+2. **Benchmark size** — after the first build's usage is known.
+3. **`TYPESAFE_API_KEY`** on this machine — before D8.
+
+Settled 2026-09-30: the site (#86), Jev docs (#84, #85), the robot model (#87), this device only (#88).
 
 Nothing else is needed from you: no API key, no new accounts.
 
@@ -54,7 +54,7 @@ nothing beyond your normal machine; D5 onward uses your subscription.
 One command that says whether this machine can run the real demo, before anything is spent:
 `claude` logged in (and which plan), Opus 5.5 reachable through it, Vercel CLI logged in,
 bubblewrap working, Chrome present, each devDependency installed, gitleaks present, the
-egress allowlist reaching what the subscription login needs, Jev key present (once docs land).
+egress allowlist reaching what the subscription login needs, `TYPESAFE_API_KEY` present (#84).
 
 - Stop passing `ANTHROPIC_API_KEY` into agent environments (decided).
 - Verify which hosts the subscription login actually contacts, and allowlist exactly those —
@@ -99,7 +99,8 @@ egress allowlist reaching what the subscription login needs, Jev key present (on
 
 - model-viewer bundled into the scaffold (`vendor/`), loaded locally; the context pack tells the
   placing agent how to use it.
-- The robot model: CC0 shortlist → your approval (or yours), source and licence recorded.
+- The robot model: Unitree's Go2 (#87) — URDF parts assembled into one glTF, simplified to
+  2 MB / 100k triangles, BSD-3-Clause notice in the credits.
 - Deploy headers: the scaffold emits a `vercel.json` with the security headers the live checks
   look for (they failed in the stand-in host) and a CSP that allows the bundled viewer only.
 - **Exit:** a Playwright render shows the robot in the hero; visual QA judges it visible.
@@ -131,7 +132,7 @@ egress allowlist reaching what the subscription login needs, Jev key present (on
 
 ### D8 — Jev
 
-- When the docs arrive: widen the `Decision` seam to Jev's shape, write the adapter, run the
+- Docs received (#84): widen the `Decision` seam to Jev's shape, write the adapter, run the
   parity harness against the real corpus from D5–D7 (agreement and calibration per decision type).
 - Switch the decision types that pass parity; the rest stay on Claude, and the report says which.
 - **Exit:** a parity report; at least one decision type served by Jev in a real run.
@@ -163,7 +164,7 @@ egress allowlist reaching what the subscription login needs, Jev key present (on
 | Subscription limits hit mid-benchmark | Measure first (D5); benchmark in batches; stop-and-ask on refusal |
 | The subscription path returns malformed JSON | Schema validation, one retry, then a gate — never a guess |
 | The chosen site's design is hard to read | Intake gates uncertain fields; you confirm on camera — that is the feature |
-| Jev docs arrive late | D8 is last and independent; the demo stands without it, and says so |
+| Jev key or parity arrives late | D8 is last and independent; the demo stands without it, and says so |
 | A live walkthrough goes wrong | The explorer page is one offline file; the runbook has a fallback per step |
 
 ## Status
@@ -176,7 +177,7 @@ egress allowlist reaching what the subscription login needs, Jev key present (on
 | D3 Templates for real | not started |
 | D4 3D that renders | not started |
 | D5 First real build | not started |
-| D6 Intake + public deploy | waiting on your URL |
+| D6 Intake + public deploy | not started (site decided, #86) |
 | D7 Benchmark | size decided after D5 |
-| D8 Jev | waiting on docs |
+| D8 Jev | docs in (#84); waiting on the key |
 | D9 Recording kit | not started |

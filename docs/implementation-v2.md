@@ -711,8 +711,8 @@ fonts are budgeted by size only.
 
 ## Jev track (parallel, access-gated)
 
-**Blocked on:** the API documentation. Access was granted (2026-09-30); the docs have been
-requested but not received. Tracked as D8 in `demo-plan.md`.
+**Blocked on:** `TYPESAFE_API_KEY` on this machine. Docs received 2026-09-30 (#84); tracked as
+D8 in `demo-plan.md`.
 
 1. **Widen the `Decision` seam** to match Jev's shape: several typed questions per call, with
    `choice`, `score` and boolean-probability primitives. Today it is one string-choice question

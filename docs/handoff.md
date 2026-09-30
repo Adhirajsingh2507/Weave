@@ -69,15 +69,11 @@ docs update after `84c7e6d`. CI is green on `main`.
 | Item | Needed for |
 |---|---|
 | Their description of how Weave should look and work | before D0 |
-| **Jev API docs** — access granted, docs requested; **none received yet** (checked 2026-09-30) | D8 |
-| The website URL for screenshot intake | D6 |
-| Robot model: approve a CC0 candidate, or supply one | D4 |
+| `TYPESAFE_API_KEY` on this machine (Jev docs received — #84) | D8 |
 | Benchmark size | after the first measured build (D5) |
-| The new device's OS | setup |
 
-When Jev docs arrive, the adapter needs: base URL and auth scheme, the decision call shape
-(choice / score / probability, multiple questions per call), confidence semantics, rate limits
-and pricing, error format, and data retention (decisions include code diffs).
+Settled 2026-09-30: Jev API and data (#84, #85), intake site (#86), robot model (#87), this
+Linux machine only with all platforms still supported (#88).
 
 ## This machine (as of 2026-09-30)
 

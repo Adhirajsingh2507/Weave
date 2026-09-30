@@ -109,7 +109,7 @@ The ultimate reference is **`../autonomous-engineering-universal-context.md`** (
 | 54 | `.agent/` in git | **Commit the durable parts** (IR, requirements/criteria, evidence summaries, decision records); `state.db`, logs and screenshots stay out. Not yet implemented — V2.1. |
 | 55 | Repo | **Private** on GitHub; v1.0.0 flagged pre-release; CI runs build + all checks + the design validator on every push. |
 | 56 | Name and licence | **Deferred until launch.** `weave` on npm belongs to Weights & Biases; no licence while private. |
-| 57 | Jev | **Access granted, docs not yet received** (2026-09-30; was waitlisted). Widen the `Decision` seam to typed multi-question calls and build the parity harness; adapter when the docs land. |
+| 57 | Jev | **Access granted; docs received 2026-09-30** (see #84). Widen the `Decision` seam to typed multi-question calls and build the parity harness; adapter when the docs land. |
 | 58 | Docs convention | Per `v2-inputs.md` item 80: keep `current-info.md` current, phase the plan, move superseded content to `past-info.md`. |
 
 ## V2.3 / V2.4 decisions (2026-09-29)
@@ -146,6 +146,11 @@ Asked and answered; the discussion continues, so these may be refined — change
 | 81 | Tests and benchmarks | Tests may use Claude. **Benchmarks: free open-source scorers only**, builds on the subscription — no API bill. |
 | 82 | Platforms | **Linux, macOS and Windows (via WSL2)**; the new device's OS is undecided. **A macOS sandbox backend** will be built. |
 | 83 | Repository | **Stays private.** Documentation pushed now and after every phase; `SETUP.md` is the new-device guide. |
+| 84 | Jev API (docs received 2026-09-30, docs.typesafe.ai) | `POST https://api.typesafe.ai/v1/systemone`, `Bearer $TYPESAFE_API_KEY`, SDK `@typesafe-ai/sdk`. One `state` + a map of named questions answered in parallel: **Choice** (≤255 options), **Score** (2–10 levels), **Noul** (P(yes), **no confidence**). Pin `jev-1.13.0`, not `jev-latest`, once thresholds are tuned. 64k tokens/request, 32k for state + longest question → diffs filtered/chunked. **Text only** — vision stays on Claude (fits #16). $0.042/M input tokens. Errors 401/422/429/529. Key **not yet on this machine**. |
+| 85 | Jev data | **Everything may be sent, code diffs included**, under the standard DPA (no training; ZDR is enterprise-only). |
+| 86 | Screenshot intake site | `https://ai-robots.apps.mdxpreview.xyz/unitree-go2` — dark, GSAP scroll-driven Go2 page. Intake reads its **design only**; its images and copy ("All rights reserved") are not reused. A full capture needs the Playwright worker (D2); the Chrome CLI shot shows only the hero. |
+| 87 | Robot model | **Unitree's own Go2 mesh** from `unitreerobotics/unitree_ros` (`robots/go2_description`), **BSD-3-Clause** — notice kept in the credits (not CC0; chosen over the CC0 options, which are cartoon mechs). 7 DAE parts (~25 MB) assembled from the URDF into one glTF and simplified to the 2 MB / 100k-triangle budget. |
+| 88 | Device | **This Linux machine only** for all work and the demo. All platforms stay supported (#82): the macOS sandbox is still built, and ships marked **NOT verified here**. |
 
 ## Tech stack (locked)
 | Concern | Choice |

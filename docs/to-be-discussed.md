@@ -15,10 +15,11 @@ _Last updated: 2026-09-30_
 | ~~5~~ | Deploy target for the demo: Vercel, Netlify or Cloudflare Pages? | V2.4 | **Decided (V2.4):** Vercel — `VercelDeployer`, token in the release env only (#63). |
 | 6 | Name and licence before any public launch. | before launch | `weave` on npm belongs to Weights & Biases. Decide after the demo. |
 | 7 | **How Weave should look and work** — your description, then questions. | before D0 | The design discussion started 2026-09-30 (#75–#83); you were about to explain it. |
-| 8 | The website URL for screenshot intake. | D6 | You will give it. |
-| 9 | The robot model: a CC0 candidate I shortlist, or yours. | D4 | Shortlist with source and licence for your approval. |
-| 10 | Benchmark size (pairs). | D7 | Decided after the first measured build (D5). |
-| 11 | The new device's OS. | setup | Undecided; `SETUP.md` covers Linux, macOS, Windows/WSL2. |
+| ~~8~~ | The website URL for screenshot intake. | D6 | **Decided (#86):** the ai-robots Unitree Go2 page. |
+| ~~9~~ | The robot model: a CC0 candidate I shortlist, or yours. | D4 | **Decided (#87):** Unitree's Go2 mesh, BSD-3-Clause. |
+| 10 | Benchmark size (pairs). | D7 | Decided after the first measured build (D5). Guide: 5 = anecdote, 10 = minimum for mean ± sd, 20+ = holds up to scrutiny. |
+| ~~11~~ | The new device's OS. | setup | **Decided (#88):** no new device — this Linux machine only. |
+| 12 | Jev API key (`TYPESAFE_API_KEY`) on this machine. | D8 | You add it; not set as of 2026-09-30. |
 
 Struck-through rows are settled; they stay here for one phase so the reasoning is easy to find.
 
@@ -29,8 +30,9 @@ Struck-through rows are settled; they stay here for one phase so the reasoning i
   the run path (`risk.classifyOperation` on every node diff), so the first credentialed run starts
   the corpus. **No real entries yet.**
 - **#10 / #57 — Jev.** Provider routing is implemented and the parity harness is specified.
-  Access granted; **API docs requested, not received**. The seam also needs widening to Jev's shape: several typed
-  questions per call, with choice, score and boolean-probability primitives.
+  **Docs received (#84); key not yet on this machine.** The seam needs widening to Jev's shape:
+  several typed questions per call (Choice, Score, Noul), probabilities kept in the corpus. Noul
+  has no confidence, so how a Noul feeds the escalation ladder is decided when the adapter is built.
 
 ## Design system
 
