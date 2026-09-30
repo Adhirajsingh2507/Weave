@@ -4,8 +4,9 @@
 
 _Last updated: 2026-09-30_
 
-> **Where things stand:** v1 is complete and archived. V2 is underway — phase V2.0 has shipped.
-> The phased plan lives in `implementation-v2.md`; the raw source lists in `v2-inputs.md`.
+> **Where things stand:** v1 and V2 (V2.0–V2.7) are complete, proven with stand-in agents but
+> **not yet with a real agent run**. Next is the demonstration plan (`demo-plan.md`) and a design
+> discussion in progress (decisions #75–#83). Start a new session with `handoff.md`.
 
 ## What the project is
 A **graph-driven autonomous engineering platform** (**Weave**) that turns human intent + multimodal design inputs into software via bounded agent loops, with persistent state, evidence, and human gates.
@@ -108,7 +109,7 @@ The ultimate reference is **`../autonomous-engineering-universal-context.md`** (
 | 54 | `.agent/` in git | **Commit the durable parts** (IR, requirements/criteria, evidence summaries, decision records); `state.db`, logs and screenshots stay out. Not yet implemented — V2.1. |
 | 55 | Repo | **Private** on GitHub; v1.0.0 flagged pre-release; CI runs build + all checks + the design validator on every push. |
 | 56 | Name and licence | **Deferred until launch.** `weave` on npm belongs to Weights & Biases; no licence while private. |
-| 57 | Jev | **Waitlisted.** Widen the `Decision` seam to typed multi-question calls and build the parity harness; adapter when access lands. |
+| 57 | Jev | **Access granted, docs not yet received** (2026-09-30; was waitlisted). Widen the `Decision` seam to typed multi-question calls and build the parity harness; adapter when the docs land. |
 | 58 | Docs convention | Per `v2-inputs.md` item 80: keep `current-info.md` current, phase the plan, move superseded content to `past-info.md`. |
 
 ## V2.3 / V2.4 decisions (2026-09-29)

@@ -711,7 +711,8 @@ fonts are budgeted by size only.
 
 ## Jev track (parallel, access-gated)
 
-**Blocked on:** early-access approval. Waitlisted as of the last check.
+**Blocked on:** the API documentation. Access was granted (2026-09-30); the docs have been
+requested but not received. Tracked as D8 in `demo-plan.md`.
 
 1. **Widen the `Decision` seam** to match Jev's shape: several typed questions per call, with
    `choice`, `score` and boolean-probability primitives. Today it is one string-choice question
@@ -783,6 +784,8 @@ the failure faked.
 | V2.3 Parallel DAG | ✅ done |
 | V2.4 Boundaries and deploy | ✅ done (corpus awaits a credentialed run) |
 | V2.5 Explorer, README, benchmark | ✅ done (benchmark awaits real runs) |
-| V2.6 Multimodal compiler and presets | ✅ done (live vision awaits a key) |
-| V2.7 Assets and 3D | ✅ done (visibility verdict awaits a key) |
-| Jev track | blocked on access |
+| V2.6 Multimodal compiler and presets | ✅ done (live vision awaits a real run — via the subscription, D1) |
+| V2.7 Assets and 3D | ✅ done (visibility verdict awaits a real run) |
+| Jev track | access granted; waiting on API docs (D8 in `demo-plan.md`) |
+
+**After V2:** the work continues in `demo-plan.md` (D0–D9), shaped by decisions #75–#83.

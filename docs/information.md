@@ -6,9 +6,10 @@
 
 _Last updated: 2026-09-30_
 
-> **V2 is underway.** Identity: the control and governance layer for AI coding agents, web
-> apps first — agents execute; Weave governs, verifies, records. V2 (phases V2.0–V2.7) has shipped. The
-> phased plan is `implementation-v2.md`; decisions #42–58 in `current-info.md`.
+> **V2 is complete.** Identity: the control and governance layer for AI coding agents, web
+> apps first — agents execute; Weave governs, verifies, records. V2 (phases V2.0–V2.7) has shipped;
+> the phased plan is `implementation-v2.md`, decisions #42–83 are in `current-info.md`, and the
+> next work is `demo-plan.md`. New session? Read `handoff.md` first.
 
 ---
 

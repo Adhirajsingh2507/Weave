@@ -4,6 +4,19 @@
 
 _Last updated: 2026-09-30_
 
+## Planned: two ways to run (decisions #75–#83)
+
+Not built yet — the target shape the demo plan works toward:
+
+- **Subscription mode.** Each agent is an interactive Claude Code session in its own tmux window
+  and folder (worktree), run under your `claude` login. Weave learns a turn ended from a Claude
+  Code Stop hook, verifies, and sends failures back into the same session. Anything you type is
+  read from the session transcript and recorded as an intervention. Decisions and vision also go
+  through the CLI (validated JSON, Opus 5.5; refused → a gate).
+- **API mode.** The same Claude Code agents, authenticated with an API key; decisions and vision
+  through the SDK.
+- **Sandboxes:** bubblewrap on Linux/WSL2, a `sandbox-exec` profile on macOS.
+
 ## What V2.7 changed
 
 - **Assets have their own node kind.** `asset:<id>` runs in the engine between the scaffold and

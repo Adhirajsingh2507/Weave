@@ -2,6 +2,21 @@
 
 > Archive of prior thinking and superseded decisions, newest first. Never delete — this is the paper trail.
 
+## 2026-09-30 — Direction set for the demonstration (#75–#83)
+
+Asked, not assumed, over several rounds. Superseded:
+- **#29 / #35 — the decision provider as "our wrapper on Claude structured outputs" via the API.**
+  Decisions and vision now go through the Claude subscription (`claude` CLI) on Opus 5.5 (#80);
+  the API route stays as API mode (#75). Reason: no API key and no per-token bill wanted.
+- **#31 / #59 — agents as headless background processes only.** In subscription mode each agent
+  gets a tmux window and its own folder, and you can step in (#76–#79); your messages count as
+  interventions.
+- **#48 — "OS sandbox as fallback" meaning Linux only.** A macOS backend will be built (#82).
+- **#57 — Jev waitlisted.** Access granted; docs requested, not received.
+- **Benchmark scoring** stays third-party, now also required to be free and open source (#81).
+
+Also: `.env` files were not git-ignored; fixed before the new-device setup guide went out.
+
 ## 2026-09-30 — V2.7 shipped; V2 complete
 
 Superseded:

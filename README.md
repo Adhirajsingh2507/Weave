@@ -167,10 +167,14 @@ browse styles by example and pick one.
 
 V2 (V2.0–V2.7) shipped — see `docs/implementation-v2.md`. Proven with stand-in agents and
 recorded readings; **not yet exercised with a real Claude Code run**, so the calibration corpus
-and the benchmark are empty and no vision verdict has been produced live. That run is next.
+and the benchmark are empty and no vision verdict has been produced live. Next: the
+demonstration plan (`docs/demo-plan.md`) — subscription and API modes, agents in tmux windows,
+a real measured build, a public deploy, a free benchmark, and Jev once its docs arrive.
 
-Docs: `docs/information.md` is the overview, `docs/current-info.md` the decisions,
-`docs/architecture.md` the design, `docs/to-be-discussed.md` what is open.
+Docs: `docs/handoff.md` is where to start (where work stopped, how to work),
+`docs/information.md` the overview, `docs/current-info.md` the decisions,
+`docs/demo-plan.md` the current plan, `docs/architecture.md` the design,
+`docs/to-be-discussed.md` what is open.
 
 ### Publishing this repo
 

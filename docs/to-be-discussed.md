@@ -14,6 +14,11 @@ _Last updated: 2026-09-30_
 | ~~4~~ | Does a `severity: blocking` pack item fail the run or open a gate? | V2.2 | **Decided (V2.2):** opens a `policy` gate; approving is a recorded waiver. |
 | ~~5~~ | Deploy target for the demo: Vercel, Netlify or Cloudflare Pages? | V2.4 | **Decided (V2.4):** Vercel — `VercelDeployer`, token in the release env only (#63). |
 | 6 | Name and licence before any public launch. | before launch | `weave` on npm belongs to Weights & Biases. Decide after the demo. |
+| 7 | **How Weave should look and work** — your description, then questions. | before D0 | The design discussion started 2026-09-30 (#75–#83); you were about to explain it. |
+| 8 | The website URL for screenshot intake. | D6 | You will give it. |
+| 9 | The robot model: a CC0 candidate I shortlist, or yours. | D4 | Shortlist with source and licence for your approval. |
+| 10 | Benchmark size (pairs). | D7 | Decided after the first measured build (D5). |
+| 11 | The new device's OS. | setup | Undecided; `SETUP.md` covers Linux, macOS, Windows/WSL2. |
 
 Struck-through rows are settled; they stay here for one phase so the reasoning is easy to find.
 
@@ -24,7 +29,7 @@ Struck-through rows are settled; they stay here for one phase so the reasoning i
   the run path (`risk.classifyOperation` on every node diff), so the first credentialed run starts
   the corpus. **No real entries yet.**
 - **#10 / #57 — Jev.** Provider routing is implemented and the parity harness is specified.
-  Waitlisted for early access. The seam also needs widening to Jev's shape: several typed
+  Access granted; **API docs requested, not received**. The seam also needs widening to Jev's shape: several typed
   questions per call, with choice, score and boolean-probability primitives.
 
 ## Design system
@@ -57,7 +62,9 @@ they are not lost:
   `pnpm add` is refused the registry — which is also a risky-op. Decide whether the registry
   belongs on the default list once a real run shows how often it matters.
 - ~~`listGates()` spans runs~~ — latest run by default since V2.5 (#66).
-- **`ClaudeDecision` predates the SDK.** It uses raw `fetch` and a forced tool call on
+- ~~**`ClaudeDecision` predates the SDK**~~ — decided (#80): decisions go through the subscription on
+  Opus 5.5; the API provider moves to the SDK for API mode. Kept below for the reasoning:
+  it uses raw `fetch` and a forced tool call on
   `claude-sonnet-5`. That is valid there, but Opus 5.5 and Sonnet 5.5 reject forced tool use, and
   the documented default model is `claude-opus-5-5`. Moving it to the SDK with structured outputs
   changes the model — and so the cost — of every decision; that is a choice to make, not a cleanup.
