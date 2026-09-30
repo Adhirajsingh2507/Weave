@@ -32,8 +32,25 @@ export type { RunMetrics, ProjectMetrics, CriterionStatus } from "./core/metrics
 export { loadBaseChecks } from "./core/design/style.js";
 export { TemplateScaffolder, CommandScaffolder, assembleFragments } from "./core/scaffold.js";
 export type { Scaffolder, ScaffoldInput, ScaffoldResult, AssemblyResult } from "./core/scaffold.js";
-export { loadStyle, listStyles, styleBrief, styleTokensCss, parseFrontmatter, GUIDE_DIR } from "./core/design/style.js";
-export type { StyleGuide, StyleCheck } from "./core/design/style.js";
+export { loadStyle, listStyles, styleBrief, styleTokensCss, parseFrontmatter, suggestStyles, GUIDE_DIR } from "./core/design/style.js";
+export type { StyleGuide, StyleCheck, StyleSuggestion } from "./core/design/style.js";
+export { compileMultimodal, readUrl, uncertain, ClaudeVisionInterpreter, RecordedVisionInterpreter, VisionFactsSchema, ENUM_FIELDS } from "./core/intake.js";
+export type { MultimodalInput, VisionFacts, VisionInterpreter } from "./core/intake.js";
+export {
+  acquireAsset,
+  measureAsset,
+  glbGeometry,
+  budgetFor,
+  overBudget,
+  describeMeasure,
+  svgMinifier,
+  CommandOptimizer,
+  defaultOptimizers,
+  DEFAULT_BUDGETS,
+} from "./core/assets.js";
+export type { AssetMeasure, AssetBudget, AssetOptimizer, AssetType, Acquired } from "./core/assets.js";
+export { renderBenchmark, runBenchmark, summarise as summariseBenchmark, serve as serveSite, DEFAULT_SCORERS } from "./core/benchmark.js";
+export type { Arm, Scorer, Metric, BenchResult, BenchRun, MetricSummary } from "./core/benchmark.js";
 export { scrubbedEnv } from "./core/runtime.js";
 export { CommandDeployer, FakeDeployer, VercelDeployer } from "./core/deploy.js";
 export type { Deployer, DeployResult, DeployContext } from "./core/deploy.js";
@@ -79,9 +96,9 @@ export { runNode } from "./core/loop.js";
 export type { LoopNode, NodeLoopResult, RunNodeOptions, VerifyResult, Verifier, EvidenceRecord, AttemptOutcome } from "./core/loop.js";
 export { DeterministicVerifier, DEFAULT_CHECKS } from "./core/verify.js";
 export type { Check, DeterministicVerifierOptions } from "./core/verify.js";
-export { PlaywrightBrowserWorker, FakeBrowserWorker } from "./core/browser.js";
+export { PlaywrightBrowserWorker, ChromeBrowserWorker, FakeBrowserWorker } from "./core/browser.js";
 export type { BrowserWorker, BrowserResult } from "./core/browser.js";
-export { visualQA } from "./core/visual.js";
+export { visualQA, ClaudeVisionExtractor, PageFactsSchema } from "./core/visual.js";
 export type {
   VisualQAOptions,
   VisualResult,

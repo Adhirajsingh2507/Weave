@@ -54,20 +54,29 @@ export function buildExecGraph(unrealizedDesign: string[], ir?: DesignIR): ExecN
   // Without it a greenfield repo has nothing to build on and every impl node fails verify.
   nodes.push({ id: "scaffold", kind: "scaffold", status: "pending" });
 
+  // Assets are acquired, optimised and budgeted by a deterministic step — never built by an
+  // agent (V2.7). A component that places an asset waits for it.
+  const assetIds = new Set((ir?.assets ?? []).map((a) => a.id));
+  const assetsHere = unrealizedDesign.filter((d) => assetIds.has(d));
+  for (const d of assetsHere) {
+    nodes.push({ id: `asset:${d}`, kind: "asset", designNodeId: d, status: "pending", dependsOn: ["scaffold"] });
+  }
+
   // Fan-out: one implementation node per unrealized design node, ordered by the DAG
-  // scaffold → components/assets → pages (a page waits for its own sections) → integration.
+  // scaffold → assets → components → pages (a page waits for its own sections) → integration.
   const layout = ir ? pageLayout(ir) : [];
-  const implIds = new Set(unrealizedDesign.map((d) => `impl:${d}`));
-  for (const d of unrealizedDesign) {
+  const work = unrealizedDesign.filter((d) => !assetIds.has(d));
+  const implIds = new Set(work.map((d) => `impl:${d}`));
+  for (const d of work) {
     const page = layout.find((p) => p.id === d);
-    const isAsset = ir?.assets.some((a) => a.id === d) ?? false;
     const node: ExecNode = { id: `impl:${d}`, kind: "impl", designNodeId: d, status: "pending" };
+    const placed = (ir?.assets ?? []).filter((a) => a.placement === d && assetsHere.includes(a.id)).map((a) => `asset:${a.id}`);
     if (page) {
-      node.dependsOn = ["scaffold", ...page.sections.map((s) => `impl:${s}`).filter((id) => implIds.has(id))];
+      node.dependsOn = ["scaffold", ...page.sections.map((s) => `impl:${s}`).filter((id) => implIds.has(id)), ...placed];
       node.owns = [page.file, `styles/pages/${d}.css`];
     } else {
-      node.dependsOn = ["scaffold"];
-      node.owns = isAsset ? ["assets/"] : componentOwns(d);
+      node.dependsOn = ["scaffold", ...placed];
+      node.owns = componentOwns(d);
     }
     nodes.push(node);
   }

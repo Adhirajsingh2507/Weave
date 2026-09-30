@@ -125,6 +125,10 @@ The ultimate reference is **`../autonomous-engineering-universal-context.md`** (
 | 68 | IR tokens | **`designTokens` under the guides' own names**, core typed, long tail passed through, spacing under `layout` and allowed CSS lengths. Supersedes "the IR has no home for shape/motion/spacing". |
 | 69 | Multimodal intake | **Text wins; readings add.** Screenshots via Claude vision (official SDK, structured outputs, refusal fallback), URLs parsed deterministically. Enum fields normalised with confidence; anything not accepted — and any style chosen from a reading — opens a `low-confidence` intake gate naming each field. Figma stays client-side. |
 | 70 | Terminology | **Decision layer / execution layer.** "System One / System Two" retired outside the canonical doc and history. |
+| 71 | Assets | **Acquired, never built.** A deterministic `asset:<id>` node acquires (repo, asset folder, URL), optimises where a tool exists, measures (headers parsed directly; glTF geometry) and budgets each asset. Missing or over budget → a `policy` gate with the numbers; approval waives that asset. |
+| 72 | Asset budgets | **Per type, overridable in the brief** (`budget:`, `tris:`): 3D 2 MB / 100k triangles, image 300 KB / 2560 px, logo 50 KB / 1024 px, video 5 MB, font 150 KB. |
+| 73 | Placement | **A requirement with three criteria**: within budget, placed (in its section when named — the placer fails verification otherwise), visible (judged from a render). Placement never implies visibility. |
+| 74 | Browser | **Headless Chrome via its CLI** (`ChromeBrowserWorker`), Chrome's own sandbox kept on; Playwright stays the upgrade for console capture and full-page shots. |
 | 64 | OS sandbox | **bubblewrap on Linux**: home secrets and deny-listed files masked, the user's checkout hidden (only `.git` kept). Layered under Claude Code's own deny rules (`--settings`). Where bubblewrap cannot run, each node records that it ran unsandboxed. |
 
 ## Tech stack (locked)
@@ -234,8 +238,8 @@ agent and a check Weave runs:
   items re-run against the live URL. Four header items and an `http-header` runner bring the
   packs to 50 items. A live failure is recorded, not rolled back.
 
-**Known gaps still open:** `browser-qa` and `visual-qa` are marked `skipped` (V2.7). Stale-gate
-listing (V2.5) and the IR token gap (V2.6) are closed. Full list in `to-be-discussed.md`.
+**Known gaps still open:** see `to-be-discussed.md`. Browser and visual QA (V2.7), stale-gate
+listing (V2.5) and the IR token gap (V2.6) are closed.
 
 ## Open (see `to-be-discussed.md`)
 - **#8** — escalation framework implemented; real threshold values await calibration data, which
@@ -254,10 +258,18 @@ bounded repair before a person is asked. The README is outcome-first.
 checked). Screenshots and URLs are intake; uncertain readings gate. Style suggestion with reasons.
 The 91 guides and their pictures are MCP resources a client can browse and choose from.
 
-**Verification now:** 29 self-checks plus the design validator. `pnpm demo` ends at
+**V2.7:** shipped. Assets are acquired, measured and budgeted by the engine — no agent is asked to
+build one. Placement is checked in the placing section and across the site; pages are rendered
+by headless Chrome and the screenshots are evidence; visibility is judged on the hybrid path.
+**V2 is complete** as planned — every phase shipped, each with the caveat that no real agent
+run has exercised it.
+
+**Verification now:** 31 self-checks plus the design validator. `pnpm demo` ends at
 `first-pass 75% | repair 100% | coverage 64%`, 20 criteria passed and 2 failed — the two failures
 are real: the demo's stand-in host sends no HSTS or Referrer-Policy header, and the live checks
-say so. The demo also exercises the policy repair loop and writes the explorer.
+say so. The demo also exercises the policy repair loop, acquires and places a 3D model, renders the
+page with Chrome, and writes the explorer. Its screenshot shows the robot placed but not visible —
+the case visual QA exists for.
 
 **Not yet done with a real agent.** Every phase is proven with stand-in agents and recorded
 readings. No credentialed run has happened, so the calibration corpus and the benchmark are
@@ -271,5 +283,6 @@ restores the user's branch and stash. Details in `implementation-v2.md` → V2.2
 repair* is proven by `policy-gate.check` but not yet by the demo itself — staged with the
 benchmark in V2.5. Contrast and target size wait on the browser worker (V2.7).
 
-**Next:** a first credentialed run (it closes more open items than any new phase), then V2.7 —
-assets and 3D. Plan in `implementation-v2.md`.
+**Next:** a first credentialed run. It is now the only way to close what remains open: the
+calibration corpus, the benchmark, live vision, the natural demo failure, and real Claude Code
+inside bubblewrap. After that, V3 planning.

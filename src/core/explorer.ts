@@ -35,14 +35,17 @@ const SYMBOL: Record<string, string> = { passed: "✓", failed: "✗", "not-appl
 
 /** Nodes worth drawing, with the implicit order of the fixed tail made explicit. */
 function dagNodes(report: RunReport): Array<RunReport["nodes"][number]> {
-  const drawn = report.nodes.filter((n) => ["scaffold", "impl", "integration", "code-qa", "repair", "release"].includes(n.kind));
+  const drawn = report.nodes.filter((n) => ["scaffold", "asset", "impl", "integration", "code-qa", "browser-qa", "visual-qa", "repair", "release"].includes(n.kind));
   const has = (id: string): boolean => drawn.some((n) => n.id === id);
   return drawn.map((n) => {
     if (n.kind === "impl" && !n.dependsOn.length && has("scaffold")) return { ...n, dependsOn: ["scaffold"] };
     if (n.kind === "integration" && !n.dependsOn.length) return { ...n, dependsOn: drawn.filter((x) => x.kind === "impl").map((x) => x.id) };
     if (n.kind === "code-qa") return { ...n, dependsOn: has("integration") ? ["integration"] : [] };
     if (n.kind === "repair") return { ...n, dependsOn: has("code-qa") ? ["code-qa"] : [] };
-    if (n.kind === "release") return { ...n, dependsOn: has("repair:policy") ? ["repair:policy"] : has("code-qa") ? ["code-qa"] : [] };
+    const afterQa = has("repair:policy") ? "repair:policy" : "code-qa";
+    if (n.kind === "browser-qa") return { ...n, dependsOn: has(afterQa) ? [afterQa] : [] };
+    if (n.kind === "visual-qa") return { ...n, dependsOn: has("browser-qa") ? ["browser-qa"] : [] };
+    if (n.kind === "release") return { ...n, dependsOn: has("visual-qa") ? ["visual-qa"] : has(afterQa) ? [afterQa] : [] };
     return n;
   });
 }

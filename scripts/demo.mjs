@@ -8,7 +8,8 @@
 //   pnpm demo         (builds first)   |   node scripts/demo.mjs   (after pnpm build)
 
 import { Engine, GitHarness, GraphStore, detectSandbox } from "../dist/index.js";
-import { realise } from "../dist/core/testing.js";
+import { realise, tinyGlb } from "../dist/core/testing.js";
+import { ChromeBrowserWorker } from "../dist/core/browser.js";
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
@@ -39,8 +40,10 @@ const executor = {
     const id = input.contextPack.taskId.replace("impl:", "");
     if (id === "hero" && !failed.has(id)) {
       failed.add(id);
+      // Wrong twice over: an <h1> the page already owns, and the robot it was told to place is missing.
       return realise(input, `<h1>Robots that work</h1><p>Built by the demo generator.</p>`);
     }
+    if (id === "hero") return realise(input); // places what its brief names: assets/robot.glb
     // Another common miss: an external link opened in a new tab without rel="noopener". Every
     // node check passes; only the whole-site security pack sees it, and the repair node fixes it.
     if (id === "cta") {
@@ -67,6 +70,10 @@ function repairLinks(input) {
   return { ok: true, summary: `added rel="noopener" in ${changed.join(", ")}`, changedFiles: changed, evidenceRefs: [] };
 }
 
+// The designer's asset folder: the robot model lives outside the project until Weave acquires it.
+const designDir = mkdtempSync(join(tmpdir(), "weave-demo-assets-"));
+writeFileSync(join(designDir, "robot.glb"), tinyGlb(2400));
+
 // Stand-in host: serves whatever the deployer published, with some security headers set.
 const host = createServer((req, res) => {
   const file = join(repo, "dist", req.url === "/" ? "index.html" : (req.url ?? "").slice(1));
@@ -86,14 +93,21 @@ const deployer = {
 // Real scaffolder, verifier, integration and packs — only the agent and the host are faked.
 const engine = new Engine({
   repoPath: repo,
-  deps: { executor, makeHarness: (p) => new GitHarness(p), concurrency: 3, deployer },
+  deps: {
+    executor,
+    makeHarness: (p) => new GitHarness(p),
+    concurrency: 3,
+    deployer,
+    assetFolders: [designDir],
+    ...(ChromeBrowserWorker.find() ? { browser: new ChromeBrowserWorker({ width: 1280, height: 1600 }) } : {}),
+  },
 });
 await engine.init("new");
 
 console.log("→ weave run (intake → plan)");
 const h = await engine.run({
   projectName: "robotics-landing",
-  text: "style: futuristic\npage: home /\ncomponent: hero section\ncomponent: features section\ncomponent: cta section",
+  text: "style: futuristic\npage: home /\ncomponent: hero section\ncomponent: features section\ncomponent: cta section\nasset: robot 3d robot.glb in:hero",
 });
 let gates = await engine.listGates();
 console.log(`  run ${h.runId} — status: ${h.status}`);
@@ -105,6 +119,9 @@ const impls = (await engine.getExecGraph(h.runId)).filter((n) => n.kind === "imp
 for (const n of impls) console.log(`  ${n.id}: ${n.status}${n.commit ? ` @ ${n.commit.slice(0, 7)}` : ""}`);
 const hero = (await engine.report(h.runId)).nodeFailures.find((f) => f.nodeId === "impl:hero");
 console.log(`  repair loop exercised (hero failed once): ${failed.has("hero")}${hero ? ` — ${hero.detail.slice(0, 90)}` : ""}`);
+const robotNode = (await engine.getExecGraph(h.runId)).find((n) => n.id === "asset:robot");
+const robot = (await engine.getNode("robot"))?.attrs ?? {};
+console.log(`  asset:robot (no agent): ${robotNode?.status} — ${robot.path}, ${Math.round(robot.sizeBytes / 1024)} KB, ${robot.triangles} triangles, from ${robot.from}`);
 const repair = (await engine.getExecGraph(h.runId)).find((n) => n.id === "repair:policy");
 if (repair) console.log(`  policy repair (whole-site check failed, fixed without a human): ${repair.status}`);
 gates = await engine.listGates();
@@ -134,6 +151,12 @@ console.log(`  criteria: ${tally("passed")} passed, ${tally("failed")} failed, $
 if (report.timing) {
   console.log(`  impl wall-clock ${report.timing.wallMs}ms vs ${report.timing.serialMs}ms one at a time`);
 }
+for (const id of ["crit:robot.asset-budget", "crit:robot.asset-present", "crit:robot.asset-visible"]) {
+  const c = crit.find((x) => x.id === id);
+  console.log(`  ${id}: ${c.status} — ${c.evidence.at(-1)?.detail ?? c.rule}`);
+}
+const shot = new GraphStore(join(repo, ".agent", "state.db")).evidenceFor({ runId: h.runId }).find((r) => r.node_id === "browser-qa" && r.artifact_path);
+console.log(`  screenshot: ${shot ? shot.artifact_path : "none — no browser on this machine"}`);
 console.log(`  agent sandbox on this machine: ${detectSandbox().detail}`);
 const explorer = join(repo, ".agent", "report.html");
 writeFileSync(explorer, await engine.reportHtml(h.runId), "utf8");

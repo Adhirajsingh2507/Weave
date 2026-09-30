@@ -4,7 +4,7 @@
 //   packs: web-security seo      (policy packs; defaults apply when omitted)
 //   page: home /
 //   component: hero section
-//   asset: robot 3d robot.glb
+//   asset: robot 3d robot.glb in:hero budget:1.5mb tris:80k
 
 import { DesignIRSchema } from "./ir/schema.js";
 import { loadStyle } from "./design/style.js";
@@ -22,6 +22,22 @@ export interface BriefInput {
   defaultPacks?: string[];
 }
 
+/** "300kb", "1.5mb", "2048" → bytes. */
+function parseSize(s: string): number {
+  const m = /^([\d.]+)\s*(kb|mb|b)?$/i.exec(s.trim());
+  if (!m) throw new Error(`asset budget '${s}' is not a size (e.g. 300kb, 1.5mb)`);
+  const n = Number(m[1]);
+  const unit = (m[2] ?? "b").toLowerCase();
+  return Math.round(unit === "mb" ? n * 1024 * 1024 : unit === "kb" ? n * 1024 : n);
+}
+
+/** "80k", "120000" → a count. */
+function parseCount(s: string): number {
+  const m = /^([\d.]+)(k)?$/i.exec(s.trim());
+  if (!m) throw new Error(`triangle budget '${s}' is not a count (e.g. 80k)`);
+  return Math.round(Number(m[1]) * (m[2] ? 1000 : 1));
+}
+
 function cap(s: string): string {
   return s ? s[0]!.toUpperCase() + s.slice(1) : s;
 }
@@ -31,7 +47,7 @@ export function compileBrief(input: BriefInput): DesignIR {
 
   const pages: Array<{ id: string; name: string; route: string; sections: string[] }> = [];
   const components: Array<{ id: string; name: string; kind: string }> = [];
-  const assets: Array<{ id: string; type: string; src: string }> = [];
+  const assets: Array<{ id: string; type: string; src: string; placement?: string; budgetBytes?: number; budgetTriangles?: number }> = [];
   let style = input.defaultStyle;
   let packs: string[] | undefined = input.defaultPacks;
 
@@ -48,7 +64,16 @@ export function compileBrief(input: BriefInput): DesignIR {
     } else if (kind === "component:" && rest[0]) {
       components.push({ id: rest[0], name: cap(rest[0]), kind: rest[1] ?? "section" });
     } else if (kind === "asset:" && rest[0]) {
-      assets.push({ id: rest[0], type: rest[1] ?? "image", src: rest[2] ?? rest[0] });
+      // Positional id, type, src; then optional key:value options in any order.
+      const opts = Object.fromEntries(rest.slice(3).map((o) => o.split(":") as [string, string]).filter(([, v]) => v));
+      assets.push({
+        id: rest[0],
+        type: rest[1] ?? "image",
+        src: rest[2] ?? rest[0],
+        ...(opts["in"] ? { placement: opts["in"] } : {}),
+        ...(opts["budget"] ? { budgetBytes: parseSize(opts["budget"]) } : {}),
+        ...(opts["tris"] ? { budgetTriangles: parseCount(opts["tris"]) } : {}),
+      });
     }
   }
 

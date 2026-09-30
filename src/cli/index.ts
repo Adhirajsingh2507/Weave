@@ -16,6 +16,7 @@ const HELP = `weave <command>
   init [--mode new|existing]      create the .agent/ workspace
   run [--brief f | --ir f.json] [--name n]   intake+plan → design-approval gate
       [--screenshot img]… [--url u]           read a design from screenshots or a live page
+      [--assets dir]…                          where asset files (models, images) come from
   styles [--suggest "brief"]      list the 91 design guides, or suggest three for a brief
   ingest [--changed]              sweep the repo → code graph (tree-sitter)
   map                             infer code→design mappings (needs a decision provider)
@@ -57,6 +58,7 @@ async function main(): Promise<void> {
       screenshot: { type: "string", multiple: true },
       url: { type: "string" },
       suggest: { type: "string" },
+      assets: { type: "string", multiple: true },
       html: { type: "string" },
     },
   });
@@ -66,7 +68,11 @@ async function main(): Promise<void> {
   const concurrency = values.concurrency ? Number(values.concurrency) : undefined;
   const engine = new Engine({
     repoPath,
-    deps: { ...adapterDeps(), ...(concurrency && concurrency > 0 ? { concurrency } : {}) },
+    deps: {
+      ...adapterDeps(),
+      ...(concurrency && concurrency > 0 ? { concurrency } : {}),
+      ...(values.assets?.length ? { assetFolders: values.assets } : {}),
+    },
   });
 
   switch (cmd) {

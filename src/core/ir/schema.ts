@@ -48,10 +48,16 @@ export const Animation = z.object({
 export const Asset = z.object({
   id: z.string(),
   type: z.enum(["3d", "image", "video", "logo", "font"]),
+  /** Where the file comes from: a path in the repo, a path under an asset folder, or a URL. */
   src: z.string(),
   sizeBytes: z.number().optional(),
   dims: z.tuple([z.number(), z.number()]).optional(),
+  /** Overrides the per-type default budget (V2.7). */
   budgetBytes: z.number().optional(),
+  /** 3D only: a triangle budget, overriding the default. */
+  budgetTriangles: z.number().optional(),
+  /** The component that places this asset. Absent: any section may use it. */
+  placement: z.string().optional(),
 });
 
 /**

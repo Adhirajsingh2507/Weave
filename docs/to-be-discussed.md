@@ -64,8 +64,13 @@ they are not lost:
 - **The benchmark has never run.** It needs real agent runs (cost ≈ runs × 2 builds) and, to be
   worth much, Lighthouse and axe installed (`npm i -g lighthouse @axe-core/cli`) and gitleaks.
 - **`demo-design/` has pictures for 6 of 91 styles**, so the MCP picture resources are thin.
-- `browser-qa` and `visual-qa` are marked `skipped`; the hybrid visual QA code exists but is
-  unwired — V2.7.
+- ~~`browser-qa` and `visual-qa` are marked `skipped`~~ — wired in V2.7 (#73, #74).
+- **V2.7 ceilings.** Raster and 3D optimisation need sharp / gltf-transform; without them assets
+  are measured and budgeted, not shrunk. The Chrome CLI cannot see console errors or capture past
+  the window. Video and fonts are budgeted by size only.
+- **3D needs a renderer.** `<model-viewer>` loads its script from a CDN, which the egress
+  allowlist and a strict CSP both stop. Decide whether the scaffold vendors a renderer, or 3D
+  placement requires a poster image as the fallback.
 - ~~The IR has no home for the guides' `shape`, `motion` and `spacing` tokens~~ — V2.6 (#68).
 - `ingest --changed` uses working-tree dirty files rather than a persisted since-last-ingest diff,
   and deletions leave stale code nodes.

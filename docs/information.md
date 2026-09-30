@@ -7,7 +7,7 @@
 _Last updated: 2026-09-30_
 
 > **V2 is underway.** Identity: the control and governance layer for AI coding agents, web
-> apps first — agents execute; Weave governs, verifies, records. Phases V2.0–V2.6 have shipped. The
+> apps first — agents execute; Weave governs, verifies, records. V2 (phases V2.0–V2.7) has shipped. The
 > phased plan is `implementation-v2.md`; decisions #42–58 in `current-info.md`.
 
 ---
@@ -168,10 +168,14 @@ run) and the outcome-first README.
 **V2.6:** shipped — every guide token carried in the IR, screenshot and URL intake with
 confidence-gated readings, style suggestion, and the guides as MCP resources.
 
+**V2.7:** shipped — assets acquired, measured and budgeted by the engine (never built by an
+agent), placement checked, pages rendered by headless Chrome, visibility judged on the hybrid
+path.
+
 **Design system:** 91 guides, 739 checks (~86% deterministic), 89 picture folders, validated by
 `scripts/check-design.mjs`.
 
-**Verification:** 29 self-checks + the design validator. `pnpm demo` runs end to end without
+**Verification:** 31 self-checks + the design validator. `pnpm demo` runs end to end without
 credentials, including a gated deploy to a local stand-in host.
 
 ## 9. Open / ongoing
@@ -184,5 +188,5 @@ credentials, including a gated deploy to a local stand-in host.
   for the guides' shape/motion/spacing tokens; the full list is in `to-be-discussed.md`.
 
 ## 10. Build plan
-See **`implementation-v2.md`** — V2.0–V2.6 done; a first credentialed run next, then V2.7 (assets
-and 3D), with the Jev track alongside.
+See **`implementation-v2.md`** — V2.0–V2.7 done; a first credentialed run next, then V3 planning,
+with the Jev track alongside.

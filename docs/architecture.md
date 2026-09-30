@@ -4,6 +4,16 @@
 
 _Last updated: 2026-09-30_
 
+## What V2.7 changed
+
+- **Assets have their own node kind.** `asset:<id>` runs in the engine between the scaffold and
+  the agents (`assets.ts`): acquire → optimise → measure → budget → commit, with the measurement
+  stored on the asset's KG node. Components that place an asset depend on it.
+- **Three criteria per asset**: budget (deterministic), placement (deterministic, in the named
+  section), visibility (judged from a render).
+- **QA renders.** `browser-qa` screenshots every built page (`ChromeBrowserWorker`); `visual-qa`
+  runs `visualQA` — vision facts → decision-layer score → re-check on low confidence.
+
 ## What V2.5 and V2.6 changed
 
 - **The report is a document.** `explorer.ts` renders a run — metrics, DAG, attempt timeline,

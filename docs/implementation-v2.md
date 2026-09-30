@@ -41,7 +41,7 @@ adapter until something demands a second one.
 
 ```
 V2.0 ✅ ──┬─► V2.1 ✅─┬─► V2.2 ✅─┐
-          │          │          ├─► V2.5 ✅─► V2.6 ✅─► V2.7
+          │          │          ├─► V2.5 ✅─► V2.6 ✅─► V2.7 ✅
           ├─► V2.3 ✅┘          │
           └─► V2.4 ✅───────────┘
                      Jev track runs alongside, gated on access
@@ -626,7 +626,7 @@ corpus, text wins, URL read, and a screenshot plus two sentences → gated intak
 
 ---
 
-## V2.7 — Assets and 3D
+## V2.7 — Assets and 3D ✅ DONE
 
 **Goal.** Assets as first-class graph entities with budgets, and the 3D path the canonical vision
 keeps asking for.
@@ -656,6 +656,56 @@ keeps asking for.
 
 - **3D is the least connected to the governance thesis.** It is last for that reason, and is the
   first thing to cut if the demo needs the time.
+
+**Shipped.**
+- **Assets are acquired, never built.** Each IR asset becomes an `asset:<id>` exec node (a new
+  `asset` kind), run by the engine before any agent: acquire from the repo, an asset folder
+  (`assetFolders`, CLI `--assets`) or a URL; optimise where a tool exists (built-in SVG
+  minifier; `gltf-transform` when installed; otherwise "measured and budgeted only", recorded);
+  measure; hold to a budget. Measurement parses headers directly — PNG, JPEG, GIF, WebP and SVG
+  dimensions; glTF-binary triangles, vertices, meshes and textures — so it needs no library.
+  Budgets are per type (3D: 2 MB and 100,000 triangles; image 300 KB and 2560 px; logo 50 KB
+  and 1024 px; …), overridable in the brief: `asset: robot 3d robot.glb in:hero budget:1.5mb tris:80k`.
+- **Measurements live on the graph.** The asset's KG node carries its path, provenance, size,
+  dimensions or geometry, and budget.
+- **A missing or over-budget asset opens a `policy` gate** naming the measured numbers
+  ("1,200 triangles exceed the 1,000 budget"). Approving waives exactly that asset; a file
+  supplied in the meantime is re-acquired and re-measured first. Nothing is built on an asset
+  under review.
+- **Placement is a requirement.** Each asset mints three criteria: within budget (`asset`),
+  placed (`placement` — in its section when `in:` names one) and visible (`judged`). The placing
+  component depends on its asset, is told the path and the numbers, and fails verification —
+  with the reason — if its markup does not reference the file. Integration checks placement
+  across the assembled site; without fragment markers it says the section was not verified.
+- **Browser QA is real.** `ChromeBrowserWorker` renders each built page with headless Chrome —
+  no dependency, Chrome's own sandbox kept on — and the screenshots become evidence.
+- **Visual QA of placement** runs the hybrid path from V1 (`visual.ts`), finally wired:
+  `ClaudeVisionExtractor` (SDK, structured outputs, refusal fallback) reads the screenshot, the
+  decision layer scores "the model is visibly rendered in the hero". No extractor → unavailable.
+
+**Why visual QA exists, shown by the demo.** The demo's robot is placed — the markup references
+`assets/robot.glb`, so the placement criterion passes — and the screenshot shows an empty hero,
+because `<model-viewer>` needs a script the page does not load. Placement and visibility are
+different facts; only the render can tell them apart. Without a key the visibility verdict is
+`unavailable`; with one, the vision pass would fail it.
+
+**Checks added:** `assets.check` (measurement on real files built to spec; SVG minifier; no
+agent ever asked to build an asset; the placer told, failed when it forgets, recorded; over
+budget and missing both gate, with numbers and provenance), `visual-placement.check` (visible →
+passed with the screenshot; unseen → failed while placement still passes; no extractor →
+unavailable; a real Chrome render at the requested size, or "not verified here" with the reason).
+`testing.ts` gained `tinyGlb` and `tinyPng` — valid files, not stubs.
+
+**Exit criteria status.**
+- The robotics brief's `robot.glb` ships within budget, placed, with visual evidence — ✅ in the
+  demo: 2,400 triangles within 100,000, placed in the hero, rendered and screenshotted. The
+  judged "is it visible" verdict awaits a key — and on the demo page it would be *no*.
+- No agent is ever asked to build an asset — ✅, asserted.
+
+**Known ceilings.** Raster and 3D optimisation need external tools (sharp, gltf-transform); without
+them assets are measured and budgeted, not shrunk. The Chrome CLI cannot report console errors or
+capture beyond the window, so `consoleCaptured` is false — Playwright is the upgrade. Video and
+fonts are budgeted by size only.
 
 ---
 
@@ -690,7 +740,7 @@ One project — the robotics landing page from `examples/robotics-landing.brief`
 | V2.4 ✅ | Deploy after approval with live checks ✅; a risky-op gate on a dependency change — proven in `risky-op.check`, the demo's ownership contract stops it first |
 | V2.5 ✅ | The HTML explorer ✅; a pack failure driving a repair ✅ (closes V2.2's deferral); the benchmark table — needs real runs |
 | V2.6 ✅ | A screenshot as intake — proven with a recorded reading in `intake-vision.check`; the demo stays text-only so it needs no key |
-| V2.7 | The 3D asset placed within budget |
+| V2.7 ✅ | The 3D asset acquired without an agent, within budget, placed in the hero, rendered and screenshotted; visibility judged with a key |
 
 **Failure staging: natural.** The demo's failure comes from a strict check agents commonly miss
 — one `h1` per page, zero console errors, or a mobile Lighthouse threshold — and the repair loop
@@ -734,5 +784,5 @@ the failure faked.
 | V2.4 Boundaries and deploy | ✅ done (corpus awaits a credentialed run) |
 | V2.5 Explorer, README, benchmark | ✅ done (benchmark awaits real runs) |
 | V2.6 Multimodal compiler and presets | ✅ done (live vision awaits a key) |
-| V2.7 Assets and 3D | next |
+| V2.7 Assets and 3D | ✅ done (visibility verdict awaits a key) |
 | Jev track | blocked on access |

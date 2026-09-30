@@ -16,6 +16,8 @@ export type ExecNodeKind =
   | "impl"
   /** A bounded repair of whole-site failures, run once before a human is asked (V2.5). */
   | "repair"
+  /** Acquire, optimise, measure and budget one asset — deterministic, never an agent (V2.7). */
+  | "asset"
   | "integration"
   | "code-qa"
   | "browser-qa"

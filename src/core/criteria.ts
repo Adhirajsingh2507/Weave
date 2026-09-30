@@ -22,7 +22,7 @@ import type { DesignIR } from "./ir/schema.js";
 import type { Edge, KgNode } from "./graph/types.js";
 
 /** Which runner can produce evidence for a criterion today. */
-export type CriterionRunner = "build" | "structural" | "pending" | "judged" | "pack";
+export type CriterionRunner = "build" | "structural" | "pending" | "judged" | "pack" | "asset" | "placement";
 
 export interface CriteriaResult {
   nodes: KgNode[];
@@ -95,13 +95,27 @@ export function mintCriteria(ir: DesignIR, style?: StyleGuide): CriteriaResult {
     nodes.push(requirement(reqId, el.label, { source: "ir", designNodeId: el.id, elementType: el.type }));
     link(reqId, el.id, "covers");
 
+    if (el.type === "asset") {
+      // An asset is proven three ways: its file is within budget, the site references it, and
+      // it is actually visible once rendered. The last is judged; the first two are not.
+      const asset = ir.assets.find((a) => a.id === el.id)!;
+      const where = asset.placement ? ` in the "${asset.placement}" section` : "";
+      for (const c of [
+        criterion(`${el.id}.asset-budget`, `asset "${el.id}" is within its size${asset.type === "3d" ? " and triangle" : ""} budget`, "asset", "ir"),
+        criterion(`${el.id}.asset-present`, `asset "${el.id}" is referenced by the built site${where}`, "placement", "ir"),
+        criterion(`${el.id}.asset-visible`, `asset "${el.id}" is visible on the rendered page${where}`, "judged", "ir", "judged"),
+      ]) {
+        nodes.push(c);
+        link(c.id, reqId, "verifies");
+      }
+      continue;
+    }
+
     // Structural criteria the build can actually prove today.
     const structural =
       el.type === "page"
         ? criterion(`${el.id}.page-exists`, `a page for "${el.id}" exists and builds`, "build", "ir")
-        : el.type === "asset"
-          ? criterion(`${el.id}.asset-present`, `asset "${el.id}" is referenced by the built site`, "pending", "ir")
-          : criterion(`${el.id}.section-present`, `a section for "${el.id}" is present in the built page`, "structural", "ir");
+        : criterion(`${el.id}.section-present`, `a section for "${el.id}" is present in the built page`, "structural", "ir");
     nodes.push(structural);
     link(structural.id, reqId, "verifies");
   }

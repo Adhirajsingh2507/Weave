@@ -26,7 +26,8 @@ You give it a brief — a few lines of text, a screenshot, or a live URL — and
 2. **Runs agents inside boundaries.** Each piece of work runs in its own git worktree, owns only
    its own files, cannot read secrets (bubblewrap on Linux, plus Claude Code's own deny rules),
    and reaches only allowlisted hosts. Anything risky — a new dependency, a migration, a deletion,
-   a secret — is held for approval.
+   a secret — is held for approval. Assets (images, logos, 3D models) are never "built" by an
+   agent: Weave acquires, measures and budgets them, and the agent only places them.
 3. **Verifies with evidence, not opinion.** Build, structural checks, 50 policy-pack items
    (security, accessibility, SEO, performance) and style rules run on every piece and on the
    assembled site. Failures go back to the agent with the reason; whole-site failures get one
@@ -44,20 +45,26 @@ No credentials needed:
 pnpm install && pnpm demo
 ```
 
-The demo builds a robotics landing page with a stand-in agent that makes two common mistakes,
-and shows Weave catching and repairing both:
+The demo builds a robotics landing page with a stand-in agent that makes common mistakes, and
+shows Weave catching each one:
 
 ```
 → approve design  (execution begins)
   impl:cta, impl:features, impl:hero: complete      components built in parallel
   impl:home: complete                               the page, after its sections
-  repair loop exercised (hero failed once)          an <h1> inside a section, caught by the check
+  repair loop exercised (hero failed once)          an <h1> inside a section, and the robot model
+                                                    it was told to place, missing — both caught
+  asset:robot (no agent): complete                  acquired, 2,400 triangles, within budget
   policy repair: complete                           a new-tab link without rel=noopener, caught by
                                                     the security pack on the assembled site
 → approve pre-release  (deploys only now)
-  ✓ deployed c675089 to http://127.0.0.1:…
+  ✓ deployed 2e50707 to http://127.0.0.1:…
   ✗ post-deploy checks: 10 passed, 2 failed         the host sends no HSTS or Referrer-Policy
-  impl wall-clock 4.3s vs 6.8s one at a time
+  crit:robot.asset-present: passed                  referenced in the hero section
+  crit:robot.asset-visible: unavailable             the screenshot shows an empty hero — the
+                                                    model needs a renderer; a vision pass
+                                                    (with a key) would fail it
+  impl wall-clock 4.3s vs 6.7s one at a time
   explorer: …/.agent/report.html
 ```
 
@@ -113,7 +120,7 @@ in the design document and become the project's `styles/tokens.css`. `weave styl
 ```bash
 pnpm install
 pnpm build
-pnpm check                       # 29 self-checks
+pnpm check                       # 31 self-checks
 node scripts/check-design.mjs    # validates the 91 guides and their picture folders
 pnpm demo                        # the end-to-end run above, no credentials
 ```
@@ -128,7 +135,7 @@ every diff, and screenshot intake).
 ```bash
 cd /path/to/new/project && git init && git commit --allow-empty -m init
 weave init
-weave run --brief <weave>/examples/robotics-landing.brief --name robotics-landing
+weave run --brief <weave>/examples/robotics-landing.brief --assets ./design --name robotics-landing
 #   or: weave run --screenshot mock.png --brief two-sentences.txt
 #   or: weave run --url https://example.com
 weave gates                                     # the intake gate
@@ -138,7 +145,8 @@ weave approve <pre-release-gate-id>             # the verified build is on weave
 weave report --html report.html                  # the whole run, one file
 ```
 
-`weave sandbox` says how agents are confined on this machine. Deployment is off by default;
+`weave sandbox` says how agents are confined on this machine. With Chrome or Chromium installed,
+every built page is rendered and screenshotted as evidence. Deployment is off by default;
 `WEAVE_DEPLOY=vercel` (with `VERCEL_TOKEN` or a `vercel login`) makes pre-release approval deploy
 and re-check the live site. The token reaches only the `vercel` process — never an agent.
 
@@ -155,9 +163,9 @@ browse styles by example and pick one.
 
 ## Status
 
-V2.0–V2.6 shipped (see `docs/implementation-v2.md`). Proven with stand-in agents and recorded
-readings; **not yet exercised with a real Claude Code run**, so the calibration corpus and the
-benchmark are empty. Next: V2.7 (assets and 3D).
+V2 (V2.0–V2.7) shipped — see `docs/implementation-v2.md`. Proven with stand-in agents and
+recorded readings; **not yet exercised with a real Claude Code run**, so the calibration corpus
+and the benchmark are empty and no vision verdict has been produced live. That run is next.
 
 Docs: `docs/information.md` is the overview, `docs/current-info.md` the decisions,
 `docs/architecture.md` the design, `docs/to-be-discussed.md` what is open.
@@ -170,4 +178,4 @@ broken tree. Requires `gh`; `WEAVE_REPO` and `WEAVE_VISIBILITY` override the def
 ## Stack
 
 TypeScript · Node ≥22.6 · pnpm · Zod · SQLite · tree-sitter · the Anthropic SDK · Claude Code ·
-bubblewrap (optional) · Playwright (optional, V2.7).
+bubblewrap (optional) · Chrome or Chromium (optional, for rendering) · Playwright (optional).

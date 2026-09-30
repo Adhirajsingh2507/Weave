@@ -11,6 +11,13 @@ import { GraphStore } from "./store/graph-store.js";
 import type { MappingFilter, NodeQuery } from "./store/graph-store.js";
 import { compileBrief } from "./compiler.js";
 import { ClaudeVisionInterpreter, compileMultimodal, uncertain } from "./intake.js";
+import { acquireAsset, budgetFor, defaultOptimizers, describeMeasure, kb, measureAsset, overBudget } from "./assets.js";
+import type { AssetOptimizer, AssetType } from "./assets.js";
+import { ChromeBrowserWorker } from "./browser.js";
+import type { BrowserWorker } from "./browser.js";
+import { ClaudeVisionExtractor, visualQA } from "./visual.js";
+import type { VisionExtractor } from "./visual.js";
+import { serve } from "./benchmark.js";
 import type { MultimodalInput, VisionInterpreter } from "./intake.js";
 import { projectIR } from "./graph/project.js";
 import { buildExecGraph, isOwned, pageLayout, readyNodes } from "./plan.js";
@@ -88,6 +95,16 @@ export interface EngineDeps {
   vision?: VisionInterpreter;
   /** Normalises read fields with confidence (interpret.normalizeField). Absent: exact-match only. */
   intakeDecision?: Decision;
+  /** Folders to look in for asset sources, besides the repo itself (V2.7). */
+  assetFolders?: string[];
+  /** Asset optimisers; default: the built-in SVG minifier, plus gltf-transform when installed. */
+  assetOptimizers?: AssetOptimizer[];
+  /** Renders the built pages for browser QA. Absent: browser QA is recorded as unavailable. */
+  browser?: BrowserWorker;
+  /** Reads a rendered page for visual QA (the hybrid path, decision #16). */
+  visionExtractor?: VisionExtractor;
+  /** Scores visual facts against criteria (qa.scoreEvidence). */
+  qaDecision?: Decision;
 }
 
 /** Paths no agent may read, enforced by the sandbox and flagged by the risk rules. */
@@ -100,8 +117,15 @@ export const DENY_PATHS = [".env", "**/.env", "**/*.pem", "**/secrets/**"];
 export function adapterDeps(env: NodeJS.ProcessEnv = process.env): EngineDeps {
   return {
     ...(env["ANTHROPIC_API_KEY"]
-      ? { riskDecision: new ClaudeDecision(), vision: new ClaudeVisionInterpreter(), intakeDecision: new ClaudeDecision() }
+      ? {
+          riskDecision: new ClaudeDecision(),
+          vision: new ClaudeVisionInterpreter(),
+          intakeDecision: new ClaudeDecision(),
+          visionExtractor: new ClaudeVisionExtractor(),
+          qaDecision: new ClaudeDecision(),
+        }
       : {}),
+    ...(ChromeBrowserWorker.find() ? { browser: new ChromeBrowserWorker() } : {}),
     ...(env["WEAVE_DEPLOY"] === "vercel" ? { deployer: new VercelDeployer({ prod: env["WEAVE_DEPLOY_PROD"] === "1" }) } : {}),
   };
 }
@@ -127,6 +151,11 @@ interface ResolvedDeps {
   allowHosts?: string[];
   vision?: VisionInterpreter;
   intakeDecision?: Decision;
+  assetFolders: string[];
+  assetOptimizers?: AssetOptimizer[];
+  browser?: BrowserWorker;
+  visionExtractor?: VisionExtractor;
+  qaDecision?: Decision;
 }
 
 export class Engine {
@@ -157,6 +186,11 @@ export class Engine {
       allowHosts: d.allowHosts,
       vision: d.vision,
       intakeDecision: d.intakeDecision,
+      assetFolders: d.assetFolders ?? [],
+      assetOptimizers: d.assetOptimizers,
+      browser: d.browser,
+      visionExtractor: d.visionExtractor,
+      qaDecision: d.qaDecision,
     };
   }
 
@@ -464,6 +498,19 @@ export class Engine {
       ? [`earlier attempt on this node recorded: ${prior.slice(-8).join("; ")}`]
       : [];
     if (node.owns) constraints.push(ownershipBrief(node));
+    const assets = this.#assetsFor(runId, node);
+    const mine = assets.filter((a) => a.placement === node.designNodeId);
+    if (mine.length) {
+      constraints.push(
+        `Place these assets in this section by referencing them from your markup — they are already in the project, ` +
+          `measured and within budget; do not modify, move or re-encode them: ` +
+          mine.map((a) => `${a.path} (${a.summary})${a.type === "3d" ? ` — e.g. <model-viewer src="${a.path}" alt="…">` : ""}`).join("; ") + ".",
+      );
+    }
+    const unplaced = assets.filter((a) => !a.placement);
+    if (unplaced.length && node.kind === "impl") {
+      constraints.push(`Assets available if the design calls for them (reference, never modify): ${unplaced.map((a) => `${a.path} (${a.summary})`).join("; ")}.`);
+    }
     const shared = ["styles/tokens.css", "styles/base.css"];
     return {
       taskId: node.id,
@@ -544,10 +591,12 @@ export class Engine {
    * actually build the thing it was asked for" is part of pass/fail rather than a note added
    * afterwards. Without it a no-op agent passes whenever the project still builds.
    */
-  #verifierFor(node: ExecNode): Verifier {
+  #verifierFor(node: ExecNode, runId?: RunId): Verifier {
     const base = this.#deps.verifier;
     const design = node.designNodeId;
     const owns = node.owns;
+    // Assets this node was told to place: its own files must reference each one.
+    const placing = runId && node.kind === "impl" ? this.#assetsFor(runId, node).filter((a) => a.placement === design) : [];
     const store = this.#graphStore();
     const criteria = design
       ? store
@@ -557,7 +606,7 @@ export class Engine {
           .filter((c): c is KgNode => Boolean(c))
           .filter((c) => ["structural", "build"].includes(String(c.attrs?.["runner"] ?? "")))
       : [];
-    if (!criteria.length && !owns) return base;
+    if (!criteria.length && !owns && !placing.length) return base;
 
     return {
       async verify(worktreeDir: string): Promise<VerifyResult> {
@@ -576,6 +625,18 @@ export class Engine {
               detail: found ? `${design} present in ${found}` : `nothing in the worktree realises "${design}"`,
             });
           }
+        }
+
+        for (const a of placing) {
+          const files = changedPaths(worktreeDir).filter((p) => /\.(html?|jsx?|tsx?|svelte|vue)$/i.test(p));
+          const where = files.find((f) => readFileSync(join(worktreeDir, f), "utf8").includes(a.path));
+          ok &&= Boolean(where);
+          evidence.push({
+            kind: "structural",
+            criterionId: `crit:${a.id}.asset-present`,
+            ok: Boolean(where),
+            detail: where ? `${a.path} placed in ${where}` : `${a.path} was not placed: no changed markup references it`,
+          });
         }
 
         // Ownership: deterministic, and catches a whole class of agent overreach — the node
@@ -721,7 +782,7 @@ export class Engine {
       previousFailures: failures.map((f) => `policy: ${f}`),
       permissions: { write: owns, deny: DENY_PATHS, ...(this.#deps.allowHosts ? { allowHosts: this.#deps.allowHosts } : {}) },
     };
-    const base = this.#verifierFor(node);
+    const base = this.#verifierFor(node, runId);
     const verifier: Verifier = {
       async verify(dir: string): Promise<VerifyResult> {
         const result = await base.verify(dir);
@@ -869,6 +930,7 @@ export class Engine {
     await this.#harnessForExecution(runId);
     store.updateRun(runId, { status: "running" });
     await this.#runScaffold(runId);
+    if (await this.#runAssets(runId)) return;
     await this.#integrateApproved(runId);
 
     // Topological scheduler: each batch is the ready frontier of the DAG, capped at the
@@ -903,12 +965,235 @@ export class Engine {
 
     // Policy packs run against the built site, which only exists now.
     if (await this.#runPolicyPacks(runId)) return;
-    for (const qa of ["browser-qa", "visual-qa"]) {
-      const n = store.getExecNode(runId, qa);
-      if (n) store.upsertExecNode(runId, { ...n, status: "skipped" });
-    }
-    const g = await this.#openGate(runId, "pre-release", "Build verified (browser/visual QA skipped — no worker) — review before release", []);
+    const shots = await this.#runBrowserQa(runId);
+    const visual = await this.#runVisualQa(runId, shots);
+    const rendered = shots.size ? `${shots.size} page(s) rendered` : "browser QA unavailable";
+    const g = await this.#openGate(runId, "pre-release", `Build verified; ${rendered}; ${visual} — review before release`, []);
     store.updateRun(runId, { status: "gated", cursor: g.id });
+  }
+
+  /**
+   * The asset step (V2.7): acquire each asset into assets/, optimise it where a tool exists,
+   * measure it and hold it to its budget. No agent is involved. A missing or over-budget asset
+   * opens a policy gate naming the measured numbers; approving is a waiver for exactly those
+   * items, and anything fixed in the meantime is re-checked first. Returns true when it halted.
+   */
+  async #runAssets(runId: RunId): Promise<boolean> {
+    const store = this.#graphStore();
+    const ir = this.#loadIR(runId);
+    const nodes = store.getExecGraph(runId).filter((n) => n.kind === "asset" && !["complete", "skipped"].includes(n.status));
+    if (!ir || !nodes.length) return false;
+    const waived = new Set(
+      store
+        .gatesForRun(runId)
+        .filter((g) => g.kind === "policy" && g.status === "approved")
+        .flatMap((g) => g.evidenceRefs.map((ref) => ref.split(": ")[0])),
+    );
+    const optimizers = this.#deps.assetOptimizers ?? (await defaultOptimizers());
+    const problems: string[] = [];
+
+    for (const node of nodes) {
+      const asset = ir.assets.find((a) => a.id === node.designNodeId)!;
+      const key = `asset.${asset.id}`;
+      const evidence: EvidenceRecord[] = [];
+      store.upsertExecNode(runId, { ...node, status: "running" });
+      await this.#events.emit({ type: "node.started", runId, data: { node: node.id } });
+
+      const got = await acquireAsset(this.#repoPath, asset.src, this.#deps.assetFolders);
+      evidence.push({ kind: "structural", ok: got.ok, detail: `acquire ${asset.id}: ${got.detail}` });
+      if (!got.ok) {
+        const skip = waived.has(key);
+        if (!skip) problems.push(`${key}: ${got.detail}`);
+        this.#recordAssetEvidence(runId, node.id, evidence);
+        store.upsertExecNode(runId, { ...node, status: skip ? "skipped" : "blocked", evidence: summarise(evidence) });
+        continue;
+      }
+
+      const abs = join(this.#repoPath, got.path!);
+      for (const o of optimizers.filter((x) => x.applies(abs))) {
+        try {
+          const r = await o.optimize(abs);
+          evidence.push({ kind: "structural", ok: true, detail: `optimise ${asset.id}: ${o.name} — ${r.detail}` });
+        } catch (e) {
+          evidence.push({ kind: "structural", ok: true, detail: `optimise ${asset.id}: ${o.name} failed (${e instanceof Error ? e.message : String(e)}); kept the original` });
+        }
+      }
+      if (!optimizers.some((x) => x.applies(abs))) {
+        evidence.push({ kind: "structural", ok: true, detail: `optimise ${asset.id}: no optimiser installed for ${got.path} — measured and budgeted only` });
+      }
+
+      let measure;
+      try {
+        measure = measureAsset(abs);
+      } catch (e) {
+        problems.push(`${key}: ${got.path} could not be read (${e instanceof Error ? e.message : String(e)})`);
+        this.#recordAssetEvidence(runId, node.id, evidence);
+        store.upsertExecNode(runId, { ...node, status: "blocked", evidence: summarise(evidence) });
+        continue;
+      }
+      const budget = budgetFor({ type: asset.type as AssetType, ...(asset.budgetBytes ? { budgetBytes: asset.budgetBytes } : {}), ...(asset.budgetTriangles ? { budgetTriangles: asset.budgetTriangles } : {}) });
+      const over = overBudget(measure, budget);
+      const within = `${describeMeasure(measure)} — budget ${kb(budget.maxBytes)}${budget.maxTriangles ? `, ${budget.maxTriangles.toLocaleString("en")} triangles` : ""}`;
+      evidence.push({
+        kind: "structural",
+        criterionId: `crit:${asset.id}.asset-budget`,
+        ok: over.length === 0,
+        detail: over.length ? `${got.path}: ${over.join("; ")}` : `${got.path}: ${within}`,
+      });
+      this.#recordAssetEvidence(runId, node.id, evidence);
+
+      // The measurement lives on the asset's graph node: budgets, provenance, the numbers.
+      store.upsertNode({
+        id: asset.id,
+        kind: "asset",
+        name: asset.id,
+        attrs: { type: asset.type, src: asset.src, path: got.path, from: got.from, ...measure, budget },
+      });
+      if (over.length && !waived.has(key)) {
+        problems.push(`${key}: ${got.path} — ${over.join("; ")}`);
+        store.upsertExecNode(runId, { ...node, status: "blocked", evidence: summarise(evidence) });
+        continue;
+      }
+      const commit = await this.#harness!.commitWorkingTree(`chore(assets): ${got.path} (${describeMeasure(measure)})`);
+      this.#recordRealization(node, [got.path!], commit);
+      store.upsertExecNode(runId, { ...node, status: "complete", ...(commit ? { commit } : {}), evidence: summarise(evidence), attempts: 1 });
+      await this.#events.emit({ type: "node.completed", runId, data: { node: node.id } });
+    }
+
+    if (!problems.length) return false;
+    const g = await this.#openGate(
+      runId,
+      "policy",
+      `${problems.length} asset problem(s) — fix the source and approve to re-check, or approve to accept as is`,
+      problems,
+    );
+    store.updateRun(runId, { status: "gated", cursor: g.id });
+    return true;
+  }
+
+  #recordAssetEvidence(runId: RunId, nodeId: NodeId, evidence: EvidenceRecord[]): void {
+    this.#graphStore().recordEvidence(
+      runId,
+      evidence.map((e) => ({ nodeId, kind: e.kind, ok: e.ok, detail: e.detail, ...(e.criterionId ? { criterionId: e.criterionId } : {}) })),
+    );
+  }
+
+  /** Assets a node may place, with their measurements, from the graph. */
+  #assetsFor(runId: RunId, node: ExecNode): Array<{ id: string; type: string; path: string; placement?: string; summary: string }> {
+    const ir = this.#loadIR(runId);
+    const store = this.#graphStore();
+    return (ir?.assets ?? [])
+      .filter((a) => !a.placement || a.placement === node.designNodeId || node.kind === "repair")
+      .map((a) => {
+        const attrs = store.getNode(a.id)?.attrs ?? {};
+        const path = String(attrs["path"] ?? `assets/${a.src.split("/").pop()}`);
+        const m = attrs as { sizeBytes?: number; triangles?: number; dims?: [number, number] };
+        const summary = [a.type, m.sizeBytes ? kb(m.sizeBytes) : "", m.triangles ? `${m.triangles} triangles` : "", m.dims ? `${m.dims[0]}×${m.dims[1]}` : ""]
+          .filter(Boolean)
+          .join(", ");
+        return { id: a.id, type: a.type, path, ...(a.placement ? { placement: a.placement } : {}), summary };
+      })
+      .filter((a) => existsSync(join(this.#repoPath, a.path)));
+  }
+
+  /**
+   * Browser QA: render every built page and keep the screenshot as evidence. Returns page file →
+   * screenshot path. Without a browser it says so; nothing is marked passed.
+   */
+  async #runBrowserQa(runId: RunId): Promise<Map<string, string>> {
+    const store = this.#graphStore();
+    const node = store.getExecNode(runId, "browser-qa");
+    const shots = new Map<string, string>();
+    const browser = this.#deps.browser;
+    if (!browser) {
+      store.recordEvidence(runId, [{ nodeId: "browser-qa", kind: "visual", ok: false, status: "unavailable", detail: "no browser worker: install Chrome/Chromium, or pass one to the Engine" }]);
+      if (node) store.upsertExecNode(runId, { ...node, status: "skipped" });
+      return shots;
+    }
+    if (node) store.upsertExecNode(runId, { ...node, status: "running" });
+    const dist = join(this.#repoPath, "dist");
+    const root = existsSync(join(dist, "index.html")) ? dist : this.#repoPath;
+    const dir = join(this.#repoPath, AGENT_DIR, "evidence", "screens");
+    mkdirSync(dir, { recursive: true });
+    const site = await serve(root);
+    const evidence: EvidenceRecord[] = [];
+    try {
+      for (const page of this.#layoutFor(runId).map((p) => p.file)) {
+        const shot = join(dir, `${runId}-${page.replace(/[^a-z0-9.-]/gi, "_")}.png`);
+        try {
+          const r = await browser.capture(new URL(page === "index.html" ? "/" : page, site.url).href, { screenshotPath: shot });
+          if (r.screenshotPath && existsSync(r.screenshotPath)) shots.set(page, r.screenshotPath);
+          evidence.push({
+            kind: "visual",
+            ok: r.ok,
+            detail: `rendered ${page}${r.consoleErrors.length ? `; console errors: ${r.consoleErrors.slice(0, 3).join(" | ")}` : ""}`,
+            ...(r.screenshotPath ? { artifactPath: r.screenshotPath } : {}),
+          });
+        } catch (e) {
+          evidence.push({ kind: "visual", ok: false, detail: `could not render ${page}: ${e instanceof Error ? e.message : String(e)}` });
+        }
+      }
+    } finally {
+      await site.close();
+    }
+    store.recordEvidence(runId, evidence.map((e) => ({ nodeId: "browser-qa", kind: e.kind, ok: e.ok, detail: e.detail, ...(e.artifactPath ? { artifactPath: e.artifactPath } : {}) })));
+    if (node) store.upsertExecNode(runId, { ...node, status: "complete", evidence: summarise(evidence), attempts: 1 });
+    return shots;
+  }
+
+  /**
+   * Visual QA of asset placement, on the hybrid path (decision #16): a vision pass extracts facts
+   * from the screenshot, the decision layer scores them against each criterion, and low
+   * confidence triggers a deliberate re-check. Without an extractor the verdict is unavailable —
+   * a placed-in-markup asset may still be invisible, and only a render can tell.
+   */
+  async #runVisualQa(runId: RunId, shots: Map<string, string>): Promise<string> {
+    const store = this.#graphStore();
+    const node = store.getExecNode(runId, "visual-qa");
+    const ir = this.#loadIR(runId);
+    const assets = ir?.assets ?? [];
+    if (!assets.length) {
+      if (node) store.upsertExecNode(runId, { ...node, status: "skipped" });
+      return "no assets to check visually";
+    }
+    const record = (rows: Array<{ id: string; ok: boolean; status: "pass" | "fail" | "unavailable"; detail: string; artifactPath?: string }>): void => {
+      store.recordEvidence(
+        runId,
+        rows.map((r) => ({ nodeId: "visual-qa", criterionId: `crit:${r.id}.asset-visible`, kind: "visual" as const, ok: r.ok, status: r.status, detail: r.detail, ...(r.artifactPath ? { artifactPath: r.artifactPath } : {}) })),
+      );
+    };
+    const extractor = this.#deps.visionExtractor;
+    const decision = this.#deps.qaDecision;
+    if (!shots.size || !extractor || !decision) {
+      const why = !shots.size ? "no rendered page" : "no vision extractor (set ANTHROPIC_API_KEY)";
+      record(assets.map((a) => ({ id: a.id, ok: false, status: "unavailable", detail: `visual check not possible: ${why}` })));
+      if (node) store.upsertExecNode(runId, { ...node, status: "skipped" });
+      return `visual QA unavailable (${why})`;
+    }
+    if (node) store.upsertExecNode(runId, { ...node, status: "running" });
+    let passed = 0;
+    for (const a of assets) {
+      const file = `assets/${a.src.split("/").pop()}`;
+      // The page that references the asset, else the home page.
+      const page = [...shots.keys()].find((p) => existsSync(join(this.#repoPath, p)) && readFileSync(join(this.#repoPath, p), "utf8").includes(file)) ?? [...shots.keys()][0]!;
+      const shot = shots.get(page)!;
+      const where = a.placement ? ` in the "${a.placement}" section` : "";
+      try {
+        const res = await visualQA({
+          screenshotPath: shot,
+          criteria: [{ id: a.id, description: `the ${a.type === "3d" ? "3D model" : a.type} "${a.id}" (${file}) is visibly rendered on the page${where}` }],
+          extractor,
+          decision,
+        });
+        const r = res.results[0]!;
+        if (r.pass) passed++;
+        record([{ id: a.id, ok: r.pass, status: r.pass ? "pass" : "fail", detail: `${page}: judged ${String(r.value)} at confidence ${r.confidence} (${r.escalation})`, artifactPath: shot }]);
+      } catch (e) {
+        record([{ id: a.id, ok: false, status: "unavailable", detail: `visual check failed to run: ${e instanceof Error ? e.message : String(e)}` }]);
+      }
+    }
+    if (node) store.upsertExecNode(runId, { ...node, status: "complete", attempts: 1 });
+    return `visual QA ${passed}/${assets.length} asset(s) visible`;
   }
 
   /**
@@ -939,6 +1224,33 @@ export class Engine {
           : `no fragment for: ${res.missing.join(", ")}`,
       });
       commit = await this.#harness!.commitWorkingTree(`chore(integration): assemble ${res.assembled.length} section(s)`);
+    }
+    // Every acquired asset should be referenced by some page, in its section when it has one.
+    for (const a of this.#assetsFor(runId, { id: "integration", kind: "repair", status: "running" })) {
+      const pages = this.#layoutFor(runId).map((p) => p.file).filter((f) => existsSync(join(this.#repoPath, f)));
+      const html = pages.map((f) => [f, readFileSync(join(this.#repoPath, f), "utf8")] as const);
+      // Within the section's assembled fragment when there is one; page-wide otherwise, and the
+      // record says the section itself was not verified.
+      const blockOf = (text: string): string | undefined =>
+        a.placement
+          ? new RegExp(`<!-- weave:fragment ${a.placement} -->[\\s\\S]*?<!-- /weave:fragment ${a.placement} -->`).exec(text)?.[0]
+          : undefined;
+      let hit: string | undefined;
+      let scope = "";
+      for (const [file, text] of html) {
+        const block = blockOf(text);
+        if (block?.includes(a.path)) {
+          [hit, scope] = [file, ` in the ${a.placement} section`];
+          break;
+        }
+        if (!block && text.includes(a.path)) [hit, scope] = [file, a.placement ? " (page-wide; the section was not verified)" : ""];
+      }
+      evidence.push({
+        kind: "structural",
+        criterionId: `crit:${a.id}.asset-present`,
+        ok: Boolean(hit),
+        detail: hit ? `${a.path} is on ${hit}${scope}` : `${a.path} is not referenced by any built page${a.placement ? ` in the ${a.placement} section` : ""}`,
+      });
     }
     const verdict = await this.#deps.integrationVerifier.verify(this.#repoPath);
     evidence.push(...verdict.evidence);
@@ -1062,7 +1374,7 @@ export class Engine {
       pending.map((node) =>
         executeAndVerify({
           executor: this.#deps.executor,
-          verifier: this.#verifierFor(node),
+          verifier: this.#verifierFor(node, runId),
           node: { id: node.id, contextPack: this.#contextPack(runId, node) },
           worktreeDir: dirs.get(node.id)!,
           retryCap: 3,
@@ -1115,7 +1427,7 @@ export class Engine {
         const dir = await harness.worktreeForNode(node.id);
         res = await executeAndVerify({
           executor: this.#deps.executor,
-          verifier: this.#verifierFor(node),
+          verifier: this.#verifierFor(node, runId),
           node: { id: node.id, contextPack: pack },
           worktreeDir: dir,
           retryCap: 3,

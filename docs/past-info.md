@@ -2,6 +2,21 @@
 
 > Archive of prior thinking and superseded decisions, newest first. Never delete — this is the paper trail.
 
+## 2026-09-30 — V2.7 shipped; V2 complete
+
+Superseded:
+- **Assets as impl nodes.** Since v1 an asset became an impl node and an agent was told to
+  "build robot" for a `.glb`. Assets are now `asset` nodes the engine runs (#71).
+- **"browser-qa / visual-qa: skipped — no worker."** A dependency-free Chrome worker renders the
+  pages, and the hybrid visual QA written in v1 is finally in the run path (#73, #74).
+- **The `asset-present` criterion as `pending`.** It has a runner now, and two siblings: budget
+  and visibility.
+
+Found by the demo, not by a check: the robot is placed — the markup references it — and the
+screenshot shows an empty hero, because `<model-viewer>` needs a script the page does not load.
+That is the argument for judging visibility from a render instead of trusting markup, and it
+opened a question about how 3D should be rendered at all (`to-be-discussed.md`).
+
 ## 2026-09-30 — V2.5 and V2.6 shipped; what they superseded
 
 Asked before building, unanswered, so defaults were taken and recorded: no credentialed run (no

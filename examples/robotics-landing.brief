@@ -8,5 +8,7 @@ component: hero section
 component: features section
 component: cta section
 component: footer footer
-asset: robot 3d robot.glb
-asset: logo logo logo.svg
+# Assets are acquired, measured and budgeted by Weave, never built by an agent. Put the files in
+# a folder and pass it:  weave run --brief … --assets path/to/folder
+asset: robot 3d robot.glb in:hero
+asset: logo logo logo.svg in:nav
