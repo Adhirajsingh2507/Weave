@@ -22,3 +22,7 @@ The **variant** column maps each reference to the variant it supports in
 **What these establish:** minimalism here means restraint and space, not one fixed palette.
 Half of these would have failed the original guide's no-gradient, no-texture, light-only rules,
 which is why the guide now carries variants.
+
+## Reference links
+
+None: this style has no entry in `pinterest_website_design_inspiration.html`.

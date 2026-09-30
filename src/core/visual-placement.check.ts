@@ -13,7 +13,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Engine } from "./api.js";
 import { measureAsset } from "./assets.js";
-import { ChromeBrowserWorker } from "./browser.js";
+import { ChromeBrowserWorker, PlaywrightBrowserWorker } from "./browser.js";
 import type { BrowserWorker } from "./browser.js";
 import { FakeDecision } from "./decision/providers.js";
 import { realise, tinyGlb, tinyPng } from "./testing.js";
@@ -42,7 +42,7 @@ const reading: VisionExtractor = {
   },
 };
 
-async function run(tag: string, deps: EngineDeps): Promise<{ engine: Engine; runId: string; repo: string }> {
+async function run(tag: string, deps: EngineDeps, extra = ""): Promise<{ engine: Engine; runId: string; repo: string }> {
   const repo = mkdtempSync(join(tmpdir(), `weave-visual-${tag}-`));
   git(["init", "-q"], repo);
   git(["symbolic-ref", "HEAD", "refs/heads/main"], repo);
@@ -64,7 +64,7 @@ async function run(tag: string, deps: EngineDeps): Promise<{ engine: Engine; run
     },
   });
   await engine.init("new");
-  const { runId } = await engine.run({ projectName: "Visual", text: "page: home /\ncomponent: hero section\nasset: robot 3d robot.glb in:hero" });
+  const { runId } = await engine.run({ projectName: "Visual", text: `page: home /\ncomponent: hero section\nasset: robot 3d robot.glb in:hero${extra}` });
   await engine.resolveGate((await engine.listGates())[0]!.id, "approve");
   return { engine, runId, repo };
 }
@@ -137,4 +137,21 @@ if (ChromeBrowserWorker.find()) {
 } else {
   assert.notEqual(process.env["WEAVE_REQUIRE_TOOLS"], "1", "real render required here, but no Chrome was found");
   console.log("visual placement check passed (visible → passed with screenshot, unseen → failed, no extractor → unavailable; no Chrome here, real render NOT verified)");
+}
+
+// ── 5. Style checks on the real render (D3): the engine judges the style's own criteria ──
+if (PlaywrightBrowserWorker.available()) {
+  const { engine, runId, repo } = await run("styled", { browser: new PlaywrightBrowserWorker() }, "\nstyle: brutalism");
+  const crits = (await engine.report(runId)).requirements.flatMap((r) => r.criteria);
+  const radius = crits.find((c) => c.id === "crit:brut.shape.radius-zero")!;
+  assert.equal(radius.runner, "rendered");
+  assert.equal(radius.status, "passed", JSON.stringify(radius.evidence));
+  assert.match(radius.evidence.at(-1)!.detail, /index\.html: every radius is 0px/);
+  assert.equal(crits.find((c) => c.id === "crit:brut.motion.none")!.status, "passed", "a zero-motion theme declares no transitions");
+  const judged = crits.filter((c) => c.runner === "rendered" && c.evidence.length);
+  assert.ok(judged.length >= 4, `${judged.length} rendered verdicts`);
+  console.log(`style checks on the render verified (${judged.length} brutalism criteria judged on the page)`);
+  rmSync(repo, { recursive: true, force: true });
+} else {
+  assert.notEqual(process.env["WEAVE_REQUIRE_TOOLS"], "1", "style checks on a render need Playwright here");
 }

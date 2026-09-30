@@ -9,6 +9,7 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
+import { cssFontStack } from "./theme.js";
 
 export const GUIDE_DIR = fileURLToPath(new URL("../../../design-guide", import.meta.url));
 
@@ -231,6 +232,14 @@ export function loadBaseChecks(dir: string = GUIDE_DIR): StyleCheck[] {
   return checks;
 }
 
+/** Reference links for a style (D3): the "Reference links" list in demo-design/<slug>/sources.md. */
+export function styleLinks(slug: string, dir: string = GUIDE_DIR): Array<{ label: string; url: string }> {
+  const path = join(dir, "..", "demo-design", slug, "sources.md");
+  if (!/^[a-z0-9-]+$/.test(slug) || !existsSync(path)) return [];
+  const section = /^## Reference links\s*$([\s\S]*?)(?=^## |(?![\s\S]))/m.exec(readFileSync(path, "utf8"))?.[1] ?? "";
+  return [...section.matchAll(/^- \[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/gm)].map((m) => ({ label: m[1]!, url: m[2]! }));
+}
+
 export function listStyles(dir: string = GUIDE_DIR): string[] {
   return readdirSync(dir)
     .filter((f) => f.endsWith(".md") && !f.startsWith("_") && f !== "README.md")
@@ -242,13 +251,20 @@ export function listStyles(dir: string = GUIDE_DIR): string[] {
 function flatten(prefix: string, value: unknown, out: Array<[string, string]>): void {
   if (value === null || value === undefined) return;
   if (Array.isArray(value)) {
-    // Token lists are mostly {name, value} pairs — palettes, gradients, surfaces.
+    // Token lists are mostly {name, value} pairs — palettes, gradients, surfaces — and font
+    // families are {role, family}. Both flatten to one variable per entry; a family was once
+    // stringified as "[object Object]".
     const named = value.filter(
       (v): v is { name: string; value: string } =>
         typeof v === "object" && v !== null && "name" in v && "value" in v,
     );
+    const roles = value.filter(
+      (v): v is { role: string; family: string } => typeof v === "object" && v !== null && "role" in v && "family" in v,
+    );
     if (named.length) {
       for (const n of named) out.push([`${prefix}-${n.name}`, String(n.value)]);
+    } else if (roles.length) {
+      for (const r of roles) out.push([`${prefix}-${r.role}`, cssFontStack(String(r.family))]);
     } else {
       out.push([prefix, value.map(String).join(", ")]);
     }
@@ -279,6 +295,10 @@ export function styleBrief(style: StyleGuide): string {
   return [
     `Design style: ${style.title} (${style.slug})`,
     style.summary,
+    "",
+    "styles/theme.css already applies this style to plain markup: body, headings, links, <section>,",
+    "<article>/.card, <button>/.button and form controls. Build on those elements and its variables",
+    "(--bg, --fg, --accent, --surface, --radius, --space-m, …) rather than restyling from scratch.",
     "",
     "Tokens (also available as CSS variables in styles/tokens.css):",
     ...tokenLines.map(([k, v]) => `  ${k.replace(/^-+/, "")}: ${v}`),

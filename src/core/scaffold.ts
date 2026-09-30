@@ -10,6 +10,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
 import { styleTokensCss } from "./design/style.js";
+import { styleThemeCss } from "./design/theme.js";
 import type { StyleGuide } from "./design/style.js";
 import type { PageLayout } from "./plan.js";
 
@@ -70,6 +71,9 @@ export class TemplateScaffolder implements Scaffolder {
     // tokens.css is generated from the design guide and owned by Weave, so it is the one
     // file that is always (re)written.
     write(repoPath, "styles/tokens.css", style ? styleTokensCss(style) : DEFAULT_TOKENS, files);
+    // theme.css applies those tokens to plain markup (D3), so every style renders as itself
+    // before any agent writes a line. Generated and owned by Weave, like tokens.css.
+    write(repoPath, "styles/theme.css", style ? styleThemeCss(style) : "/* No style chosen. */\n", files);
 
     // Modify-existing mode is a supported project mode (decision #4). Scaffolding over a
     // real project would destroy its package.json, entry point and .gitignore, so the
@@ -77,7 +81,7 @@ export class TemplateScaffolder implements Scaffolder {
     if (existsSync(join(repoPath, "package.json"))) {
       return {
         files,
-        summary: `existing project kept; wrote styles/tokens.css${style ? ` for ${style.title}` : ""}`,
+        summary: `existing project kept; wrote styles/tokens.css and styles/theme.css${style ? ` for ${style.title}` : ""}`,
       };
     }
 
@@ -224,6 +228,7 @@ function pageHtml(title: string, heading: string, sections: string[], pageId?: s
   <meta name="description" content="${title}">
   <link rel="stylesheet" href="styles/tokens.css">
   <link rel="stylesheet" href="styles/base.css">
+  <link rel="stylesheet" href="styles/theme.css">
 </head>
 ${body}
   <a class="skip-link" href="#main">Skip to content</a>

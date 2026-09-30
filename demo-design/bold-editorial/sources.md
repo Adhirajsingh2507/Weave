@@ -22,3 +22,7 @@ rules, indices and edge labels.
 
 Still wanted: an example using the loud colour on a **dark** ground, and one showing the style
 applied to a longer content page rather than a hero.
+
+## Reference links
+
+None: this style has no entry in `pinterest_website_design_inspiration.html`.

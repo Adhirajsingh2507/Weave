@@ -104,6 +104,13 @@ egress allowlist reaching what the subscription login needs, `TYPESAFE_API_KEY` 
 - **Reference pictures as links:** each style's `sources.md` gets its links from the Pinterest
   list; MCP serves them as links (decided: no images).
 - **Exit:** the 91-style render check, and a coverage number for runnable checks.
+- **Done 2026-10-01** (#96–#98). All 91 styles render the same markup as themselves: own
+  background, text, heading face, radius and border, 91 distinct images, WCAG AA text on every
+  theme (73 measured; 18 with a gradient behind the text are left for a pixel check). Coverage:
+  **110 of 674 deterministic checks can fail on a render, 39 can also pass**; the rest stay
+  pending. 87 styles carry reference links; 4 have no entry in the Pinterest list. Found by the
+  render: unquoted font names dropped whole declarations; `tokens.css` wrote families as
+  `[object Object]`; the static server crashed on a folder request.
 
 ### D4 — 3D that renders
 
@@ -193,7 +200,7 @@ egress allowlist reaching what the subscription login needs, `TYPESAFE_API_KEY` 
 | D0 Preflight | **done** (`weave doctor`) |
 | D1 Subscription decision + vision | **done** |
 | D2 Tools | **done** (CI proves them) |
-| D3 Templates for real | not started |
+| D3 Templates for real | **done** |
 | D4 3D that renders | not started |
 | D4.5 Agents in tmux | not started |
 | D5 First real build | not started |

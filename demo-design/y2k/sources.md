@@ -11,3 +11,11 @@ also leans `webcore`; if you'd rather file it there, move it and update both tab
 
 Still wanted here: a full-page site or poster showing chrome/bevelled buttons and glossy
 gradient type, which this wallpaper doesn't cover.
+
+## Reference links
+
+From `pinterest_website_design_inspiration.html` (Y2K). Links only — no images are copied (decision: reference pictures as links).
+
+- [Reference 1 · Direct Pin](https://in.pinterest.com/pin/y2k-website-design-and-examples-in-2025--480196379038202722/)
+- [Reference 2 · Direct Pin](https://in.pinterest.com/pin/204421270581935239/)
+- [Reference 3 · Pinterest Search](https://www.pinterest.com/search/pins/?q=y2k%20website%20design)

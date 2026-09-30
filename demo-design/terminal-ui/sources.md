@@ -13,3 +13,7 @@ measure, status output, a blinking cursor.
 
 Good hunting ground: TUI dashboards and installers, status and incident pages for developer
 tools, retro computing screenshots, and CLI documentation sites.
+
+## Reference links
+
+None: this style has no entry in `pinterest_website_design_inspiration.html`.

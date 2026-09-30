@@ -30,6 +30,7 @@ for (const t of ["init", "run", "gates", "resolve_gate", "list_styles", "suggest
 const styles = (await call("list_styles")) as Array<{ slug: string; bestFor: string[]; pictures: number }>;
 assert.equal(styles.length, 91);
 assert.ok(styles.find((s) => s.slug === "minimalism")!.pictures > 0, "pictures are counted");
+assert.equal(styles.filter((s) => (s as unknown as { links: number }).links > 0).length, 87, "87 styles carry reference links from the Pinterest list");
 
 // Suggest: by brief.
 const suggested = (await call("suggest_styles", { brief: "robotics hardware launch" })) as Array<{ slug: string; reasons: string[] }>;
@@ -50,6 +51,10 @@ await assert.rejects(
   "only listed pictures are served — no traversal",
 );
 
+const links = JSON.parse(((await client.readResource({ uri: "style-links://futuristic" })).contents[0] as { text: string }).text) as Array<{ url: string }>;
+assert.ok(links.length >= 2 && links.every((l) => /^https:\/\/(in\.|www\.)?pinterest\.com\//.test(l.url)), "reference links are served as links");
+assert.ok(!resources.some((r) => r.uri === "style-links://terminal-ui"), "a style with no links offers none");
+
 // Select: run with the chosen style.
 await call("init", { mode: "new" });
 const handle = (await call("run", { style: "futuristic", text: "component: hero section", name: "Picked" })) as { runId: string; status: string };
@@ -59,4 +64,4 @@ assert.equal(gates[0]?.kind, "design-approval", "a style chosen by the client is
 
 await client.close();
 rmSync(repo, { recursive: true, force: true });
-console.log("mcp server check passed (client round-trip: list, suggest, see pictures, select a style)");
+console.log("mcp server check passed (client round-trip: list, suggest, see pictures and reference links, select a style)");

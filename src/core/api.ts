@@ -15,6 +15,8 @@ import { acquireAsset, budgetFor, defaultOptimizers, describeMeasure, kb, measur
 import type { AssetOptimizer, AssetType } from "./assets.js";
 import { ChromeBrowserWorker, PlaywrightBrowserWorker } from "./browser.js";
 import type { BrowserWorker } from "./browser.js";
+import { runRenderedCheck } from "./design/rendered.js";
+import type { PageSnapshot } from "./design/rendered.js";
 import { ClaudeVisionExtractor, visualQA } from "./visual.js";
 import type { VisionExtractor } from "./visual.js";
 import { serve } from "./benchmark.js";
@@ -1148,12 +1150,45 @@ export class Engine {
           evidence.push({ kind: "visual", ok: false, detail: `could not render ${page}: ${e instanceof Error ? e.message : String(e)}` });
         }
       }
+      if (browser.snapshot) await this.#runStyleChecks(runId, browser, site.url);
     } finally {
       await site.close();
     }
     store.recordEvidence(runId, evidence.map((e) => ({ nodeId: "browser-qa", kind: e.kind, ok: e.ok, detail: e.detail, ...(e.artifactPath ? { artifactPath: e.artifactPath } : {}) })));
     if (node) store.upsertExecNode(runId, { ...node, status: "complete", evidence: summarise(evidence), attempts: 1 });
     return shots;
+  }
+
+  /**
+   * Style checks on the rendered pages (D3): every criterion minted with the `rendered` runner is
+   * judged on a computed-style snapshot of each built page. A failure on any page fails it; a
+   * check the runner cannot settle on some page is unavailable, never passed.
+   */
+  async #runStyleChecks(runId: RunId, browser: BrowserWorker, siteUrl: string): Promise<void> {
+    const store = this.#graphStore();
+    const criteria = store.query({ kind: "criterion" }).filter((n) => n.attrs?.["runner"] === "rendered");
+    if (!criteria.length) return;
+    const style = this.#styleFor(runId);
+    const snaps: Array<[string, PageSnapshot]> = [];
+    for (const page of this.#layoutFor(runId).map((p) => p.file)) {
+      try {
+        snaps.push([page, await browser.snapshot!(new URL(page === "index.html" ? "/" : page, siteUrl).href)]);
+      } catch (e) {
+        store.recordEvidence(runId, [{ nodeId: "browser-qa", kind: "visual", ok: false, detail: `could not measure ${page}: ${e instanceof Error ? e.message : String(e)}` }]);
+      }
+    }
+    if (!snaps.length) return;
+    const rows = criteria.flatMap((c) => {
+      const check = { id: c.id.replace(/^crit:/, ""), rule: String(c.attrs?.["rule"] ?? c.name), kind: "deterministic" as const };
+      const results = snaps.map(([page, snap]) => ({ page, r: runRenderedCheck(check, snap, style) })).filter((x) => x.r);
+      if (!results.length) return [];
+      const failed = results.find((x) => x.r!.status === "fail");
+      const open = results.find((x) => x.r!.status === "unavailable");
+      const status: "pass" | "fail" | "unavailable" = failed ? "fail" : open ? "unavailable" : "pass";
+      const shown = failed ?? open ?? results[0]!;
+      return [{ nodeId: "browser-qa", criterionId: c.id, kind: "visual" as const, ok: status === "pass", status, detail: `${shown.page}: ${shown.r!.detail}` }];
+    });
+    store.recordEvidence(runId, rows);
   }
 
   /**

@@ -16,13 +16,15 @@
 // flattering subset.
 
 import { loadBaseChecks } from "./design/style.js";
+import { renderedRunnerFor } from "./design/rendered.js";
 import { DEFAULT_PACKS, loadPack } from "./packs/load.js";
 import type { StyleCheck, StyleGuide } from "./design/style.js";
 import type { DesignIR } from "./ir/schema.js";
 import type { Edge, KgNode } from "./graph/types.js";
 
 /** Which runner can produce evidence for a criterion today. */
-export type CriterionRunner = "build" | "structural" | "pending" | "judged" | "pack" | "asset" | "placement";
+/** `rendered`: judged on the rendered page by a style-check runner (D3). */
+export type CriterionRunner = "build" | "structural" | "pending" | "judged" | "pack" | "asset" | "placement" | "rendered";
 
 export interface CriteriaResult {
   nodes: KgNode[];
@@ -69,7 +71,8 @@ function runnerFor(check: StyleCheck): CriterionRunner {
     "base.responsive.type",
     "base.perf.images",
   ];
-  return provenByBuild.includes(check.id) ? "build" : "pending";
+  if (provenByBuild.includes(check.id)) return "build";
+  return renderedRunnerFor(check) ? "rendered" : "pending";
 }
 
 /**
@@ -158,7 +161,7 @@ export function mintCriteria(ir: DesignIR, style?: StyleGuide): CriteriaResult {
       const crit = criterion(
         check.id,
         check.rule,
-        check.kind === "judged" ? "judged" : "pending",
+        runnerFor(check),
         `${style.slug}.md`,
         check.kind,
       );

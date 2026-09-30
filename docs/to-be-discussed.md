@@ -39,9 +39,14 @@ Struck-through rows are settled; they stay here for one phase so the reasoning i
 - **`terminal-ui` has no reference pictures.** The six originally filed under `ascii-art` all
   turned out to belong to the editorial character-rendering style. It needs its own: box-drawn
   panels, phosphor on near-black, an 80-column measure, status output.
-- **`demo-design/` is mostly empty** — 5 of 91 folders have pictures.
-  `pinterest_website_design_inspiration.html` holds 92 cards of links, one per style, which is the
-  obvious source for filling the rest and for recording real source URLs in each `sources.md`.
+- **`demo-design/` is mostly empty** — 5 of 91 folders have pictures. Reference **links** are now
+  recorded for 87 styles (D3, #98); `bold-editorial`, `maximalism`, `minimalism` and
+  `terminal-ui` have none, because the Pinterest list has no entry for them.
+- **Style-check coverage (#97):** 110 of 674 deterministic checks have a rendered-page runner, 39
+  of them able to pass. The rest (texture, imagery, layout composition, per-element rules) stay
+  pending. Text over images or gradients needs a pixel-sampling contrast check.
+- **No webfonts are bundled (#96):** each style's type shows only where its families are
+  installed. Bundling licensed fonts per style is the upgrade.
 
 ## Carried engineering gaps
 

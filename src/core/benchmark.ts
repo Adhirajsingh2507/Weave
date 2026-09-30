@@ -7,7 +7,7 @@
 // with variance, and the runs Weave loses are part of the table.
 
 import { execFile } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, statSync } from "node:fs";
 import { createServer } from "node:http";
 import type { Server } from "node:http";
 import { tmpdir } from "node:os";
@@ -157,7 +157,9 @@ const TYPES: Record<string, string> = { ".html": "text/html", ".css": "text/css"
 export async function serve(dir: string): Promise<{ url: string; close: () => Promise<void> }> {
   const server: Server = createServer((req, res) => {
     const path = normalize(decodeURIComponent((req.url ?? "/").split("?")[0]!)).replace(/^(\.\.[/\\])+/, "");
-    const file = join(dir, path === "/" ? "index.html" : path);
+    let file = join(dir, path === "/" ? "index.html" : path);
+    // A folder serves its index.html; reading the folder itself threw and killed the server.
+    if (existsSync(file) && statSync(file).isDirectory()) file = join(file, "index.html");
     if (!file.startsWith(dir) || !existsSync(file)) return void res.writeHead(404).end();
     res.writeHead(200, { "content-type": TYPES[extname(file)] ?? "application/octet-stream" });
     res.end(readFileSync(file));

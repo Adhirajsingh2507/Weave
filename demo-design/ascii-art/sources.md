@@ -15,3 +15,11 @@ only provenance trace. Add the pin or site URL if you still have it.
 **What these establish:** ASCII here is an image-making technique inside modern editorial
 design — light or photographic grounds, serif or grotesque display type, full colour. It is not
 a terminal skin. The terminal reading moved to `design-guide/terminal-ui.md`.
+
+## Reference links
+
+From `pinterest_website_design_inspiration.html` (ASCII). Links only — no images are copied (decision: reference pictures as links).
+
+- [Reference 1 · Pinterest Search](https://www.pinterest.com/search/pins/?q=ascii%20website%20design)
+- [Reference 2 · Pinterest Search](https://www.pinterest.com/search/pins/?q=ascii%20web%20design%20ui)
+- [Reference 3 · Pinterest Search](https://www.pinterest.com/search/pins/?q=ascii%20landing%20page%20design)

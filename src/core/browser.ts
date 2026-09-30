@@ -7,6 +7,8 @@ import { createRequire } from "node:module";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { WEAVE_ROOT } from "./tools.js";
+import { SNAPSHOT_SCRIPT } from "./design/rendered.js";
+import type { PageSnapshot } from "./design/rendered.js";
 
 const run = promisify(execFile);
 
@@ -20,6 +22,8 @@ export interface BrowserResult {
 
 export interface BrowserWorker {
   capture(url: string, opts?: { screenshotPath?: string }): Promise<BrowserResult>;
+  /** Computed styles of the rendered page, for the style-check runners (D3). Playwright only. */
+  snapshot?(url: string): Promise<PageSnapshot>;
 }
 
 /** Software WebGL, so 3D renders headless without a GPU. */
@@ -61,6 +65,17 @@ export class PlaywrightBrowserWorker implements BrowserWorker {
       await browser.close();
     }
     return { ok: consoleErrors.length === 0, consoleErrors, consoleCaptured: true, ...(opts?.screenshotPath ? { screenshotPath: opts.screenshotPath } : {}) };
+  }
+
+  async snapshot(url: string): Promise<PageSnapshot> {
+    const { browser, page } = await openPage(this.#width, this.#height);
+    try {
+      await page.goto(url, { waitUntil: "networkidle", timeout: 60_000 });
+      await scrollThrough(page);
+      return await page.evaluate<PageSnapshot>(SNAPSHOT_SCRIPT);
+    } finally {
+      await browser.close();
+    }
   }
 }
 
@@ -165,6 +180,6 @@ export interface PWPage {
   on(event: "console", cb: (m: PWConsoleMsg) => void): void;
   on(event: "pageerror", cb: (e: unknown) => void): void;
   goto(url: string, opts?: { waitUntil?: string; timeout?: number }): Promise<unknown>;
-  screenshot(opts: { path: string; fullPage?: boolean }): Promise<unknown>;
+  screenshot(opts?: { path?: string; fullPage?: boolean }): Promise<Buffer>;
   evaluate<R = unknown>(script: string): Promise<R>;
 }

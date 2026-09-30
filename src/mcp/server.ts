@@ -7,7 +7,7 @@ import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mc
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { Engine, adapterDeps } from "../core/api.js";
-import { GUIDE_DIR, listStyles, loadStyle, suggestStyles } from "../core/design/style.js";
+import { GUIDE_DIR, listStyles, loadStyle, styleLinks, suggestStyles } from "../core/design/style.js";
 
 /** Reference pictures live beside the guides, one folder per style. */
 const PICTURE_DIR = join(GUIDE_DIR, "..", "demo-design");
@@ -59,12 +59,12 @@ export function createMcpServer(repoPath: string): McpServer {
   // ── Design presets (V2.6): the 91 guides, browsable and choosable by example ──
   server.registerTool(
     "list_styles",
-    { description: "The 91 design guides: slug, title, what each is for and against, and how many reference pictures it has", inputSchema: {} },
+    { description: "The 91 design guides: slug, title, what each is for and against, and how many reference pictures and reference links it has", inputSchema: {} },
     async () =>
       asText(
         listStyles().map((slug) => {
           const g = loadStyle(slug);
-          return { slug, title: g.title, summary: g.summary, bestFor: g.bestFor, avoidFor: g.avoidFor, pictures: picturesOf(slug).length };
+          return { slug, title: g.title, summary: g.summary, bestFor: g.bestFor, avoidFor: g.avoidFor, pictures: picturesOf(slug).length, links: styleLinks(slug).length };
         }),
       ),
   );
@@ -108,6 +108,22 @@ export function createMcpServer(repoPath: string): McpServer {
       if (!picturesOf(s).includes(f)) throw new Error(`no picture '${f}' for style '${s}'`);
       const mimeType = IMAGE_TYPES[extname(f).toLowerCase()]!;
       return { contents: [{ uri: uri.href, mimeType, blob: readFileSync(join(PICTURE_DIR, s, f)).toString("base64") }] };
+    },
+  );
+  server.registerResource(
+    "style-links",
+    new ResourceTemplate("style-links://{slug}", {
+      list: async () => ({
+        resources: listStyles()
+          .filter((slug) => styleLinks(slug).length)
+          .map((slug) => ({ uri: `style-links://${slug}`, name: `${loadStyle(slug).title}: reference links`, mimeType: "application/json" })),
+      }),
+    }),
+    { description: "Reference links for a design guide — links only, no images are copied", mimeType: "application/json" },
+    async (uri, { slug }) => {
+      const s = String(slug);
+      if (!listStyles().includes(s)) throw new Error(`unknown style '${s}'`);
+      return { contents: [{ uri: uri.href, mimeType: "application/json", text: JSON.stringify(styleLinks(s), null, 2) }] };
     },
   );
   server.registerTool(

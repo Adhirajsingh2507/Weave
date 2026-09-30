@@ -28,3 +28,7 @@ the guide.
 
 The eight remaining files are the ones that genuinely belong here: four core maximalist
 references and four adjacent ones (ornamental, eclectic, brutalist poster).
+
+## Reference links
+
+None: this style has no entry in `pinterest_website_design_inspiration.html`.
