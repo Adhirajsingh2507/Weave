@@ -6,3 +6,8 @@ dist/
 
 # LibreOffice lock files
 .~lock.*#
+
+# Secrets never belong in the repo
+.env
+.env.*
+!.env.example

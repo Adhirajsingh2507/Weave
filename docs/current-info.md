@@ -131,6 +131,21 @@ The ultimate reference is **`../autonomous-engineering-universal-context.md`** (
 | 74 | Browser | **Headless Chrome via its CLI** (`ChromeBrowserWorker`), Chrome's own sandbox kept on; Playwright stays the upgrade for console capture and full-page shots. |
 | 64 | OS sandbox | **bubblewrap on Linux**: home secrets and deny-listed files masked, the user's checkout hidden (only `.git` kept). Layered under Claude Code's own deny rules (`--settings`). Where bubblewrap cannot run, each node records that it ran unsandboxed. |
 
+## Direction decisions (2026-09-30, design discussion in progress)
+Asked and answered; the discussion continues, so these may be refined — changes go to `past-info.md`.
+
+| # | Decision | Value |
+|---|----------|-------|
+| 75 | Two ways to run | **Subscription mode** (Claude Code via your `claude` login) and **API mode** (the same Claude Code agents, authenticated with an API key and billed per token). |
+| 76 | Agents in subscription mode | **One tmux window per agent, each in its own folder (worktree)** — works on Linux, macOS and WSL2; attach, detach, come back. |
+| 77 | Human in the tab | **Watch and step in**: an interactive session you can type into; every message you type is recorded and **counts as a human intervention**. |
+| 78 | Repair in the tab | **The same session continues**: failure reasons are sent in as the next message. |
+| 79 | Permissions in the tab | **Fully automatic** within the sandbox and ownership rules; you step in only when you choose. |
+| 80 | Decisions and vision | **Through the subscription** (`claude` CLI), Opus 5.5, validated JSON; refused/rate-limited → stop and ask. API providers kept for API mode. |
+| 81 | Tests and benchmarks | Tests may use Claude. **Benchmarks: free open-source scorers only**, builds on the subscription — no API bill. |
+| 82 | Platforms | **Linux, macOS and Windows (via WSL2)**; the new device's OS is undecided. **A macOS sandbox backend** will be built. |
+| 83 | Repository | **Stays private.** Documentation pushed now and after every phase; `SETUP.md` is the new-device guide. |
+
 ## Tech stack (locked)
 | Concern | Choice |
 |---|---|
@@ -283,6 +298,6 @@ restores the user's branch and stash. Details in `implementation-v2.md` → V2.2
 repair* is proven by `policy-gate.check` but not yet by the demo itself — staged with the
 benchmark in V2.5. Contrast and target size wait on the browser worker (V2.7).
 
-**Next:** a first credentialed run. It is now the only way to close what remains open: the
-calibration corpus, the benchmark, live vision, the natural demo failure, and real Claude Code
-inside bubblewrap. After that, V3 planning.
+**Next:** the demonstration plan in `demo-plan.md` (decided 2026-09-30): preflight, decisions and
+vision through the Claude subscription, tools, real templates, rendered 3D, a measured first real
+build, screenshot intake, a public Vercel deploy, the benchmark, Jev, and a recording kit.

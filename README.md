@@ -117,6 +117,8 @@ in the design document and become the project's `styles/tokens.css`. `weave styl
 
 ## Quickstart
 
+New device? **[SETUP.md](SETUP.md)** walks through Linux, macOS and Windows (WSL2) step by step.
+
 ```bash
 pnpm install
 pnpm build
