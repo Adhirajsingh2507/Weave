@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Weave \u2014 graph-driven autonomous engineering platform (headless core + CLI).",
+  "description": "Weave — graph-driven autonomous engineering platform (headless core + CLI).",
   "bin": {
     "weave": "dist/cli/index.js",
     "weave-mcp": "dist/mcp/bin.js"
@@ -21,7 +21,7 @@
     "start": "node dist/cli/index.js",
     "demo": "pnpm build && node scripts/demo.mjs",
     "ship": "bash scripts/deploy.sh",
-    "check": "node dist/core/ir/schema.check.js && node dist/core/policy/policy.check.js && node dist/core/graph/project.check.js && node dist/core/store/store.check.js && node dist/core/decision/runner.check.js && node dist/core/doctor.check.js && node dist/core/subscription.check.js && node dist/core/loop.check.js && node dist/core/verify.check.js && node dist/core/visual.check.js && node dist/core/compiler.check.js && node dist/core/ir-tokens.check.js && node dist/core/intake-vision.check.js && node dist/core/assets.check.js && node dist/core/visual-placement.check.js && node dist/core/tools.check.js && node dist/core/ingest/ingest.check.js && node dist/core/orchestrator.check.js && node dist/core/parallel.check.js && node dist/core/parallel-resume.check.js && node dist/core/dag.check.js && node dist/core/resume.check.js && node dist/core/deploy.check.js && node dist/core/sandbox.check.js && node dist/core/risky-op.check.js && node dist/core/design/style.check.js && node dist/core/theme.check.js && node dist/core/build.check.js && node dist/core/criteria.check.js && node dist/core/traceability.check.js && node dist/core/report-html.check.js && node dist/core/benchmark.check.js && node dist/core/packs/packs.check.js && node dist/core/packs/policy-gate.check.js && node dist/mcp/mcp.check.js",
+    "check": "node dist/core/ir/schema.check.js && node dist/core/policy/policy.check.js && node dist/core/graph/project.check.js && node dist/core/store/store.check.js && node dist/core/decision/runner.check.js && node dist/core/doctor.check.js && node dist/core/subscription.check.js && node dist/core/loop.check.js && node dist/core/verify.check.js && node dist/core/visual.check.js && node dist/core/compiler.check.js && node dist/core/ir-tokens.check.js && node dist/core/intake-vision.check.js && node dist/core/assets.check.js && node dist/core/visual-placement.check.js && node dist/core/viewer.check.js && node dist/core/tools.check.js && node dist/core/ingest/ingest.check.js && node dist/core/orchestrator.check.js && node dist/core/parallel.check.js && node dist/core/parallel-resume.check.js && node dist/core/dag.check.js && node dist/core/resume.check.js && node dist/core/deploy.check.js && node dist/core/sandbox.check.js && node dist/core/risky-op.check.js && node dist/core/design/style.check.js && node dist/core/theme.check.js && node dist/core/build.check.js && node dist/core/criteria.check.js && node dist/core/traceability.check.js && node dist/core/report-html.check.js && node dist/core/benchmark.check.js && node dist/core/packs/packs.check.js && node dist/core/packs/policy-gate.check.js && node dist/mcp/mcp.check.js",
     "tools:gitleaks": "node scripts/tools.mjs"
   },
   "dependencies": {
@@ -36,11 +36,13 @@
     "@axe-core/playwright": "4.13.0",
     "@gltf-transform/cli": "4.5.1",
     "@gltf-transform/core": "4.5.1",
+    "@google/model-viewer": "4.3.1",
     "@types/better-sqlite3": "^9.6.0",
     "@types/node": "^22.10.0",
     "lighthouse": "13.5.0",
     "playwright": "1.63.0",
     "sharp": "0.35.5",
+    "three": "0.186.1",
     "typescript": "^5.8.3"
   }
 }

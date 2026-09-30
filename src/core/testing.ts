@@ -15,7 +15,7 @@ export function realise(input: ExecInput, inner?: string): ExecResult {
   // With no markup given, place whatever assets the brief says this section places.
   const told = input.contextPack.constraints.find((c) => c.startsWith("Place these assets")) ?? "";
   const placed = [...new Set(told.match(/assets\/[\w.-]+/g) ?? [])]
-    .map((p) => (/\.(glb|gltf)$/.test(p) ? `<model-viewer src="${p}" alt="${id} model"></model-viewer>` : `<img src="${p}" alt="${id} image">`))
+    .map((p) => (/\.(glb|gltf)$/.test(p) ? `<model-viewer src="${p}" alt="${id} model" camera-controls style="width:100%;height:480px"></model-viewer>` : `<img src="${p}" alt="${id} image">`))
     .join("");
   const section = `<section id="${id}" data-design-node="${id}">${inner ?? `<h2>${id}</h2><p>Built.</p>${placed}`}</section>`;
 

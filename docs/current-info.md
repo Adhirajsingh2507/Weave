@@ -161,6 +161,10 @@ Asked and answered; the discussion continues, so these may be refined — change
 | 96 | Themes (D3) | **`styles/theme.css`**, generated per guide, applies the tokens to plain markup (body, headings, links, sections, `article`/`.card`, buttons, form controls). Palette roles by name, then luminance; **text, links and button labels are guaranteed ≥ 4.5:1**. A zero-motion guide declares no transitions; `shadow: none` declares no shadows. Font stacks are quoted and used as written; **no webfonts are bundled** (a page shows the first installed family). |
 | 97 | Style checks on the render (D3) | Criteria whose rule a runner recognises get the **`rendered`** runner and are judged on a Playwright computed-style snapshot of every built page. **A failure is decisive; a pass counts only when the runner covers the whole rule**, otherwise it is `unavailable` naming what was and was not measured. Text over an image or gradient is never passed on computed colours. Coverage: 110 of 674 deterministic checks can fail, 39 can also pass. |
 | 98 | Reference links (D3) | Each style's `demo-design/<slug>/sources.md` has a **Reference links** list from `pinterest_website_design_inspiration.html` (87 styles; `bold-editorial`, `maximalism`, `minimalism`, `terminal-ui` have no entry and get none). MCP serves them as `style-links://<slug>` (JSON); `list_styles` counts them. |
+| 99 | 3D viewer (D4) | **model-viewer 4.3.1 bundled** (`vendor/model-viewer.min.js`, a Weave devDependency) whenever the design places a 3D asset, loaded as a module on every page; the placing agent is told not to add a script, CDN or other 3D library. `vendor/` is not scanned as project source by the packs; `dist/` still counts its bytes. |
+| 100 | 3D optimisation | gltf-transform with **`--compress quantize`** (no meshopt/Draco: their decoders load from a CDN the allowlist and CSP refuse), **no simplify, no join** (geometry changes are the budget gate's decision; joining turns instances into copies). |
+| 101 | Deploy headers | The scaffold emits **`vercel.json`**: HSTS, nosniff, `X-Frame-Options: DENY`, Referrer-Policy, Permissions-Policy and a CSP allowing the site's own files only (`'wasm-unsafe-eval'` for the viewer, `blob:` for textures and workers, inline styles for web components). The build copies it into `dist/`, which is what Vercel uploads. **Weave's local server honours it**, so renders run under the production CSP. |
+| 102 | The robot | `examples/assets/go2.glb` from `scripts/go2-model.mjs` (unitree_ros@5994d4f, every file SHA-256-pinned; assembled in Chromium with three.js, standing pose thigh 0.67 / calf −1.3 rad; UVs and normals dropped, flat-shaded; 951 KB, 80,786 triangles). |
 
 ## Tech stack (locked)
 | Concern | Choice |
@@ -295,7 +299,7 @@ by headless Chrome and the screenshots are evidence; visibility is judged on the
 **V2 is complete** as planned — every phase shipped, each with the caveat that no real agent
 run has exercised it.
 
-**Verification now:** 36 self-checks plus the design validator. `pnpm demo` ends at
+**Verification now:** 37 self-checks plus the design validator. `pnpm demo` ends at
 `first-pass 75% | repair 100% | coverage 67%`, 20 criteria passed and 2 failed — the two failures
 are real: the demo's stand-in host sends no HSTS or Referrer-Policy header, and the live checks
 say so. The demo also exercises the policy repair loop, acquires and places a 3D model, renders the

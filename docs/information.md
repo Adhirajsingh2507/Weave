@@ -176,7 +176,7 @@ path.
 **Design system:** 91 guides, 739 checks (~86% deterministic), 89 picture folders, validated by
 `scripts/check-design.mjs`.
 
-**Verification:** 36 self-checks + the design validator. `pnpm demo` runs end to end without
+**Verification:** 37 self-checks + the design validator. `pnpm demo` runs end to end without
 credentials, including a gated deploy to a local stand-in host.
 
 ## 9. Open / ongoing

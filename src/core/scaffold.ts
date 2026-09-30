@@ -6,11 +6,12 @@
 // work offline, in CI, and inside a fresh worktree.
 
 import { execFile } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
 import { styleTokensCss } from "./design/style.js";
 import { styleThemeCss } from "./design/theme.js";
+import { WEAVE_ROOT } from "./tools.js";
 import type { StyleGuide } from "./design/style.js";
 import type { PageLayout } from "./plan.js";
 
@@ -25,6 +26,8 @@ export interface ScaffoldInput {
   sections?: string[];
   /** Pages and their component slots. Takes precedence over `sections`. */
   pages?: PageLayout[];
+  /** The design places a 3D model: bundle the viewer into vendor/ and load it on every page (D4). */
+  viewer3d?: boolean;
 }
 
 export interface ScaffoldResult {
@@ -93,12 +96,23 @@ export class TemplateScaffolder implements Scaffolder {
     }, null, 2)}\n`, files);
 
     write(repoPath, "scripts/build.mjs", BUILD_SCRIPT, files);
+    // Deploy headers the live checks look for, and a CSP that allows this site's own files only.
+    write(repoPath, "vercel.json", VERCEL_JSON, files);
+    if (input.viewer3d) {
+      // Bundled, not loaded from a CDN: the egress allowlist and the CSP both refuse CDNs, and a
+      // render must not depend on the network. Models are optimised with mesh quantisation, which
+      // the viewer decodes natively — no decoder download either.
+      mkdirSync(join(repoPath, "vendor"), { recursive: true });
+      copyFileSync(join(WEAVE_ROOT, "node_modules", "@google", "model-viewer", "dist", "model-viewer.min.js"), join(repoPath, "vendor", "model-viewer.min.js"));
+      files.push("vendor/model-viewer.min.js");
+      write(repoPath, "vendor/README.md", VENDOR_README, files);
+    }
     write(repoPath, "scripts/check.mjs", CHECK_SCRIPT, files);
     write(repoPath, "styles/base.css", BASE_CSS, files);
     for (const page of pages) {
       const title = page.file === "index.html" ? projectName : `${page.name ?? page.id} — ${projectName}`;
       const heading = page.file === "index.html" ? projectName : (page.name ?? page.id ?? projectName);
-      writeIfAbsent(repoPath, page.file, pageHtml(title, heading, page.sections, page.id), files);
+      writeIfAbsent(repoPath, page.file, pageHtml(title, heading, page.sections, page.id, input.viewer3d), files);
     }
     writeIfAbsent(repoPath, ".gitignore", "node_modules/\ndist/\n", files);
 
@@ -146,6 +160,9 @@ mkdirSync("dist", { recursive: true });
 cpSync("index.html", "dist/index.html");
 if (existsSync("styles")) cpSync("styles", "dist/styles", { recursive: true });
 if (existsSync("assets")) cpSync("assets", "dist/assets", { recursive: true });
+if (existsSync("vendor")) cpSync("vendor", "dist/vendor", { recursive: true });
+// Vercel deploys dist/, so its config — the security headers — has to be in it.
+if (existsSync("vercel.json")) cpSync("vercel.json", "dist/vercel.json");
 for (const page of readdirSync(".").filter((f) => f.endsWith(".html"))) {
   cpSync(page, \`dist/\${page}\`);
 }
@@ -191,6 +208,47 @@ if (failures.length) {
 console.log("check: ok (" + pages.length + " page(s))");
 `;
 
+/**
+ * Security headers for Vercel (the pack's live checks read HSTS, nosniff, framing, referrer).
+ * The CSP allows this site's own files only; `blob:` is how the 3D viewer hands textures and
+ * workers to WebGL, and inline styles are allowed because web components set style attributes.
+ * 'wasm-unsafe-eval' lets the bundled viewer compile its WebAssembly (observed: refused otherwise,
+ * with a console error that fails browser QA); it does not allow JavaScript eval.
+ */
+export const CSP =
+  "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; " +
+  "connect-src 'self' data: blob:; worker-src 'self' blob:; font-src 'self'; media-src 'self' blob:; " +
+  "object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'";
+
+const VERCEL_JSON = `${JSON.stringify(
+  {
+    headers: [
+      {
+        source: "/(.*)",
+        headers: [
+          { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+          { key: "Content-Security-Policy", value: CSP },
+        ],
+      },
+    ],
+  },
+  null,
+  2,
+)}\n`;
+
+const VENDOR_README = `# vendor/
+
+Third-party files bundled by Weave's scaffold so the site renders offline and under its own CSP.
+
+- \`model-viewer.min.js\` — Google's <model-viewer> ${"4.3.1"}, Apache-2.0 (bundled dependencies keep
+  the licence headers in the file). Use: \`<model-viewer src="assets/model.glb" alt="…" camera-controls
+  auto-rotate></model-viewer>\`. Load it with \`<script type="module" src="vendor/model-viewer.min.js">\`.
+`;
+
 const DEFAULT_TOKENS = `/* No style chosen — neutral defaults. */
 :root {
   --colors-palette-background: #ffffff;
@@ -211,7 +269,7 @@ img, video { max-width: 100%; height: auto; }
 }
 `;
 
-function pageHtml(title: string, heading: string, sections: string[], pageId?: string): string {
+function pageHtml(title: string, heading: string, sections: string[], pageId?: string, viewer3d?: boolean): string {
   const placeholders = sections
     // data-placeholder is what lets verification tell "stubbed" from "built" — without it a
     // no-op agent passes, because the scaffold already put the element on the page.
@@ -228,7 +286,7 @@ function pageHtml(title: string, heading: string, sections: string[], pageId?: s
   <meta name="description" content="${title}">
   <link rel="stylesheet" href="styles/tokens.css">
   <link rel="stylesheet" href="styles/base.css">
-  <link rel="stylesheet" href="styles/theme.css">
+  <link rel="stylesheet" href="styles/theme.css">${viewer3d ? '\n  <script type="module" src="vendor/model-viewer.min.js"></script>' : ""}
 </head>
 ${body}
   <a class="skip-link" href="#main">Skip to content</a>

@@ -151,17 +151,28 @@ export const pnpmAudit: Scorer = {
 
 export const DEFAULT_SCORERS: Scorer[] = [lighthouse, axe, gitleaks, pnpmAudit];
 
-const TYPES: Record<string, string> = { ".html": "text/html", ".css": "text/css", ".js": "text/javascript", ".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg", ".glb": "model/gltf-binary" };
+const TYPES: Record<string, string> = { ".html": "text/html", ".css": "text/css", ".js": "text/javascript", ".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg", ".glb": "model/gltf-binary", ".webp": "image/webp", ".json": "application/json", ".mjs": "text/javascript", ".gltf": "model/gltf+json", ".ico": "image/x-icon" };
 
-/** Serve a built site on loopback so browser-based scorers see it as a user would. */
+/**
+ * Serve a built site as its deploy would: the global headers in its vercel.json are sent, so a
+ * local render runs under the same CSP as production and a policy that breaks the page is caught
+ * before release. ponytail: only `source: "/(.*)"` rules; per-path rules are the upgrade.
+ */
 export async function serve(dir: string): Promise<{ url: string; close: () => Promise<void> }> {
+  const headers: Record<string, string> = {};
+  try {
+    const cfg = JSON.parse(readFileSync(join(dir, "vercel.json"), "utf8")) as { headers?: Array<{ source: string; headers: Array<{ key: string; value: string }> }> };
+    for (const rule of cfg.headers ?? []) if (rule.source === "/(.*)") for (const h of rule.headers) headers[h.key.toLowerCase()] = h.value;
+  } catch {
+    // no vercel.json, or not ours to read: plain static serving
+  }
   const server: Server = createServer((req, res) => {
     const path = normalize(decodeURIComponent((req.url ?? "/").split("?")[0]!)).replace(/^(\.\.[/\\])+/, "");
     let file = join(dir, path === "/" ? "index.html" : path);
     // A folder serves its index.html; reading the folder itself threw and killed the server.
     if (existsSync(file) && statSync(file).isDirectory()) file = join(file, "index.html");
     if (!file.startsWith(dir) || !existsSync(file)) return void res.writeHead(404).end();
-    res.writeHead(200, { "content-type": TYPES[extname(file)] ?? "application/octet-stream" });
+    res.writeHead(200, { ...headers, "content-type": TYPES[extname(file)] ?? "application/octet-stream" });
     res.end(readFileSync(file));
   });
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));

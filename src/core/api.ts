@@ -521,8 +521,14 @@ export class Engine {
       constraints.push(
         `Place these assets in this section by referencing them from your markup — they are already in the project, ` +
           `measured and within budget; do not modify, move or re-encode them: ` +
-          mine.map((a) => `${a.path} (${a.summary})${a.type === "3d" ? ` — e.g. <model-viewer src="${a.path}" alt="…">` : ""}`).join("; ") + ".",
+          mine.map((a) => `${a.path} (${a.summary})${a.type === "3d" ? ` — e.g. <model-viewer src="${a.path}" alt="…" camera-controls auto-rotate style="width:100%;height:480px">` : ""}`).join("; ") + ".",
       );
+      if (mine.some((a) => a.type === "3d")) {
+        constraints.push(
+          "The <model-viewer> element is already loaded on every page from vendor/model-viewer.min.js. Do not add a script tag, " +
+            "a CDN link or another 3D library — the site's CSP allows its own files only. Give the element an explicit height.",
+        );
+      }
     }
     const unplaced = assets.filter((a) => !a.placement);
     if (unplaced.length && node.kind === "impl") {
@@ -565,6 +571,7 @@ export class Engine {
       // Custom scaffolders keep receiving every slot as `sections`; `pages` adds the layout.
       sections: layout.flatMap((p) => p.sections),
       ...(layout[0]?.id || layout.length > 1 ? { pages: layout } : {}),
+      viewer3d: (this.#loadIR(runId)?.assets ?? []).some((a) => a.type === "3d"),
     });
     const commit = await this.#harness!.commitWorkingTree(`chore(scaffold): ${result.summary}`);
     const evidence: Parameters<GraphStore["recordEvidence"]>[1] = [

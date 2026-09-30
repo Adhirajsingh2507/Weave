@@ -62,7 +62,7 @@ try {
     const before = statSync(glb).size;
     const res = await gltfOpt.optimize(glb);
     assert.equal(res.changed, true, res.detail);
-    assert.ok(statSync(glb).size < before / 2, `gltf-transform shrank the model (${res.detail})`);
+    assert.ok(statSync(glb).size < before * 0.75, `gltf-transform shrank the model by a quarter or more (${res.detail})`);
   } else skip("gltf-transform", "not installed");
 
   // ── Scorers: gitleaks, axe, Lighthouse ──────────────────────────

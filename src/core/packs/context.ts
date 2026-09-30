@@ -65,7 +65,11 @@ export async function buildLiveContext(url: string, pageFiles: string[]): Promis
   return { repoPath: "", files: [], trackedFiles: [], htmlPages, css: "", js: "", distFiles: [], facts, live: { url, headers } };
 }
 
-const SKIP_DIRS = new Set(["node_modules", ".git", ".agent", "dist", "build", ".next", "coverage"]);
+// vendor/ holds third-party files the scaffold bundles from pinned packages (the 3D viewer). The
+// source rules — no eval, no secrets, noopener — are about the project's own code; a minified
+// library matched `new Function(` and an AKIA-shaped string, which no repair could or should fix.
+// dist/ is still walked in full, so page-weight checks count the vendored bytes.
+const SKIP_DIRS = new Set(["node_modules", ".git", ".agent", "dist", "build", ".next", "coverage", "vendor"]);
 const TEXT_EXT = new Set([".html", ".htm", ".css", ".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx", ".json", ".md", ".txt", ".svg"]);
 
 function walk(root: string, dir: string, out: SiteFile[], includeSkipped = false): void {

@@ -82,9 +82,9 @@ they are not lost:
 - **V2.7 ceilings.** ~~Raster and 3D optimisation need sharp / gltf-transform~~ and ~~the Chrome
   CLI cannot see console errors~~ — closed in D2 (#95). Still open: rasters are re-encoded, not
   resized to their pixel budget; video and fonts are budgeted by size only.
-- **3D needs a renderer.** `<model-viewer>` loads its script from a CDN, which the egress
-  allowlist and a strict CSP both stop. Decide whether the scaffold vendors a renderer, or 3D
-  placement requires a poster image as the fallback.
+- ~~**3D needs a renderer.**~~ — the scaffold bundles model-viewer (D4, #99).
+- **The example brief's `logo.svg` is not supplied.** `examples/assets` has the Go2 only; the
+  first real build (D5) needs a logo file, or the logo line removed.
 - ~~The IR has no home for the guides' `shape`, `motion` and `spacing` tokens~~ — V2.6 (#68).
 - `ingest --changed` uses working-tree dirty files rather than a persisted since-last-ingest diff,
   and deletions leave stale code nodes.

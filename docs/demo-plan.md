@@ -121,6 +121,15 @@ egress allowlist reaching what the subscription login needs, `TYPESAFE_API_KEY` 
 - Deploy headers: the scaffold emits a `vercel.json` with the security headers the live checks
   look for (they failed in the stand-in host) and a CSP that allows the bundled viewer only.
 - **Exit:** a Playwright render shows the robot in the hero; visual QA judges it visible.
+- **Done 2026-10-01** (#99–#102). `examples/assets/go2.glb`: Unitree's Go2 assembled from the
+  pinned URDF by `scripts/go2-model.mjs`, standing, **951 KB / 80,786 triangles**, BSD-3-Clause
+  notice in `go2.CREDITS.md`. The scaffold bundles model-viewer into `vendor/` and emits
+  `vercel.json` (security headers + CSP). Real run on this machine: Playwright rendered the Go2 in
+  the futuristic hero with no console errors under the CSP, and **real visual QA (Opus 5.5 via
+  the subscription) judged it visible at 0.9**. `viewer.check` proves the render in CI (pixel
+  spread, CSP clean) on a recorded reading. Found on the way: model-viewer fetches decoders from
+  CDNs for meshopt/Draco models (so Weave quantises instead), and needs `'wasm-unsafe-eval'`; the
+  web-security pack was scanning the vendored viewer as project source.
 
 ### D4.5 — Agents in tmux windows (#76–#79, #91)
 
@@ -201,7 +210,7 @@ egress allowlist reaching what the subscription login needs, `TYPESAFE_API_KEY` 
 | D1 Subscription decision + vision | **done** |
 | D2 Tools | **done** (CI proves them) |
 | D3 Templates for real | **done** |
-| D4 3D that renders | not started |
+| D4 3D that renders | **done** |
 | D4.5 Agents in tmux | not started |
 | D5 First real build | not started |
 | D6 Intake + public deploy | not started (site decided, #86) |

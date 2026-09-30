@@ -320,7 +320,11 @@ export async function defaultOptimizers(): Promise<AssetOptimizer[]> {
   const gltf = toolBin("gltf-transform");
   try {
     await run(gltf === "gltf-transform" ? "which" : "test", gltf === "gltf-transform" ? [gltf] : ["-x", gltf]);
-    list.push(new CommandOptimizer("gltf-transform", [".glb", ".gltf"], gltf, ["optimize", "--compress", "meshopt", "--texture-compress", "webp"]));
+    // Quantize, not meshopt or Draco: those need a decoder the viewer fetches from a CDN, which the
+    // egress allowlist and the site's CSP both refuse. Quantized meshes decode natively. No
+    // simplify and no join: changing a model's geometry is a decision for the budget gate, and
+    // joining turns shared instances into copies.
+    list.push(new CommandOptimizer("gltf-transform", [".glb", ".gltf"], gltf, ["optimize", "--compress", "quantize", "--texture-compress", "webp", "--simplify", "false", "--join", "false", "--flatten", "false"]));
   } catch {
     // not installed: 3D is measured and budgeted, not optimised — and the record says so
   }
