@@ -5,6 +5,8 @@
 // headers directly — PNG, JPEG, GIF, WebP and SVG dimensions, glTF-binary geometry — so it works
 // offline with no image or 3D library installed.
 
+import { createRequire } from "node:module";
+import { WEAVE_ROOT, toolBin } from "./tools.js";
 import { execFile } from "node:child_process";
 import { copyFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { basename, extname, isAbsolute, join } from "node:path";
@@ -271,12 +273,54 @@ export class CommandOptimizer implements AssetOptimizer {
   }
 }
 
-/** The built-in optimisers, plus gltf-transform for 3D when it is installed. */
+/**
+ * Rasters re-encoded with sharp (D2): PNG lossless at maximum compression, JPEG with mozjpeg and
+ * WebP at quality 80. Never larger, never a different format.
+ * ponytail: no resizing — an image over its pixel budget still gates; resizing to the budget is
+ * the upgrade once a real asset needs it.
+ */
+export class SharpOptimizer implements AssetOptimizer {
+  readonly name = "sharp";
+  applies(path: string): boolean {
+    return [".png", ".jpg", ".jpeg", ".webp"].includes(extname(path).toLowerCase());
+  }
+  async optimize(path: string): Promise<{ changed: boolean; detail: string }> {
+    const sharp = createRequire(join(WEAVE_ROOT, "package.json"))("sharp") as (input: Buffer) => SharpChain;
+    const before = readFileSync(path);
+    const ext = extname(path).toLowerCase();
+    const img = sharp(before);
+    const after = await (ext === ".png"
+      ? img.png({ compressionLevel: 9, adaptiveFiltering: true, effort: 10 })
+      : ext === ".webp"
+        ? img.webp({ quality: 80 })
+        : img.jpeg({ quality: 80, mozjpeg: true })
+    ).toBuffer();
+    if (after.length >= before.length) return { changed: false, detail: "sharp could not shrink it" };
+    writeFileSync(path, after);
+    return { changed: true, detail: `sharp: ${kb(before.length)} → ${kb(after.length)}` };
+  }
+}
+interface SharpChain {
+  png(o: object): SharpChain;
+  webp(o: object): SharpChain;
+  jpeg(o: object): SharpChain;
+  toBuffer(): Promise<Buffer>;
+}
+
+/** The built-in optimisers, plus sharp and gltf-transform when installed (D2: they are, as devDependencies). */
 export async function defaultOptimizers(): Promise<AssetOptimizer[]> {
   const list: AssetOptimizer[] = [svgMinifier];
+  const req = createRequire(join(WEAVE_ROOT, "package.json"));
   try {
-    await run("which", ["gltf-transform"]);
-    list.push(new CommandOptimizer("gltf-transform", [".glb", ".gltf"], "gltf-transform", ["optimize", "--compress", "meshopt", "--texture-compress", "webp"]));
+    req.resolve("sharp");
+    list.push(new SharpOptimizer());
+  } catch {
+    // not installed: rasters are measured and budgeted, not optimised — and the record says so
+  }
+  const gltf = toolBin("gltf-transform");
+  try {
+    await run(gltf === "gltf-transform" ? "which" : "test", gltf === "gltf-transform" ? [gltf] : ["-x", gltf]);
+    list.push(new CommandOptimizer("gltf-transform", [".glb", ".gltf"], gltf, ["optimize", "--compress", "meshopt", "--texture-compress", "webp"]));
   } catch {
     // not installed: 3D is measured and budgeted, not optimised — and the record says so
   }

@@ -1,9 +1,12 @@
-// Phase 5 — browser worker seam. Real adapter lazy-imports Playwright so the dep stays
-// optional (install: pnpm add -D playwright && npx playwright install chromium).
+// Browser worker seam. Playwright is the default (D2): full-page captures, console errors, a
+// scroll pass so lazy and scroll-driven content renders. The Chrome CLI is the fallback.
 
 import { execFile, execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
+import { createRequire } from "node:module";
+import { join } from "node:path";
 import { promisify } from "node:util";
+import { WEAVE_ROOT } from "./tools.js";
 
 const run = promisify(execFile);
 
@@ -19,30 +22,75 @@ export interface BrowserWorker {
   capture(url: string, opts?: { screenshotPath?: string }): Promise<BrowserResult>;
 }
 
+/** Software WebGL, so 3D renders headless without a GPU. */
+const GL_ARGS = ["--enable-unsafe-swiftshader", "--use-angle=swiftshader", "--ignore-gpu-blocklist"];
+
 export class PlaywrightBrowserWorker implements BrowserWorker {
-  async capture(url: string, opts?: { screenshotPath?: string }): Promise<BrowserResult> {
-    // Variable specifier keeps TS from requiring the optional dep at build time.
-    const spec = "playwright";
-    let mod: { chromium: { launch: () => Promise<PWBrowser> } };
+  #width: number;
+  #height: number;
+  #fullPage: boolean;
+
+  constructor(opts: { width?: number; height?: number; fullPage?: boolean } = {}) {
+    this.#width = opts.width ?? 1280;
+    this.#height = opts.height ?? 900;
+    this.#fullPage = opts.fullPage ?? true;
+  }
+
+  /** Playwright installed in Weave, with its browser downloaded. Synchronous, for adapterDeps. */
+  static available(): boolean {
     try {
-      mod = (await import(spec)) as typeof mod;
+      const pw = createRequire(join(WEAVE_ROOT, "package.json"))("playwright") as { chromium: { executablePath(): string } };
+      return existsSync(pw.chromium.executablePath());
     } catch {
-      throw new Error(
-        "playwright not installed — run: pnpm add -D playwright && npx playwright install chromium",
-      );
+      return false;
     }
-    const browser = await mod.chromium.launch();
-    const page = await browser.newPage();
+  }
+
+  async capture(url: string, opts?: { screenshotPath?: string }): Promise<BrowserResult> {
+    const { browser, page } = await openPage(this.#width, this.#height);
     const consoleErrors: string[] = [];
     page.on("console", (m) => {
       if (m.type() === "error") consoleErrors.push(m.text());
     });
     page.on("pageerror", (e) => consoleErrors.push(String(e)));
-    await page.goto(url, { waitUntil: "networkidle" });
-    if (opts?.screenshotPath) await page.screenshot({ path: opts.screenshotPath, fullPage: true });
-    await browser.close();
-    return { ok: consoleErrors.length === 0, consoleErrors, screenshotPath: opts?.screenshotPath };
+    try {
+      await page.goto(url, { waitUntil: "networkidle", timeout: 60_000 });
+      await scrollThrough(page);
+      if (opts?.screenshotPath) await page.screenshot({ path: opts.screenshotPath, fullPage: this.#fullPage });
+    } finally {
+      await browser.close();
+    }
+    return { ok: consoleErrors.length === 0, consoleErrors, consoleCaptured: true, ...(opts?.screenshotPath ? { screenshotPath: opts.screenshotPath } : {}) };
   }
+}
+
+/** A Playwright page on Weave's own Chromium. Callers close the browser. */
+export async function openPage(width = 1280, height = 900): Promise<{ browser: PWBrowser; page: PWPage }> {
+  const spec = join(WEAVE_ROOT, "node_modules", "playwright", "index.mjs");
+  let mod: { chromium: { launch: (o?: { args?: string[] }) => Promise<PWBrowser> } };
+  try {
+    mod = (await import(spec)) as typeof mod;
+  } catch {
+    throw new Error("playwright not installed — run: pnpm install && pnpm exec playwright install chromium");
+  }
+  const browser = await mod.chromium.launch({ args: GL_ARGS });
+  // A context, not browser.newPage(): axe refuses pages without one.
+  const page = await (await browser.newContext({ viewport: { width, height } })).newPage();
+  return { browser, page };
+}
+
+/** Scroll to the bottom in viewport steps and back, so lazy images and scroll triggers fire. */
+async function scrollThrough(page: PWPage): Promise<void> {
+  // A string, not a function: this build has no DOM types, and the code runs in the page.
+  await page.evaluate(`(async () => {
+    const step = window.innerHeight;
+    for (let y = 0; y < document.documentElement.scrollHeight; y += step) {
+      window.scrollTo(0, y);
+      await new Promise((r) => setTimeout(r, 150));
+    }
+    window.scrollTo(0, 0);
+    await new Promise((r) => setTimeout(r, 300));
+  })()`);
 }
 
 const CHROMES = ["google-chrome", "google-chrome-stable", "chromium", "chromium-browser"];
@@ -104,18 +152,19 @@ export class FakeBrowserWorker implements BrowserWorker {
   }
 }
 
-// Minimal Playwright surface we use (avoids depending on its types).
-interface PWBrowser {
-  newPage(): Promise<PWPage>;
+// Minimal Playwright surface we use (avoids depending on its types at build time).
+export interface PWBrowser {
+  newContext(opts?: { viewport?: { width: number; height: number } }): Promise<{ newPage(): Promise<PWPage> }>;
   close(): Promise<void>;
 }
 interface PWConsoleMsg {
   type(): string;
   text(): string;
 }
-interface PWPage {
+export interface PWPage {
   on(event: "console", cb: (m: PWConsoleMsg) => void): void;
   on(event: "pageerror", cb: (e: unknown) => void): void;
-  goto(url: string, opts?: { waitUntil?: string }): Promise<unknown>;
+  goto(url: string, opts?: { waitUntil?: string; timeout?: number }): Promise<unknown>;
   screenshot(opts: { path: string; fullPage?: boolean }): Promise<unknown>;
+  evaluate<R = unknown>(script: string): Promise<R>;
 }

@@ -13,6 +13,8 @@ import type { Server } from "node:http";
 import { tmpdir } from "node:os";
 import { extname, join, normalize } from "node:path";
 import { promisify } from "node:util";
+import { PlaywrightBrowserWorker, openPage } from "./browser.js";
+import { WEAVE_ROOT, toolBin } from "./tools.js";
 
 const run = promisify(execFile);
 
@@ -43,6 +45,7 @@ export interface Scorer {
 }
 
 async function onPath(bin: string): Promise<boolean> {
+  if (toolBin(bin) !== bin) return true;
   try {
     await run("which", [bin]);
     return true;
@@ -67,11 +70,11 @@ async function json(cmd: string, args: string[], cwd: string): Promise<unknown> 
 export const lighthouse: Scorer = {
   name: "lighthouse",
   async unavailable() {
-    return (await onPath("lighthouse")) ? null : "lighthouse not on PATH (npm i -g lighthouse; needs Chrome)";
+    return (await onPath("lighthouse")) ? null : "lighthouse not installed (pnpm install; needs Chrome)";
   },
   async score({ url, dir }) {
     const report = (await json(
-      "lighthouse",
+      toolBin("lighthouse"),
       [url, "--output=json", "--quiet", "--chrome-flags=--headless=new --no-sandbox"],
       dir,
     )) as { categories: Record<string, { score: number | null }> };
@@ -83,19 +86,27 @@ export const lighthouse: Scorer = {
   },
 };
 
-/** axe-core accessibility violations, via @axe-core/cli. */
+/** axe-core accessibility violations, run in Weave's Playwright Chromium (D2). */
 export const axe: Scorer = {
   name: "axe",
   async unavailable() {
-    return (await onPath("axe")) ? null : "axe not on PATH (npm i -g @axe-core/cli; needs Chrome)";
+    return PlaywrightBrowserWorker.available() ? null : "axe needs Playwright (pnpm install && pnpm exec playwright install chromium)";
   },
-  async score({ url, dir }) {
-    const results = (await json("axe", [url, "--stdout", "--exit"], dir)) as Array<{ violations: Array<{ nodes: unknown[] }> }>;
-    const violations = results.flatMap((r) => r.violations);
-    return {
-      "axe.violations": { value: violations.length, better: "lower" },
-      "axe.affected-nodes": { value: violations.reduce((n, v) => n + v.nodes.length, 0), better: "lower" },
+  async score({ url }) {
+    const { default: AxeBuilder } = (await import(join(WEAVE_ROOT, "node_modules", "@axe-core", "playwright", "dist", "index.mjs"))) as {
+      default: new (o: { page: unknown }) => { analyze(): Promise<{ violations: Array<{ nodes: unknown[] }> }> };
     };
+    const { browser, page } = await openPage();
+    try {
+      await page.goto(url, { waitUntil: "networkidle", timeout: 60_000 });
+      const { violations } = await new AxeBuilder({ page }).analyze();
+      return {
+        "axe.violations": { value: violations.length, better: "lower" },
+        "axe.affected-nodes": { value: violations.reduce((n, v) => n + v.nodes.length, 0), better: "lower" },
+      };
+    } finally {
+      await browser.close();
+    }
   },
 };
 
@@ -103,12 +114,12 @@ export const axe: Scorer = {
 export const gitleaks: Scorer = {
   name: "gitleaks",
   async unavailable() {
-    return (await onPath("gitleaks")) ? null : "gitleaks not on PATH (https://github.com/gitleaks/gitleaks releases)";
+    return (await onPath("gitleaks")) ? null : "gitleaks not installed (pnpm tools:gitleaks)";
   },
   async score({ dir }) {
     const report = join(mkdtempSync(join(tmpdir(), "weave-gitleaks-")), "report.json");
     try {
-      await run("gitleaks", ["detect", "--no-git", "--source", dir, "--report-format", "json", "--report-path", report, "--exit-code", "0"]);
+      await run(toolBin("gitleaks"), ["detect", "--no-git", "--source", dir, "--report-format", "json", "--report-path", report, "--exit-code", "0"]);
     } catch {
       // the report is what matters
     }

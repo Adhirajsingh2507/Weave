@@ -4,7 +4,6 @@
 import { execFile } from "node:child_process";
 import { createRequire } from "node:module";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { ChromeBrowserWorker } from "./browser.js";
 import { DECISION_MODEL } from "./decision/index.js";
@@ -12,6 +11,8 @@ import { DEFAULT_ALLOW_HOSTS, EgressProxy, describeEgress } from "./egress.js";
 import { ISOLATED_CLAUDE_ARGS, scrubbedEnv, weaveMode } from "./runtime.js";
 import type { WeaveMode } from "./runtime.js";
 import { detectSandbox } from "./sandbox.js";
+import { WEAVE_ROOT, toolBin } from "./tools.js";
+import { PlaywrightBrowserWorker } from "./browser.js";
 
 const run = promisify(execFile);
 
@@ -37,7 +38,7 @@ export interface DoctorOptions {
 }
 
 /** Tools the demo uses, as project devDependencies (demo plan D2). */
-export const DEMO_TOOLS = ["playwright", "lighthouse", "@axe-core/playwright", "sharp", "@gltf-transform/core"];
+export const DEMO_TOOLS = ["playwright", "lighthouse", "@axe-core/playwright", "sharp", "@gltf-transform/cli"];
 
 async function out(cmd: string, args: string[], env?: NodeJS.ProcessEnv, timeout = 30_000): Promise<string> {
   const { stdout } = await run(cmd, args, { encoding: "utf8", timeout, maxBuffer: 1 << 26, ...(env ? { env } : {}) });
@@ -128,7 +129,7 @@ export async function doctor(opts: DoctorOptions = {}): Promise<DoctorRow[]> {
   row("chrome", chrome ? "ok" : "fail", chrome ?? "no Chrome or Chromium on PATH", chrome ? undefined : "install Google Chrome");
 
   // ── Demo tools ───────────────────────────────────────────────
-  const req = createRequire(join(opts.root ?? fileURLToPath(new URL("../../", import.meta.url)), "package.json"));
+  const req = createRequire(join(opts.root ?? WEAVE_ROOT, "package.json"));
   for (const tool of DEMO_TOOLS) {
     let found = false;
     try {
@@ -139,8 +140,10 @@ export async function doctor(opts: DoctorOptions = {}): Promise<DoctorRow[]> {
     }
     row(tool, found ? "ok" : "fail", found ? "installed" : "not installed", found ? undefined : "pnpm install");
   }
+  const pwBrowser = PlaywrightBrowserWorker.available();
+  row("playwright chromium", pwBrowser ? "ok" : "fail", pwBrowser ? "downloaded" : "not downloaded", pwBrowser ? undefined : "pnpm exec playwright install chromium");
   try {
-    row("gitleaks", "ok", await out(opts.gitleaksBin ?? "gitleaks", ["version"]));
+    row("gitleaks", "ok", await out(opts.gitleaksBin ?? toolBin("gitleaks"), ["version"]));
   } catch {
     row("gitleaks", "fail", "not found", "pnpm tools:gitleaks");
   }

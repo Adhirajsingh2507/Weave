@@ -168,6 +168,7 @@ if (sandbox.backend === "bwrap") {
   console.log("sandbox check passed (bubblewrap: .env unreadable in worktree and checkout; egress refused and recorded)");
 } else {
   assert.equal(executor.capabilities.sandboxed, false, "an unsandboxed executor must not claim otherwise");
+  assert.notEqual(process.env["WEAVE_REQUIRE_TOOLS"], "1", `FS enforcement required here: ${sandbox.detail}`);
   console.log(`sandbox check passed — FS enforcement NOT proven here: ${sandbox.detail}. Deny rules, egress and env scrub verified.`);
 }
 

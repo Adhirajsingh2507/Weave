@@ -130,9 +130,11 @@ if (ChromeBrowserWorker.find()) {
     console.log("visual placement check passed (visible → passed with screenshot, unseen → failed, no extractor → unavailable; real Chrome render verified)");
   } else {
     assert.ok(failure, "a render that produced nothing must be on the record");
+    assert.notEqual(process.env["WEAVE_REQUIRE_TOOLS"], "1", `real render required here: ${failure!.detail.slice(0, 160)}`);
     console.log(`visual placement check passed — real Chrome render NOT verified here: ${failure!.detail.slice(0, 160)}`);
   }
   rmSync(repo, { recursive: true, force: true });
 } else {
+  assert.notEqual(process.env["WEAVE_REQUIRE_TOOLS"], "1", "real render required here, but no Chrome was found");
   console.log("visual placement check passed (visible → passed with screenshot, unseen → failed, no extractor → unavailable; no Chrome here, real render NOT verified)");
 }

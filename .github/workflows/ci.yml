@@ -26,11 +26,23 @@ jobs:
       # honest about the committed lockfile.
       - run: pnpm install --frozen-lockfile
 
+      # D2: the machine every push is proven on has the demo's tools, so no check can pass by
+      # printing "NOT verified here" (WEAVE_REQUIRE_TOOLS=1 turns that into a failure).
+      # Ubuntu 24.04 restricts unprivileged user namespaces; bubblewrap needs them.
+      - name: Tools (bubblewrap, Playwright Chromium, gitleaks)
+        run: |
+          sudo apt-get update -q && sudo apt-get install -y -q bubblewrap
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          pnpm exec playwright install --with-deps chromium
+          pnpm tools:gitleaks
+
       - name: Build
         run: pnpm build
 
       - name: Self-checks
         run: pnpm check
+        env:
+          WEAVE_REQUIRE_TOOLS: "1"
 
       - name: Design guides
         run: node scripts/check-design.mjs

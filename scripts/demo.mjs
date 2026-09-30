@@ -9,7 +9,7 @@
 
 import { Engine, GitHarness, GraphStore, detectSandbox } from "../dist/index.js";
 import { realise, tinyGlb } from "../dist/core/testing.js";
-import { ChromeBrowserWorker } from "../dist/core/browser.js";
+import { ChromeBrowserWorker, PlaywrightBrowserWorker } from "../dist/core/browser.js";
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
@@ -99,7 +99,7 @@ const engine = new Engine({
     concurrency: 3,
     deployer,
     assetFolders: [designDir],
-    ...(ChromeBrowserWorker.find() ? { browser: new ChromeBrowserWorker({ width: 1280, height: 1600 }) } : {}),
+    ...(PlaywrightBrowserWorker.available() ? { browser: new PlaywrightBrowserWorker() } : ChromeBrowserWorker.find() ? { browser: new ChromeBrowserWorker({ width: 1280, height: 1600 }) } : {}),
   },
 });
 await engine.init("new");

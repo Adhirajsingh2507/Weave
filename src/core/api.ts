@@ -13,7 +13,7 @@ import { compileBrief } from "./compiler.js";
 import { ClaudeVisionInterpreter, compileMultimodal, uncertain } from "./intake.js";
 import { acquireAsset, budgetFor, defaultOptimizers, describeMeasure, kb, measureAsset, overBudget } from "./assets.js";
 import type { AssetOptimizer, AssetType } from "./assets.js";
-import { ChromeBrowserWorker } from "./browser.js";
+import { ChromeBrowserWorker, PlaywrightBrowserWorker } from "./browser.js";
 import type { BrowserWorker } from "./browser.js";
 import { ClaudeVisionExtractor, visualQA } from "./visual.js";
 import type { VisionExtractor } from "./visual.js";
@@ -140,7 +140,7 @@ export function adapterDeps(env: NodeJS.ProcessEnv = process.env): EngineDeps {
         : undefined;
   return {
     ...models,
-    ...(ChromeBrowserWorker.find() ? { browser: new ChromeBrowserWorker() } : {}),
+    ...(PlaywrightBrowserWorker.available() ? { browser: new PlaywrightBrowserWorker() } : ChromeBrowserWorker.find() ? { browser: new ChromeBrowserWorker() } : {}),
     ...(env["WEAVE_DEPLOY"] === "vercel" ? { deployer: new VercelDeployer({ prod: env["WEAVE_DEPLOY_PROD"] === "1" }) } : {}),
   };
 }
