@@ -76,6 +76,9 @@ egress allowlist reaching what the subscription login needs, `TYPESAFE_API_KEY` 
   for when you have API credits.
 - **Exit:** a check drives both providers with a stand-in `claude` binary; one real call each on
   your machine, logged to the corpus.
+- **Done 2026-09-30** (#94). Real calls on this machine, all answered by Opus 5.5: a decision
+  (6.9s, in the corpus with the model), visual-QA facts (14.7s) and screenshot intake (13.4s) on
+  the Go2 page. Found by the real call, not the stand-in: the CLI rejects Zod's `$schema` URI.
 
 ### D2 — Tools installed and wired
 
@@ -185,7 +188,7 @@ egress allowlist reaching what the subscription login needs, `TYPESAFE_API_KEY` 
 | Phase | State |
 |---|---|
 | D0 Preflight | **done** (`weave doctor`) |
-| D1 Subscription decision + vision | not started |
+| D1 Subscription decision + vision | **done** |
 | D2 Tools | not started |
 | D3 Templates for real | not started |
 | D4 3D that renders | not started |

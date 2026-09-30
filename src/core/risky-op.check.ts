@@ -20,6 +20,7 @@ import { GraphStore } from "./store/graph-store.js";
 import type { EngineDeps } from "./api.js";
 import type { ExecInput, ExecResult, NodeExecutor } from "./runtime.js";
 import type { Scaffolder } from "./scaffold.js";
+import { ModelUnavailableError } from "./decision/index.js";
 import type { Decision } from "./decision/index.js";
 
 const git = (a: string[], cwd: string): string => execFileSync("git", a, { cwd, encoding: "utf8" }).trim();
@@ -158,6 +159,19 @@ async function start(repo: string, text: string, deps: EngineDeps): Promise<{ en
   const rows = new GraphStore(join(repo2, ".agent", "state.db")).evidenceFor({ runId: second.runId });
   assert.ok(rows.some((r) => r.kind === "risk" && /decision layer unavailable: ANTHROPIC_API_KEY is not set/.test(r.detail)), "but the outage is on the record");
   rmSync(repo2, { recursive: true, force: true });
+
+  // A refusal or rate limit is different from a missing provider: stop and ask (decision #80).
+  const repo3 = newRepo("refused");
+  const refused: Decision = {
+    async decide() {
+      throw new ModelUnavailableError("claude-opus-5-5 rate-limited or over the plan's limit");
+    },
+  };
+  const third = await start(repo3, "component: plain section", { executor: agent(), riskDecision: refused });
+  const held = (await third.engine.listGates())[0];
+  assert.equal(held?.kind, "risky-op", "a refused decision holds the change for a person");
+  assert.ok(held?.evidenceRefs.some((r) => /could not judge this change/.test(r)), JSON.stringify(held?.evidenceRefs));
+  rmSync(repo3, { recursive: true, force: true });
 }
 
 // ── 5. Rejecting discards the parked work ─────────────────────

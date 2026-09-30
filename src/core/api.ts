@@ -25,7 +25,8 @@ import type { PageLayout } from "./plan.js";
 import type { DesignIR } from "./ir/schema.js";
 import { executeAndVerify } from "./loop.js";
 import type { AttemptOutcome, EvidenceRecord, Verifier, VerifyResult } from "./loop.js";
-import { ClaudeCodeExecutor, GitHarness } from "./runtime.js";
+import { ClaudeCodeExecutor, GitHarness, weaveMode } from "./runtime.js";
+import { ClaudeCodeDecision, ClaudeCodeVisionExtractor, ClaudeCodeVisionInterpreter } from "./subscription.js";
 import type { ContextPack, NodeExecutor } from "./runtime.js";
 import { DeterministicVerifier } from "./verify.js";
 import { VercelDeployer } from "./deploy.js";
@@ -47,6 +48,7 @@ import type { ProjectMetrics, RunMetrics } from "./metrics.js";
 import type { StyleGuide } from "./design/style.js";
 import { ClaudeDecision } from "./decision/providers.js";
 import { DecisionRunner } from "./decision/runner.js";
+import { ModelUnavailableError } from "./decision/index.js";
 import type { Decision } from "./decision/index.js";
 import { ingestRepo, inferMappings } from "./ingest/sweep.js";
 import type { IngestResult, MappingResult } from "./ingest/sweep.js";
@@ -86,7 +88,7 @@ export interface EngineDeps {
   /**
    * Decision provider that judges every node diff (risk.classifyOperation) on top of the
    * deterministic rules, and fills the calibration corpus. Absent: deterministic rules only.
-   * The CLI and MCP server set it when ANTHROPIC_API_KEY is present.
+   * The CLI and MCP server set it when the subscription login (or, in API mode, a key) exists.
    */
   riskDecision?: Decision;
   /** Outbound hosts agents may reach; the executor's default when absent. */
@@ -110,21 +112,34 @@ export interface EngineDeps {
 /** Paths no agent may read, enforced by the sandbox and flagged by the risk rules. */
 export const DENY_PATHS = [".env", "**/.env", "**/*.pem", "**/secrets/**"];
 
+/** Whether the `claude` CLI is logged in with a subscription — checked once, in ~0.1s. */
+export function subscriptionLoggedIn(bin = "claude"): boolean {
+  try {
+    const auth = JSON.parse(execFileSync(bin, ["auth", "status"], { encoding: "utf8", timeout: 10_000, stdio: ["ignore", "pipe", "ignore"] })) as { loggedIn?: boolean; authMethod?: string };
+    return auth.loggedIn === true && auth.authMethod === "claude.ai";
+  } catch {
+    return false;
+  }
+}
+
 /**
- * What the CLI and MCP adapters configure from the environment: the decision layer judges node
- * diffs when ANTHROPIC_API_KEY is set, and WEAVE_DEPLOY=vercel makes pre-release approval deploy.
+ * What the CLI and MCP adapters configure from the environment (decision #75). Subscription mode
+ * (default): the decision layer and vision run through the `claude` login, when it is logged in.
+ * API mode (WEAVE_MODE=api): the same through the SDK on ANTHROPIC_API_KEY. WEAVE_DEPLOY=vercel
+ * makes pre-release approval deploy.
  */
 export function adapterDeps(env: NodeJS.ProcessEnv = process.env): EngineDeps {
+  const mode = weaveMode(env);
+  const models: EngineDeps | undefined =
+    mode === "api"
+      ? env["ANTHROPIC_API_KEY"]
+        ? { decision: new ClaudeDecision(), riskDecision: new ClaudeDecision(), vision: new ClaudeVisionInterpreter(), intakeDecision: new ClaudeDecision(), visionExtractor: new ClaudeVisionExtractor(), qaDecision: new ClaudeDecision() }
+        : undefined
+      : subscriptionLoggedIn()
+        ? { decision: new ClaudeCodeDecision(), riskDecision: new ClaudeCodeDecision(), vision: new ClaudeCodeVisionInterpreter(), intakeDecision: new ClaudeCodeDecision(), visionExtractor: new ClaudeCodeVisionExtractor(), qaDecision: new ClaudeCodeDecision() }
+        : undefined;
   return {
-    ...(env["ANTHROPIC_API_KEY"]
-      ? {
-          riskDecision: new ClaudeDecision(),
-          vision: new ClaudeVisionInterpreter(),
-          intakeDecision: new ClaudeDecision(),
-          visionExtractor: new ClaudeVisionExtractor(),
-          qaDecision: new ClaudeDecision(),
-        }
-      : {}),
+    ...models,
     ...(ChromeBrowserWorker.find() ? { browser: new ChromeBrowserWorker() } : {}),
     ...(env["WEAVE_DEPLOY"] === "vercel" ? { deployer: new VercelDeployer({ prod: env["WEAVE_DEPLOY_PROD"] === "1" }) } : {}),
   };
@@ -1165,7 +1180,7 @@ export class Engine {
     const extractor = this.#deps.visionExtractor;
     const decision = this.#deps.qaDecision;
     if (!shots.size || !extractor || !decision) {
-      const why = !shots.size ? "no rendered page" : "no vision extractor (set ANTHROPIC_API_KEY)";
+      const why = !shots.size ? "no rendered page" : "no vision extractor (log in with `claude`, or WEAVE_MODE=api with ANTHROPIC_API_KEY)";
       record(assets.map((a) => ({ id: a.id, ok: false, status: "unavailable", detail: `visual check not possible: ${why}` })));
       if (node) store.upsertExecNode(runId, { ...node, status: "skipped" });
       return `visual QA unavailable (${why})`;
@@ -1345,7 +1360,15 @@ export class Engine {
         if (judged && !gate) reasons.push(`${node.id}: decision layer judged the change ${String(result.value)} at confidence ${result.confidence}`);
         gate ||= judged;
       } catch (e) {
-        evidence.push({ kind: "risk", ok: true, detail: `decision layer unavailable: ${e instanceof Error ? e.message : String(e)}` });
+        const msg = e instanceof Error ? e.message : String(e);
+        if (e instanceof ModelUnavailableError) {
+          // Refused, rate-limited, swapped or unparseable (decision #80): stop and ask, never guess.
+          evidence.push({ kind: "risk", ok: false, detail: `decision model unavailable: ${msg}` });
+          reasons.push(`${node.id}: the decision model could not judge this change (${msg}) — approve to accept it on the deterministic rules alone, or reject and retry later`);
+          gate = true;
+        } else {
+          evidence.push({ kind: "risk", ok: true, detail: `decision layer unavailable: ${msg}` });
+        }
       }
     }
     if (!findings.length) evidence.push({ kind: "risk", ok: true, detail: `no risky operation in ${changes.length} change(s)` });

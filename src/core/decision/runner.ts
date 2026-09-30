@@ -48,6 +48,7 @@ export class DecisionRunner {
       value: result.value,
       confidence: result.confidence,
       provider: result.provider,
+      ...(result.model ? { model: result.model } : {}),
       escalation,
       ...(this.#recordState ? { state: req.state, candidates: req.candidates } : {}),
     };

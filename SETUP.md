@@ -1,7 +1,7 @@
 # Setting up Weave on a new device
 
 Step by step, for Linux, macOS and Windows. Everything in **Required** is needed to build Weave,
-run its 32 self-checks and run the demo. Everything in **Optional** unlocks one capability; skip
+run its 33 self-checks and run the demo. Everything in **Optional** unlocks one capability; skip
 what you do not need. Each step says what it is for.
 
 _Last updated: 2026-09-30. Describes what works today; planned items are marked **(planned)**._
@@ -84,7 +84,7 @@ cd autodesign
 ```bash
 pnpm install --frozen-lockfile   # exactly the versions in pnpm-lock.yaml
 pnpm build                       # TypeScript → dist/
-pnpm check                       # 32 self-checks — all offline, no accounts needed
+pnpm check                       # 33 self-checks — all offline, no accounts needed
 node scripts/check-design.mjs    # validates the 91 design guides
 pnpm demo                        # the end-to-end run with stand-in agents, no accounts needed
 node dist/cli/index.js doctor    # can this machine run the real demo? (one real model call;
@@ -116,8 +116,10 @@ claude                           # opens a login; use your Claude subscription a
 Real builds then run as `weave run …` (see the README). Agents use your subscription login.
 Weave does not need an API key for this.
 
-> **Do not set `ANTHROPIC_API_KEY` for subscription use.** If it is set, Claude Code uses the key
-> instead of your login and bills per token. Weave will stop passing it to agents **(planned, D0)**.
+> **Subscription mode is the default.** Weave never passes `ANTHROPIC_API_KEY` to agents in this
+> mode, even if it is set in your shell, and the decision layer and vision run through the same
+> login. `WEAVE_MODE=api` switches everything to the key, billed per token. Check with
+> `weave doctor`.
 
 ### Rendering pages (browser QA)
 
@@ -154,7 +156,7 @@ logged in (step 2).
 
 ## 5. You are ready when
 
-- [ ] `pnpm check` passes (32 checks)
+- [ ] `pnpm check` passes (33 checks)
 - [ ] `node scripts/check-design.mjs` passes
 - [ ] `pnpm demo` ends with `✓ demo complete`
 - [ ] for real runs: `claude` opens logged in to your subscription
@@ -168,7 +170,7 @@ logged in (step 2).
 | GitHub | cloning the private repo, `pnpm ship` | `gh auth login` |
 | Claude subscription | real agent builds; decisions and vision **(planned, D1)** | `claude` login |
 | Vercel | public deploys | `vercel login` |
-| Anthropic API key | optional API mode **(planned)** — billed per token | `ANTHROPIC_API_KEY`, never in the repo |
+| Anthropic API key | optional API mode (`WEAVE_MODE=api`) — billed per token | `ANTHROPIC_API_KEY`, never in the repo |
 | Jev | decision provider **(planned, D8 — waiting on docs)** | an environment variable, never in the repo |
 
 Never commit keys or tokens. `.env` files are ignored by git, and agents cannot read them when the

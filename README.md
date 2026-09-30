@@ -122,15 +122,17 @@ New device? **[SETUP.md](SETUP.md)** walks through Linux, macOS and Windows (WSL
 ```bash
 pnpm install
 pnpm build
-pnpm check                       # 32 self-checks
+pnpm check                       # 33 self-checks
 node scripts/check-design.mjs    # validates the 91 guides and their picture folders
 pnpm demo                        # the end-to-end run above, no credentials
 ```
 
 ### A real build
 
-Needs the `claude` CLI on PATH; `ANTHROPIC_API_KEY` adds the decision layer (risk judgement on
-every diff, and screenshot intake).
+Needs the `claude` CLI on PATH, logged in with a Claude subscription: agents, the decision layer
+(risk judgement on every diff) and vision (screenshot intake, visual QA) all run through it, on
+Opus 5.5. `WEAVE_MODE=api` runs the same on `ANTHROPIC_API_KEY`, billed per token.
+`weave doctor` says whether this machine is ready.
 
 `weave` is `node <weave>/dist/cli/index.js`; `pnpm link --global` in this repo puts it on PATH.
 

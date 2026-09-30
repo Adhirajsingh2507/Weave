@@ -45,7 +45,7 @@ docs update after `84c7e6d`. CI is green on `main`.
 - **Not yet done with a real agent.** Everything is proven with stand-in agents and recorded
   readings. The calibration corpus and the benchmark are empty.
 - **Verify on any machine:** `pnpm install --frozen-lockfile && pnpm build && pnpm check`
-  (32 checks) `&& node scripts/check-design.mjs && pnpm demo`.
+  (33 checks) `&& node scripts/check-design.mjs && pnpm demo`.
 
 ## The direction just decided (#75–#83)
 
@@ -86,5 +86,5 @@ Playwright.
 ## Next steps, in order
 
 1. The design discussion (above) — record outcomes as decisions in `current-info.md`.
-2. `demo-plan.md` D1–D4, then D4.5 (tmux), then D5. D0 is done (`weave doctor`). Code and docs
+2. `demo-plan.md` D2–D4, then D4.5 (tmux), then D5. D0 and D1 are done. Code and docs
    are pushed after each phase (#90).

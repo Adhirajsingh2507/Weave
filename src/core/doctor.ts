@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { ChromeBrowserWorker } from "./browser.js";
+import { DECISION_MODEL } from "./decision/index.js";
 import { DEFAULT_ALLOW_HOSTS, EgressProxy, describeEgress } from "./egress.js";
 import { ISOLATED_CLAUDE_ARGS, scrubbedEnv, weaveMode } from "./runtime.js";
 import type { WeaveMode } from "./runtime.js";
@@ -34,9 +35,6 @@ export interface DoctorOptions {
   /** Where devDependencies resolve from. Default: Weave's own install, not the target repo. */
   root?: string;
 }
-
-/** The model decisions and vision run on (decision #80). */
-export const DECISION_MODEL = "claude-opus-5-5";
 
 /** Tools the demo uses, as project devDependencies (demo plan D2). */
 export const DEMO_TOOLS = ["playwright", "lighthouse", "@axe-core/playwright", "sharp", "@gltf-transform/core"];

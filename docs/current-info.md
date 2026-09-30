@@ -118,7 +118,7 @@ The ultimate reference is **`../autonomous-engineering-universal-context.md`** (
 | 59 | Parallel contract | **Ownership by construction.** Components write `sections/<id>.html` (+ `styles/sections/<id>.css`); a page owns its file (+ `styles/pages/<id>.css`); shared files belong to the scaffold and integration. A change outside a node's ownership fails verification, naming the file. Enforced only in the template's layout — for a project the template did not create, ownership is off and the record says so. Supersedes #31 (sequential by default). |
 | 60 | Merge conflicts | **Re-run the node once on the new tip**, then gate. Replaces the plan's "rebase and re-verify": a rebase cannot resolve a textual conflict a merge could not. |
 | 61 | Network policy | **Local proxy allowlist + audit.** Every host a node contacts is evidence; off-list hosts are refused and are a risk finding. Enforced for clients that honour `HTTPS_PROXY` (Claude Code does); a network namespace is the upgrade path. |
-| 62 | Risk classification | **Deterministic rules always gate** (dependency change, migration, deletion, secret-shaped content or file, blocked egress). The decision layer (`risk.classifyOperation`) judges **every** node diff when `ANTHROPIC_API_KEY` is set, can add a gate but never remove one, and writes every verdict to the corpus. |
+| 62 | Risk classification | **Deterministic rules always gate** (dependency change, migration, deletion, secret-shaped content or file, blocked egress). The decision layer (`risk.classifyOperation`) judges **every** node diff when a decision provider is configured (the subscription login by default, #80), can add a gate but never remove one, and writes every verdict to the corpus. |
 | 63 | Deploy target (#5) | **Vercel.** `VercelDeployer` builds and uploads `dist/`; the token reaches the `vercel` CLI through its own environment only, never argv, and never the agent. `CommandDeployer` remains for anything else. |
 | 65 | Coverage | **One definition**: a requirement is covered when a verifying criterion has a passed or failed verdict. The metric and the report share the function. |
 | 66 | Gate listing | **Latest run by default**; a run id or `all` widens it. |
@@ -156,6 +156,7 @@ Asked and answered; the discussion continues, so these may be refined — change
 | 91 | tmux agent windows | **Their own phase, D4.5, before the first real build** (D5), so it runs in windows the owner can watch. |
 | 92 | Modes, concretely | `WEAVE_MODE=api` is the one switch; default is subscription. In subscription mode `ANTHROPIC_API_KEY` never reaches an agent, even when set in the shell. |
 | 93 | Default egress allowlist | **`api.anthropic.com` + loopback**, observed from a real subscription call (was `*.anthropic.com`). `weave doctor` re-observes it on every machine. |
+| 94 | Decisions and vision, built (D1) | `ClaudeCodeDecision`, `ClaudeCodeVisionInterpreter`, `ClaudeCodeVisionExtractor`: `claude -p --json-schema`, isolated (#89), Opus 5.5, Zod-validated, one retry. Vision reads the image with the Read tool, confined to its folder. **A refusal, rate limit, different model, or second invalid answer is `ModelUnavailableError`**: on a node diff it holds the change at a risky-op gate; intake stops with the reason; visual QA records it as unavailable for the pre-release gate. A missing provider still never blocks (V2.4). API mode: `ClaudeDecision` moved to the SDK with structured outputs, Opus 5.5. |
 
 ## Tech stack (locked)
 | Concern | Choice |
@@ -274,7 +275,7 @@ listing (V2.5) and the IR token gap (V2.6) are closed.
 - Metric definitions (#1, #2), default packs (#3, #4) and the deploy target (#5 → Vercel, #63)
   are decided. Name and licence (#6) remain open.
 - **The corpus has no real entries yet.** The decision layer is in the run path (#62), but a real
-  run with `ANTHROPIC_API_KEY` is what fills it — the wiring is proven with a fake provider.
+  run on the subscription is what fills it; the first real entry was logged in D1.
 
 **V2.5:** shipped. The explorer (`weave report --html`): the whole run as one self-contained file.
 The benchmark harness, third-party scorers only — **not yet run**. A pack failure now drives one
@@ -290,7 +291,7 @@ by headless Chrome and the screenshots are evidence; visibility is judged on the
 **V2 is complete** as planned — every phase shipped, each with the caveat that no real agent
 run has exercised it.
 
-**Verification now:** 32 self-checks plus the design validator. `pnpm demo` ends at
+**Verification now:** 33 self-checks plus the design validator. `pnpm demo` ends at
 `first-pass 75% | repair 100% | coverage 64%`, 20 criteria passed and 2 failed — the two failures
 are real: the demo's stand-in host sends no HSTS or Referrer-Policy header, and the live checks
 say so. The demo also exercises the policy repair loop, acquires and places a 3D model, renders the

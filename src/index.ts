@@ -1,6 +1,6 @@
 // Public core API — the one stable surface all frontends (CLI/MCP/HTTP/in-process) call.
 
-export { Engine, adapterDeps, DENY_PATHS } from "./core/api.js";
+export { Engine, adapterDeps, subscriptionLoggedIn, DENY_PATHS } from "./core/api.js";
 export { detectSandbox, wrapCommand, sandboxArgs, globToRegExp, HOME_SECRETS } from "./core/sandbox.js";
 export type { SandboxInfo, SandboxPolicy } from "./core/sandbox.js";
 export { EgressProxy, hostAllowed, DEFAULT_ALLOW_HOSTS } from "./core/egress.js";
@@ -51,7 +51,7 @@ export {
 export type { AssetMeasure, AssetBudget, AssetOptimizer, AssetType, Acquired } from "./core/assets.js";
 export { renderBenchmark, runBenchmark, summarise as summariseBenchmark, serve as serveSite, DEFAULT_SCORERS } from "./core/benchmark.js";
 export type { Arm, Scorer, Metric, BenchResult, BenchRun, MetricSummary } from "./core/benchmark.js";
-export { scrubbedEnv } from "./core/runtime.js";
+export { scrubbedEnv, weaveMode, ISOLATED_CLAUDE_ARGS } from "./core/runtime.js";
 export { CommandDeployer, FakeDeployer, VercelDeployer } from "./core/deploy.js";
 export type { Deployer, DeployResult, DeployContext } from "./core/deploy.js";
 export { createMcpServer, startMcpServer } from "./mcp/server.js";
@@ -60,7 +60,7 @@ export { EventLog } from "./core/events/index.js";
 export type { EngineEvent, EngineEventType } from "./core/events/index.js";
 export { DesignIRSchema } from "./core/ir/schema.js";
 export type { DesignIR } from "./core/ir/schema.js";
-export { DECISION_CATALOG, UnimplementedDecision } from "./core/decision/index.js";
+export { DECISION_CATALOG, DECISION_MODEL, ModelUnavailableError, UnimplementedDecision } from "./core/decision/index.js";
 export type {
   Decision,
   DecisionName,
@@ -90,6 +90,8 @@ export type {
   NodeExecutor,
 } from "./core/runtime.js";
 export { ClaudeDecision, FakeDecision } from "./core/decision/providers.js";
+export { ClaudeCodeDecision, ClaudeCodeVisionInterpreter, ClaudeCodeVisionExtractor, claudeJson } from "./core/subscription.js";
+export { doctor, renderDoctor } from "./core/doctor.js";
 export { DecisionRunner } from "./core/decision/runner.js";
 export type { DecisionOutcome, DecisionRunnerOptions } from "./core/decision/runner.js";
 export { runNode } from "./core/loop.js";

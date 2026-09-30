@@ -203,7 +203,7 @@ export async function compileMultimodal(
   }
 
   if (input.screenshots?.length) {
-    if (!deps.vision) throw new Error("screenshot intake needs a vision interpreter (set ANTHROPIC_API_KEY for Claude vision)");
+    if (!deps.vision) throw new Error("screenshot intake needs a vision interpreter (log in with `claude`, or WEAVE_MODE=api with ANTHROPIC_API_KEY)");
     const facts = await deps.vision.interpret({ screenshots: input.screenshots, ...(input.text ? { text: input.text } : {}) });
     const source = { kind: "screenshot" as const, ref: input.screenshots.join(", ") };
     ir.meta.sourceInputs.push(...input.screenshots.map((ref) => ({ kind: "screenshot" as const, ref })));

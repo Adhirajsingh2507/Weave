@@ -2,6 +2,9 @@
 // unstructured state in -> typed probabilistic decision out (+ calibrated confidence).
 // Provider now: our own wrapper on Claude structured outputs; Jev later. Same interface.
 
+/** The model decisions and vision run on, in both modes (decision #80). */
+export const DECISION_MODEL = "claude-opus-5-5";
+
 /** v1 decision-schema catalog (decision #7). Each has a typed schema in policies/decisions/. */
 export type DecisionName =
   | "ingest.classifyFileRole"
@@ -35,8 +38,18 @@ export interface DecisionResult<R = unknown> {
   value: R;
   /** 0..1, calibrated. Drives the escalation ladder. */
   confidence: number;
-  provider: "claude-wrapper" | "jev";
+  provider: "claude-wrapper" | "claude-code" | "jev";
+  /** The model that actually answered, when the provider reports it. */
+  model?: string;
   escalated?: "llm" | "human";
+}
+
+/**
+ * The pinned model refused, was rate-limited, was swapped for another, or gave no valid answer
+ * after a retry (decision #80). Callers stop and ask a person; they never guess or fall back.
+ */
+export class ModelUnavailableError extends Error {
+  override name = "ModelUnavailableError";
 }
 
 export interface Decision {
