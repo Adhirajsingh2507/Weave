@@ -434,6 +434,23 @@ export class GitHarness {
     }
   }
 
+  /** Remove node worktrees and branches a dead process left behind, so its nodes can start again. */
+  discardStale(): void {
+    const list = git(["worktree", "list", "--porcelain"], this.#repoPath).split("\n\n");
+    for (const block of list) {
+      const dir = /^worktree (.+)$/m.exec(block)?.[1];
+      const branch = /^branch refs\/heads\/(.+)$/m.exec(block)?.[1];
+      if (!dir || !branch?.startsWith("weave/node/")) continue;
+      try {
+        git(["worktree", "remove", "--force", dir], this.#repoPath);
+      } catch {
+        // the folder is already gone; prune clears the record
+      }
+    }
+    git(["worktree", "prune"], this.#repoPath);
+    this.pruneNodeBranches();
+  }
+
   /** Discard every still-open worktree + branch (cleanup when a parallel batch halts). */
   async discardAll(): Promise<void> {
     for (const [nodeId, wt] of [...this.#worktrees]) this.#removeWorktree(nodeId, wt);

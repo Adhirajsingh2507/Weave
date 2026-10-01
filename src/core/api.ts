@@ -304,6 +304,23 @@ export class Engine {
     return { runId, status: "gated" };
   }
 
+  /**
+   * Continue a run whose process died mid-build (status still "running", no gate to resolve).
+   * Nodes that were in flight start again on a clean worktree; finished ones are kept.
+   */
+  async resume(runId?: RunId): Promise<RunHandle> {
+    const store = this.#graphStore();
+    const id = runId ?? store.latestRun()?.runId;
+    const run = id ? store.getRun(id) : undefined;
+    if (!id || !run) throw new Error("no run to resume");
+    if (run.status !== "running") return { runId: id, status: run.status as RunHandle["status"] };
+    for (const n of store.getExecGraph(id)) if (n.status === "running") store.upsertExecNode(id, { ...n, status: "pending" });
+    await this.#harnessForExecution(id);
+    this.#harness!.discardStale();
+    await this.#execute(id);
+    return { runId: id, status: store.getRun(id)!.status as RunHandle["status"] };
+  }
+
   async cancel(runId: RunId): Promise<void> {
     const store = this.#graphStore();
     await this.#finishHarness(runId);
@@ -1457,8 +1474,11 @@ export class Engine {
       dirs.set(node.id, await harness.worktreeForNode(node.id));
     }
 
-    // 2. Execute + verify concurrently (dir-isolated).
-    const results = await Promise.all(
+    // 2. Execute + verify concurrently (dir-isolated). A plan limit or refusal from any agent
+    //    (ModelUnavailableError) stops the batch at a gate once the others settle: retrying into a
+    //    limit only burns attempts, and approving after it resets re-runs the unfinished nodes.
+    let unavailable: string | undefined;
+    const settled = await Promise.all(
       pending.map((node) =>
         executeAndVerify({
           executor: this.#deps.executor,
@@ -1467,9 +1487,21 @@ export class Engine {
           worktreeDir: dirs.get(node.id)!,
           retryCap: 3,
           repoPath: this.#repoPath,
-        }).then((res) => ({ node, res })),
+        }).then(
+          (res) => ({ node, res }),
+          (e: unknown) => {
+            if (!(e instanceof ModelUnavailableError)) throw e;
+            unavailable ??= e.message;
+            return undefined;
+          },
+        ),
       ),
     );
+    if (unavailable) {
+      for (const node of pending) await this.#deps.executor.finish?.(node.id);
+      return this.#haltParallel(runId, "low-confidence", `stopped: ${unavailable}`, [`${unavailable} — approve once it resets to re-run the unfinished nodes`], store.getRun(runId)?.budgetUsed ?? 0);
+    }
+    const results = settled.filter((r): r is NonNullable<typeof r> => r !== undefined);
 
     // 3. Assess, commit and integrate sequentially; gate on the first escalation or unresolved
     //    conflict, and park risky nodes behind one risky-op gate for the whole batch.
@@ -1754,7 +1786,9 @@ function ownershipBrief(node: ExecNode): string {
   if (owns.some((o) => o.startsWith("sections/"))) {
     return (
       `Write this component as one complete <section id="${id}" data-design-node="${id}"> element in ` +
-      `sections/${id}.html; put its styles in styles/sections/${id}.css if it needs any. Integration places ` +
+      `sections/${id}.html; put its styles in styles/sections/${id}.css if it needs any, and any script or ` +
+      `other file it loads in sections/${id}/ — that folder is served at the same path, e.g. ` +
+      `<script type="module" src="sections/${id}/${id}.js"></script> (no inline scripts: the CSP allows the site's own files only). Integration places ` +
       `the section into its page, so do not edit any page, styles/tokens.css or styles/base.css. Use <h2> ` +
       `and below — the page owns the <h1>. You may change only: ${owns.join(", ")}.`
     );

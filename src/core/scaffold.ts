@@ -114,7 +114,16 @@ export class TemplateScaffolder implements Scaffolder {
       const heading = page.file === "index.html" ? projectName : (page.name ?? page.id ?? projectName);
       writeIfAbsent(repoPath, page.file, pageHtml(title, heading, page.sections, page.id, input.viewer3d), files);
     }
-    writeIfAbsent(repoPath, ".gitignore", "node_modules/\ndist/\n", files);
+    // Build output must be ignored: the verifier runs the build, and an un-ignored dist/ shows up as
+    // files the node changed outside its ownership — a failure no agent can fix. Append to a
+    // .gitignore the user already has rather than skip it (found by the D6 real run).
+    const ignore = join(repoPath, ".gitignore");
+    const have = existsSync(ignore) ? readFileSync(ignore, "utf8") : "";
+    const missing = ["node_modules/", "dist/"].filter((l) => !have.split(/\r?\n/).some((x) => x.trim() === l || x.trim() === l.slice(0, -1)));
+    if (missing.length) {
+      writeFileSync(ignore, `${have}${have && !have.endsWith("\n") ? "\n" : ""}${missing.join("\n")}\n`, "utf8");
+      files.push(".gitignore");
+    }
 
     return {
       files,
@@ -161,6 +170,13 @@ cpSync("index.html", "dist/index.html");
 if (existsSync("styles")) cpSync("styles", "dist/styles", { recursive: true });
 if (existsSync("assets")) cpSync("assets", "dist/assets", { recursive: true });
 if (existsSync("vendor")) cpSync("vendor", "dist/vendor", { recursive: true });
+// Each section's own folder (scripts, media it loads): sections/<id>/ ships as it is. The
+// fragments themselves are already assembled into the pages.
+if (existsSync("sections")) {
+  for (const e of readdirSync("sections", { withFileTypes: true })) {
+    if (e.isDirectory()) cpSync(\`sections/\${e.name}\`, \`dist/sections/\${e.name}\`, { recursive: true });
+  }
+}
 // Vercel deploys dist/, so its config — the security headers — has to be in it.
 if (existsSync("vercel.json")) cpSync("vercel.json", "dist/vercel.json");
 for (const page of readdirSync(".").filter((f) => f.endsWith(".html"))) {

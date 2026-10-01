@@ -4,7 +4,7 @@
 // with WEAVE_REQUIRE_TOOLS=1 (CI) it fails instead, so CI never passes on an unproven machine.
 
 import assert from "node:assert/strict";
-import { mkdtempSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { measureAsset, defaultOptimizers } from "./assets.js";
@@ -63,6 +63,7 @@ try {
     const res = await gltfOpt.optimize(glb);
     assert.equal(res.changed, true, res.detail);
     assert.ok(statSync(glb).size < before * 0.75, `gltf-transform shrank the model by a quarter or more (${res.detail})`);
+    assert.ok(!existsSync(`${glb}.opt.glb`), "the optimiser leaves no temporary file beside the asset");
   } else skip("gltf-transform", "not installed");
 
   // ── Scorers: gitleaks, axe, Lighthouse ──────────────────────────

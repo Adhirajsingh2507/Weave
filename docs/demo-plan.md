@@ -189,6 +189,15 @@ egress allowlist reaching what the subscription login needs, `TYPESAFE_API_KEY` 
   parity harness against the real corpus from D5–D7 (agreement and calibration per decision type).
 - Switch the decision types that pass parity; the rest stay on Claude, and the report says which.
 - **Exit:** a parity report; at least one decision type served by Jev in a real run.
+- **Built 2026-10-01, real run waiting on the key** (#110). `JevDecision` (`POST /v1/systemone`,
+  Bearer key, pinned `jev-1.13.0`, one Choice per decision with literal per-type instructions and
+  criteria, state trimmed to the 32k window, 429/529 backoff then `ModelUnavailableError`) and
+  `ask()` for several typed questions in one call. `weave parity [--write]` replays the corpus and
+  judges each type on agreement (≥ 95%) and ECE (≤ 0.05), needing 20 entries; `--write` records
+  the passing types in `.agent/policies/providers.json`, and `adapterDeps` routes exactly those
+  to Jev when `TYPESAFE_API_KEY` is set. `jev.check` proves it against a stand-in of the API.
+  **Not done:** the real parity run and a real Jev-served decision — no key on this machine
+  (owner: "not yet"). The corpus so far has only `risk.classifyOperation` entries.
 
 ### D9 — The recording kit
 
@@ -196,6 +205,12 @@ egress allowlist reaching what the subscription login needs, `TYPESAFE_API_KEY` 
 - A runbook: setup, what to click, what to say, where each proof lives, what to cut for a
   shorter slot, and fallbacks if something misbehaves live.
 - A dry run by you, and fixes from it.
+- **Built 2026-10-01** (#111). `pnpm demo:real` — doctor, a fresh workspace in
+  `~/weave-demo/robotics`, viewport capture of the site, intake from screenshots plus a brief
+  without a style, agents in tmux, every gate stops and asks (`--yes` approves), deploy to
+  `weave-robotics-demo`, the explorer and `weave usage` at the end; re-running resumes at the open
+  gate. `docs/runbook.md`: setup, the run step by step with what to say, the explorer walkthrough,
+  cuts for 5/10/20/30-minute slots, fallbacks, where each proof lives. **Not done:** your dry run.
 
 ## The story for engineering leaders
 

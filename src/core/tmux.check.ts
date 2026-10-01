@@ -30,7 +30,7 @@ writeFileSync(
   fake,
   `#!/usr/bin/env node
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 const { realise } = await import(${JSON.stringify(join(WEAVE_ROOT, "dist", "core", "testing.js"))});
 const argv = process.argv.slice(2);
 const settings = JSON.parse(readFileSync(argv[argv.indexOf("--settings") + 1], "utf8"));
@@ -43,11 +43,21 @@ const first = argv.at(-1);
 const write = (/You may change only: ([^\\n]*?)\\.(?:\\n|$)/.exec(first)?.[1] ?? "").split(", ").filter(Boolean);
 const id = /<section id="([^"]+)"/.exec(first)?.[1] ?? "page";
 const act = (inner) => realise({ contextPack: { taskId: "impl:" + id, goal: "", relevantNodeIds: [], relevantFiles: [], constraints: first.split("\\n"), previousFailures: [], permissions: { write, deny: [] } }, worktreeDir: process.cwd() }, inner);
+// Like the real CLI: a message that arrives while a turn is running is folded into that turn,
+// which still ends with a single Stop.
+let inTurn = false;
+const queued = [];
 const turn = async (prompt, work) => {
+  inTurn = true;
   hook("UserPromptSubmit", { prompt });
   work();
   if (id === "features" && prompt === first) await new Promise((r) => setTimeout(r, 4000)); // time for a human to type
+  while (queued.length) {
+    hook("UserPromptSubmit", { prompt: queued.shift() });
+    act();
+  }
   hook("Stop");
+  inTurn = false;
 };
 // Like the real CLI: raw keys from the start, and bracketed paste turned on, without which tmux
 // sends a multi-line paste as separate lines.
@@ -55,6 +65,10 @@ process.stdin.setRawMode(true);
 process.stdout.write("\\x1b[?2004h");
 hook("SessionStart");
 console.log("stand-in agent for " + id);
+if (existsSync(${JSON.stringify(join(dir, "limit"))})) {
+  // Like the real CLI at a limit: the message stays on screen and the session waits.
+  if (id === "cta") { console.log("You've hit your limit · resets 2:10pm"); setInterval(() => {}, 1000); await new Promise(() => {}); }
+}
 let attempts = 0;
 let buf = "", pending = "", busy = turn(first, () => { attempts++; act(id === "hero" ? "<h1>hero</h1>" : undefined); }); // hero fails its first check
 process.stdin.on("data", (d) => {
@@ -71,7 +85,8 @@ process.stdin.on("data", (d) => {
       if (c === "\\r") {
         const msg = pending;
         pending = "";
-        if (msg) busy = busy.then(() => turn(msg, () => act()));
+        if (msg && inTurn) queued.push(msg);
+        else if (msg) busy = busy.then(() => turn(msg, () => act()));
       } else if (c !== "\\x1b") pending += c;
     } else return;
   }
@@ -112,9 +127,13 @@ const human = (async () => {
     for (const w of windows()) seen.add(w);
     if (!typed && windows().includes("impl-features")) {
       await new Promise((r) => setTimeout(r, 800));
-      execFileSync("tmux", ["send-keys", "-t", `${session}:impl-features`, "-l", "make the headline shorter"]);
-      execFileSync("tmux", ["send-keys", "-t", `${session}:impl-features`, "Enter"]);
-      typed = true;
+      try {
+        execFileSync("tmux", ["send-keys", "-t", `${session}:impl-features`, "-l", "make the headline shorter"], { stdio: "ignore" });
+        execFileSync("tmux", ["send-keys", "-t", `${session}:impl-features`, "Enter"], { stdio: "ignore" });
+        typed = true;
+      } catch {
+        // the window closed between the check and the keystroke; try the next one
+      }
     }
     await new Promise((r) => setTimeout(r, 100));
   }
@@ -137,7 +156,25 @@ try {
   assert.equal(windows().filter((w) => w.startsWith("impl-")).length, 0, "windows close when their nodes finish");
   const usage = await engine.usage(runId);
   assert.deepEqual([usage.agentSessions, usage.retries, usage.interventions], [4, 1, 1], JSON.stringify(usage));
-  console.log("tmux check passed (one window per agent, repair in the same session, a typed message counted as an intervention, windows closed)");
+
+  // A plan limit in a window stops the batch at a gate — no retries burned — and closes the windows.
+  writeFileSync(join(dir, "limit"), "");
+  const repo2 = join(dir, "repo2");
+  execFileSync("mkdir", ["-p", repo2]);
+  for (const a of [["init", "-q"], ["symbolic-ref", "HEAD", "refs/heads/main"], ["config", "user.email", "t@w.local"], ["config", "user.name", "W"]]) git(a, repo2);
+  writeFileSync(join(repo2, "README.md"), "# t\n");
+  git(["add", "-A"], repo2);
+  git(["commit", "-q", "-m", "init"], repo2);
+  const engine2 = new Engine({ repoPath: repo2, deps: { executor: new TmuxClaudeExecutor({ session, bin: fake, turnTimeoutMs: 60_000 }), makeHarness: (p) => new GitHarness(p), defaultPacks: [], concurrency: 3 } });
+  await engine2.init("new");
+  const r2 = await engine2.run({ projectName: "Limit", text: "page: home /\ncomponent: hero section\ncomponent: cta section" });
+  await engine2.resolveGate((await engine2.listGates())[0]!.id, "approve");
+  const stop = (await engine2.listGates())[0]!;
+  assert.equal(stop.kind, "low-confidence");
+  assert.match(stop.summary, /usage limit was reached/, stop.summary);
+  assert.equal((await engine2.usage(r2.runId)).attempts <= 2, true, "no attempts burned retrying into the limit");
+  assert.equal(windows().filter((w) => w.startsWith("impl-")).length, 0, "the agent windows are closed");
+  console.log("tmux check passed (one window per agent, repair in the same session, a typed message counted as an intervention, windows closed, a plan limit stops at a gate)");
 } finally {
   typed = true;
   void human;

@@ -15,7 +15,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
-import { DECISION_MODEL } from "./decision/index.js";
+import { DECISION_MODEL, ModelUnavailableError } from "./decision/index.js";
 import { DEFAULT_ALLOW_HOSTS, EgressProxy } from "./egress.js";
 import { AGENT_TOOLS, ISOLATED_CLAUDE_ARGS, buildPrompt, nativeDenyRules, scrubbedEnv } from "./runtime.js";
 import type { ExecInput, ExecResult, ExecutorCapabilities, NodeExecutor } from "./runtime.js";
@@ -224,7 +224,11 @@ export class TmuxClaudeExecutor implements NodeExecutor {
     execFileSync("tmux", ["send-keys", "-t", `${this.session}:${agent.window}`, "Enter"]);
   }
 
-  /** Done when every prompt submitted so far has had its Stop — owner messages included. */
+  /**
+   * Done when a Stop follows the latest prompt. Not "one Stop per prompt": a message that arrives
+   * mid-turn — the owner's, or a repair — is folded into the turn in progress and the turn ends
+   * with a single Stop (found by a real run that then waited forever).
+   */
   async #waitForTurn(agent: Agent): Promise<{ ok: true } | { ok: false; reason: string }> {
     const deadline = Date.now() + this.#turnTimeoutMs;
     const want = agent.sent.length;
@@ -236,13 +240,24 @@ export class TmuxClaudeExecutor implements NodeExecutor {
         agent.sessionId ??= start.session_id;
         agent.transcript ??= start.transcript_path;
       }
-      const prompts = events.filter((e) => e.hook_event_name === "UserPromptSubmit").length;
-      const stops = events.filter((e) => e.hook_event_name === "Stop").length;
-      if (prompts >= want && stops >= prompts) return { ok: true };
+      const names = events.map((e) => e.hook_event_name);
+      const prompts = names.filter((n) => n === "UserPromptSubmit").length;
+      const settled = names.lastIndexOf("Stop") > names.lastIndexOf("UserPromptSubmit");
+      // A plan limit shows in the window, not in the hooks. Retrying into it only burns attempts;
+      // stop and ask instead (decision #80) — the run resumes once the limit resets.
+      const limit = /hit your (session |usage |weekly )?limit|usage limit reached|limit reached.{0,40}resets/i.exec(this.#capture(agent));
+      if (limit) throw new ModelUnavailableError(`the subscription's usage limit was reached in ${this.session}:${agent.window} (“${limit[0]}”) — resume after it resets`);
+      if (prompts >= want && settled) return { ok: true };
       if (!this.#alive(agent.window)) return { ok: false, reason: `the agent's window closed before its turn finished (${this.session}:${agent.window})` };
       await sleep(1000);
     }
-    return { ok: false, reason: `agent did not finish its turn within ${Math.round(this.#turnTimeoutMs / 60_000)} minutes` };
+    // Interrupt before failing: a repair pasted into a turn still running is folded into it.
+    try {
+      execFileSync("tmux", ["send-keys", "-t", `${this.session}:${agent.window}`, "Escape"], { stdio: "ignore" });
+    } catch {
+      // the window is gone
+    }
+    return { ok: false, reason: `agent did not finish its turn within ${Math.round(this.#turnTimeoutMs / 60_000)} minutes and was interrupted` };
   }
 
   /** Prompts the session received that Weave did not send, not yet reported. */

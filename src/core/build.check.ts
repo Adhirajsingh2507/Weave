@@ -135,4 +135,13 @@ assert.match(res.summary, /existing project kept/, "summary should say the proje
 assert.ok(!existsSync(join(existing, "scripts", "build.mjs")), "no template scripts in an existing project");
 
 rmSync(existing, { recursive: true, force: true });
+
+// A new project whose folder already has a .gitignore (the demo workspace writes one): the
+// scaffold appends build output to it. Skipping it left dist/ tracked, and the verifier's own
+// build then failed every node's ownership check (found by the D6 real run).
+const fresh = mkdtempSync(join(tmpdir(), "weave-ignore-"));
+writeFileSync(join(fresh, ".gitignore"), "intake/");
+await new TemplateScaffolder().scaffold({ repoPath: fresh, projectName: "Fresh" });
+assert.equal(readFileSync(join(fresh, ".gitignore"), "utf8"), "intake/\nnode_modules/\ndist/\n");
+rmSync(fresh, { recursive: true, force: true });
 console.log("greenfield build (scaffold + real verifier + design→code edges) check passed");

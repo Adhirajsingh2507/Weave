@@ -89,6 +89,12 @@ if (!run) {
 }
 const runId = run.runId;
 
+// A run whose process died mid-build has no gate to resume from: pick it up where it stopped.
+if ((await engine.getRun(runId))?.status === "running" && !(await engine.listGates({ runId })).length) {
+  say("resuming the interrupted build");
+  await engine.resume(runId);
+}
+
 // ── 3. Gates: each one stops and asks ────────────────────────
 const rl = values.yes ? undefined : createInterface({ input: process.stdin, output: process.stdout });
 for (;;) {

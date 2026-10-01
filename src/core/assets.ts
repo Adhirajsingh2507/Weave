@@ -8,7 +8,7 @@
 import { createRequire } from "node:module";
 import { WEAVE_ROOT, toolBin } from "./tools.js";
 import { execFile } from "node:child_process";
-import { copyFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { basename, extname, isAbsolute, join } from "node:path";
 import { promisify } from "node:util";
 
@@ -265,11 +265,16 @@ export class CommandOptimizer implements AssetOptimizer {
 
   async optimize(path: string): Promise<{ changed: boolean; detail: string }> {
     const out = `${path}.opt${extname(path)}`;
-    await run(this.cmd, [...this.args, path, out], { timeout: 10 * 60_000 });
-    const [before, after] = [statSync(path).size, statSync(out).size];
-    if (after >= before) return { changed: false, detail: `${this.name} could not shrink it` };
-    copyFileSync(out, path);
-    return { changed: true, detail: `${this.name}: ${kb(before)} → ${kb(after)}` };
+    try {
+      await run(this.cmd, [...this.args, path, out], { timeout: 10 * 60_000 });
+      const [before, after] = [statSync(path).size, statSync(out).size];
+      if (after >= before) return { changed: false, detail: `${this.name} could not shrink it` };
+      copyFileSync(out, path);
+      return { changed: true, detail: `${this.name}: ${kb(before)} → ${kb(after)}` };
+    } finally {
+      // The temporary output used to stay beside the asset and ship with the site.
+      rmSync(out, { force: true });
+    }
   }
 }
 

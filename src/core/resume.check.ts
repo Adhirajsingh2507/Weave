@@ -82,4 +82,37 @@ const built = git(["ls-tree", "-r", "--name-only", `weave/${handle.runId}`], rep
 assert.match(built, /sections\/hero\.html/, "node work committed to the working branch");
 
 rmSync(repo, { recursive: true, force: true });
+
+// ── A process that dies mid-build: the run is still "running", with no gate to resolve. ──
+// A later process resumes it: finished nodes are kept, the one in flight starts again clean.
+{
+  const repo2 = mkdtempSync(join(tmpdir(), "weave-resume-dead-"));
+  for (const a of [["init", "-q"], ["symbolic-ref", "HEAD", "refs/heads/main"], ["config", "user.email", "t@weave.local"], ["config", "user.name", "Weave Test"]]) git(a, repo2);
+  writeFileSync(join(repo2, "README.md"), "# base\n");
+  git(["add", "-A"], repo2);
+  git(["commit", "-q", "-m", "init"], repo2);
+  let die = true;
+  const flaky: NodeExecutor = {
+    name: "fake",
+    async run(input: ExecInput): Promise<ExecResult> {
+      if (die && input.contextPack.taskId === "impl:cta") throw new Error("the process was killed");
+      return realise(input);
+    },
+  };
+  const proc = (): Engine => new Engine({ repoPath: repo2, deps: { executor: flaky, makeHarness: (p) => new GitHarness(p), defaultPacks: [] } });
+  await proc().init("new");
+  const h = await proc().run({ text: "page: home /\ncomponent: hero section\ncomponent: cta section" });
+  await assert.rejects(proc().resolveGate((await proc().listGates())[0]!.id, "approve"), /killed/);
+  assert.equal((await proc().getRun(h.runId))?.status, "running", "the dead process left the run running");
+  assert.equal((await proc().listGates()).length, 0, "with no gate to resume from");
+
+  die = false;
+  const resumed = await proc().resume(h.runId);
+  assert.equal(resumed.status, "gated");
+  assert.equal((await proc().listGates())[0]?.kind, "pre-release");
+  const nodes = await proc().getExecGraph(h.runId);
+  for (const id of ["impl:hero", "impl:cta", "impl:home"]) assert.equal(nodes.find((n) => n.id === id)?.status, "complete", id);
+  assert.equal(git(["worktree", "list"], repo2).split("\n").length, 1, "no stale worktrees left");
+  rmSync(repo2, { recursive: true, force: true });
+}
 console.log("cross-process resume (branch + stash restored by a later process) check passed");
