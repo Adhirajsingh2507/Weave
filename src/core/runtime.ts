@@ -9,6 +9,7 @@ import { promisify } from "node:util";
 import { DEFAULT_ALLOW_HOSTS, EgressProxy } from "./egress.js";
 import type { EgressRecord } from "./egress.js";
 import { detectSandbox, wrapCommand } from "./sandbox.js";
+import { DECISION_MODEL } from "./decision/index.js";
 import type { SandboxInfo } from "./sandbox.js";
 
 const run = promisify(execFile);
@@ -90,6 +91,9 @@ export function weaveMode(env: NodeJS.ProcessEnv = process.env): WeaveMode {
  * hooks, no slash commands. The login still works. Measured 2026-09-30: 5.7s and one host
  * (api.anthropic.com) isolated, against 59s and ten hosts inheriting a typical setup.
  */
+/** The tools an agent may use without asking, in either mode. Web tools are absent: egress is closed. */
+export const AGENT_TOOLS = ["Bash", "Edit", "Write", "MultiEdit", "Read", "Glob", "Grep", "TodoWrite", "NotebookEdit"];
+
 export const ISOLATED_CLAUDE_ARGS = [
   "--strict-mcp-config", "--mcp-config", '{"mcpServers":{}}',
   "--setting-sources", "",
@@ -162,7 +166,9 @@ export class ClaudeCodeExecutor implements NodeExecutor {
     const prompt = buildPrompt(cp);
     // Layer 1, native: Claude Code's own permission rules refuse the deny-listed paths.
     const settings = JSON.stringify({ permissions: { deny: nativeDenyRules(cp.permissions.deny) } });
-    const args = ["-p", prompt, "--permission-mode", "acceptEdits", "--settings", settings, ...ISOLATED_CLAUDE_ARGS];
+    // The same model and tools as the tmux path: in -p mode, acceptEdits alone refuses Bash, so an
+    // agent could not even run the build it is judged by.
+    const args = ["-p", prompt, "--model", DECISION_MODEL, "--permission-mode", "acceptEdits", "--allowedTools", ...AGENT_TOOLS, "--settings", settings, ...ISOLATED_CLAUDE_ARGS];
     // Layer 2, OS: bubblewrap makes those paths (and home secrets) unreadable to anything the
     // agent spawns, including a shell that never consults the permission rules.
     const sandbox = this.#sandboxInfo();

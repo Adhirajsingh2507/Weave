@@ -120,6 +120,10 @@ export async function executeAndVerify(opts: {
       evidence.push({ kind: "agent", ok: exec.ok, detail: ref });
     }
     if (exec.sandbox) evidence.push({ kind: "sandbox", ok: true, detail: exec.sandbox.detail });
+    if (exec.usage) {
+      const u = exec.usage;
+      evidence.push({ kind: "agent", ok: true, detail: `usage: input=${u.input} output=${u.output} cacheRead=${u.cacheRead} cacheWrite=${u.cacheWrite} turns=${u.turns}` });
+    }
     for (const m of exec.interventions ?? []) evidence.push({ kind: "intervention", ok: true, detail: `owner typed: ${m.slice(0, 500)}` });
     if (exec.egress) {
       // A browser's own background calls are refused and listed, but they are not a failure.

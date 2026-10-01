@@ -41,6 +41,8 @@ export interface DecisionResult<R = unknown> {
   provider: "claude-wrapper" | "claude-code" | "jev";
   /** The model that actually answered, when the provider reports it. */
   model?: string;
+  /** Tokens and the plan's cost-equivalent for this call, when the provider reports them. */
+  usage?: { input: number; output: number; cacheRead: number; cacheWrite: number; costUsd?: number };
   escalated?: "llm" | "human";
 }
 

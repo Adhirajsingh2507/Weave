@@ -30,14 +30,32 @@ interface CliResult {
   api_error_status?: number | null;
   structured_output?: unknown;
   modelUsage?: Record<string, unknown>;
+  usage?: Record<string, number>;
+  total_cost_usd?: number;
 }
+
+export interface CallUsage {
+  input: number;
+  output: number;
+  cacheRead: number;
+  cacheWrite: number;
+  /** What the call would cost at API prices; on a subscription it is a measure, not a bill. */
+  costUsd?: number;
+}
+const usageOf = (r: CliResult): CallUsage => ({
+  input: r.usage?.["input_tokens"] ?? 0,
+  output: r.usage?.["output_tokens"] ?? 0,
+  cacheRead: r.usage?.["cache_read_input_tokens"] ?? 0,
+  cacheWrite: r.usage?.["cache_creation_input_tokens"] ?? 0,
+  ...(typeof r.total_cost_usd === "number" ? { costUsd: r.total_cost_usd } : {}),
+});
 
 /** One validated JSON answer from `claude -p`, and the model that gave it. */
 export async function claudeJson<T>(
   prompt: string,
   schema: z4.ZodType<T>,
   opts: SubscriptionOptions & { images?: string[] } = {},
-): Promise<{ data: T; model: string }> {
+): Promise<{ data: T; model: string; usage: CallUsage }> {
   const model = opts.model ?? DECISION_MODEL;
   const images = (opts.images ?? []).map((p) => resolve(p));
   // Images are read with the Read tool, only from the folders that hold them; nothing else is
@@ -83,7 +101,7 @@ export async function claudeJson<T>(
     }
     if (res.subtype === "refusal" || /\brefus/i.test(res.subtype ?? "")) throw new ModelUnavailableError(`${model} refused: ${text.slice(0, 200)}`);
     const parsed = schema.safeParse(res.structured_output);
-    if (!res.is_error && parsed.success) return { data: parsed.data, model: answered[0] ?? model };
+    if (!res.is_error && parsed.success) return { data: parsed.data, model: answered[0] ?? model, usage: usageOf(res) };
     last = res.is_error ? `${res.subtype}: ${text.slice(0, 200)}` : `invalid answer: ${parsed.error?.issues[0]?.message ?? "no structured output"}`;
   }
   throw new ModelUnavailableError(`no valid answer after a retry (${last})`);
@@ -107,8 +125,8 @@ export class ClaudeCodeDecision implements Decision {
       `Answer with the value and a calibrated confidence; do not explain.\n` +
       (req.candidates?.length ? `Candidates: ${JSON.stringify(req.candidates)}\n` : "") +
       `State:\n${JSON.stringify(req.state, null, 2)}`;
-    const { data, model } = await claudeJson(prompt, schema, this.#opts);
-    return { value: data.value as R, confidence: data.confidence, provider: "claude-code", model };
+    const { data, model, usage } = await claudeJson(prompt, schema, this.#opts);
+    return { value: data.value as R, confidence: data.confidence, provider: "claude-code", model, usage };
   }
 }
 

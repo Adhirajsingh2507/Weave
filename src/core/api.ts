@@ -30,6 +30,8 @@ import type { AttemptOutcome, EvidenceRecord, Verifier, VerifyResult } from "./l
 import { ClaudeCodeExecutor, GitHarness, weaveMode } from "./runtime.js";
 import { ClaudeCodeDecision, ClaudeCodeVisionExtractor, ClaudeCodeVisionInterpreter } from "./subscription.js";
 import { TmuxClaudeExecutor, tmuxAvailable } from "./tmux.js";
+import { JevDecision, RoutedDecision } from "./decision/jev.js";
+import { ProviderPolicySchema } from "./policy/index.js";
 import type { ContextPack, NodeExecutor } from "./runtime.js";
 import { DeterministicVerifier } from "./verify.js";
 import { VercelDeployer } from "./deploy.js";
@@ -47,6 +49,8 @@ import { buildReport } from "./report.js";
 import type { RunReport } from "./report.js";
 import { renderExplorer } from "./explorer.js";
 import { projectMetrics, runMetrics } from "./metrics.js";
+import { runUsage } from "./usage.js";
+import type { RunUsage } from "./usage.js";
 import type { ProjectMetrics, RunMetrics } from "./metrics.js";
 import type { StyleGuide } from "./design/style.js";
 import { ClaudeDecision } from "./decision/providers.js";
@@ -139,7 +143,7 @@ export function adapterDeps(env: NodeJS.ProcessEnv = process.env, repoPath: stri
     mode === "subscription" && env["WEAVE_AGENTS"] !== "headless" && tmuxAvailable()
       ? new TmuxClaudeExecutor({ session: `weave-${basename(repoPath).replace(/[^a-zA-Z0-9_-]/g, "-")}` })
       : undefined;
-  const models: EngineDeps | undefined =
+  const models: Pick<EngineDeps, "decision" | "riskDecision" | "vision" | "intakeDecision" | "visionExtractor" | "qaDecision"> | undefined =
     mode === "api"
       ? env["ANTHROPIC_API_KEY"]
         ? { decision: new ClaudeDecision(), riskDecision: new ClaudeDecision(), vision: new ClaudeVisionInterpreter(), intakeDecision: new ClaudeDecision(), visionExtractor: new ClaudeVisionExtractor(), qaDecision: new ClaudeDecision() }
@@ -147,11 +151,22 @@ export function adapterDeps(env: NodeJS.ProcessEnv = process.env, repoPath: stri
       : subscriptionLoggedIn()
         ? { decision: new ClaudeCodeDecision(), riskDecision: new ClaudeCodeDecision(), vision: new ClaudeCodeVisionInterpreter(), intakeDecision: new ClaudeCodeDecision(), visionExtractor: new ClaudeCodeVisionExtractor(), qaDecision: new ClaudeCodeDecision() }
         : undefined;
+  // Jev serves the decision types that passed parity (D8): `weave parity --write` records them in
+  // .agent/policies/providers.json; without the key or the file, nothing is routed.
+  const policyFile = join(repoPath, AGENT_DIR, "policies", "providers.json");
+  if (models && env["TYPESAFE_API_KEY"] && existsSync(policyFile)) {
+    const policy = ProviderPolicySchema.parse(JSON.parse(readFileSync(policyFile, "utf8")));
+    const jev = new JevDecision({ apiKey: env["TYPESAFE_API_KEY"] });
+    for (const k of ["decision", "riskDecision", "intakeDecision", "qaDecision"] as const) {
+      const incumbent = models[k];
+      if (incumbent) models[k] = new RoutedDecision(incumbent, jev, policy);
+    }
+  }
   return {
     ...models,
     ...(executor ? { executor } : {}),
     ...(PlaywrightBrowserWorker.available() ? { browser: new PlaywrightBrowserWorker() } : ChromeBrowserWorker.find() ? { browser: new ChromeBrowserWorker() } : {}),
-    ...(env["WEAVE_DEPLOY"] === "vercel" ? { deployer: new VercelDeployer({ prod: env["WEAVE_DEPLOY_PROD"] === "1" }) } : {}),
+    ...(env["WEAVE_DEPLOY"] === "vercel" ? { deployer: new VercelDeployer({ prod: env["WEAVE_DEPLOY_PROD"] === "1", ...(env["WEAVE_DEPLOY_PROJECT"] ? { project: env["WEAVE_DEPLOY_PROJECT"] } : {}) }) } : {}),
   };
 }
 
@@ -1575,6 +1590,14 @@ export class Engine {
     const g = await this.#openGate(runId, kind, summary, evidence);
     store.updateRun(runId, { status: "gated", cursor: g.id, budgetUsed });
     return true;
+  }
+
+  /** What a run cost, from what it recorded (D5). */
+  async usage(runId?: RunId): Promise<RunUsage> {
+    const store = this.#graphStore();
+    const id = runId ?? store.latestRun()?.runId;
+    if (!id) throw new Error("no runs yet");
+    return runUsage(store, id, join(this.#repoPath, AGENT_DIR, "evidence", "decisions.jsonl"));
   }
 
   async #openGate(runId: RunId, kind: GateKind, summary: string, evidenceRefs: string[]): Promise<Gate> {

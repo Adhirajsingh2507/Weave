@@ -81,11 +81,22 @@ export class VercelDeployer implements Deployer {
   #build: boolean;
   #bin: string;
   #timeoutMs: number;
+  #project: string | undefined;
 
   constructor(
-    opts: { token?: string; prod?: boolean; outputDir?: string; build?: boolean; bin?: string; timeoutMs?: number } = {},
+    opts: {
+      token?: string;
+      prod?: boolean;
+      outputDir?: string;
+      build?: boolean;
+      bin?: string;
+      timeoutMs?: number;
+      /** The Vercel project to deploy to. Without it the CLI names a new project after the folder ("dist"). */
+      project?: string;
+    } = {},
   ) {
     this.#token = opts.token ?? process.env["VERCEL_TOKEN"];
+    this.#project = opts.project;
     this.#prod = opts.prod ?? false;
     this.#outputDir = opts.outputDir ?? "dist";
     this.#build = opts.build ?? true;
@@ -104,7 +115,7 @@ export class VercelDeployer implements Deployer {
       ...scrubbedEnv(["VERCEL_ORG_ID", "VERCEL_PROJECT_ID"]),
       ...(this.#token ? { VERCEL_TOKEN: this.#token } : {}),
     };
-    const args = ["deploy", this.#outputDir, "--yes", ...(this.#prod ? ["--prod"] : [])];
+    const args = ["deploy", this.#outputDir, "--yes", ...(this.#project ? ["--project", this.#project] : []), ...(this.#prod ? ["--prod"] : [])];
     const res = await exec(this.#bin, args, { cwd: repoPath, env, timeoutMs: this.#timeoutMs });
     log.push(res.out);
     // The CLI prints the deployment URL on stdout; the last vercel.app URL is the deployment.

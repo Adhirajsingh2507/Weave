@@ -17,7 +17,7 @@ _Last updated: 2026-09-30_
 | 7 | **How Weave should look and work** — your description, then questions. | before D0 | The design discussion started 2026-09-30 (#75–#83); you were about to explain it. |
 | ~~8~~ | The website URL for screenshot intake. | D6 | **Decided (#86):** the ai-robots Unitree Go2 page. |
 | ~~9~~ | The robot model: a CC0 candidate I shortlist, or yours. | D4 | **Decided (#87):** Unitree's Go2 mesh, BSD-3-Clause. |
-| 10 | Benchmark size (pairs). | D7 | Decided after the first measured build (D5). Guide: 5 = anecdote, 10 = minimum for mean ± sd, 20+ = holds up to scrutiny. |
+| ~~10~~ | Benchmark size (pairs). | D7 | **Decided (#109):** 3 pairs. |
 | ~~11~~ | The new device's OS. | setup | **Decided (#88):** no new device — this Linux machine only. |
 | 12 | Jev API key (`TYPESAFE_API_KEY`) on this machine. | D8 | You add it; not set as of 2026-09-30. |
 
@@ -83,8 +83,9 @@ they are not lost:
   CLI cannot see console errors~~ — closed in D2 (#95). Still open: rasters are re-encoded, not
   resized to their pixel budget; video and fonts are budgeted by size only.
 - ~~**3D needs a renderer.**~~ — the scaffold bundles model-viewer (D4, #99).
-- **The example brief's `logo.svg` is not supplied.** `examples/assets` has the Go2 only; the
-  first real build (D5) needs a logo file, or the logo line removed.
+- ~~The example brief's `logo.svg`~~ — line dropped (#109).
+- **The natural failure (#46) has not happened for real yet.** D5's six agents all passed first
+  time. The story's repair moment is still the demo's scripted case.
 - ~~The IR has no home for the guides' `shape`, `motion` and `spacing` tokens~~ — V2.6 (#68).
 - `ingest --changed` uses working-tree dirty files rather than a persisted since-last-ingest diff,
   and deletions leave stale code nodes.

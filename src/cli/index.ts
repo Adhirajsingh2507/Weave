@@ -2,11 +2,15 @@
 // CLI — the first adapter over the headless core (decision #19). Thin mapping to Engine.
 
 import { parseArgs } from "node:util";
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { JevDecision, policyFromParity, readCorpus, runParity } from "../core/decision/jev.js";
 import { Engine, adapterDeps } from "../core/api.js";
 import { detectSandbox } from "../core/sandbox.js";
 import { doctor, renderDoctor } from "../core/doctor.js";
 import { TmuxClaudeExecutor } from "../core/tmux.js";
+import { renderUsage } from "../core/usage.js";
+import { PlaywrightBrowserWorker } from "../core/browser.js";
 import { renderReport } from "../core/report.js";
 import { DEFAULT_PACKS, listPacks, loadPack } from "../core/packs/load.js";
 import type { MultimodalInput } from "../core/intake.js";
@@ -19,6 +23,8 @@ const HELP = `weave <command>
   run [--brief f | --ir f.json] [--name n]   intake+plan → design-approval gate
       [--screenshot img]… [--url u]           read a design from screenshots or a live page
       [--assets dir]…                          where asset files (models, images) come from
+  capture <url> --out <dir> [--shots n]   screenshot a live page one viewport at a time, for
+                                  intake: weave run --screenshot <dir>/view-01.png …
   styles [--suggest "brief"]      list the 91 design guides, or suggest three for a brief
   ingest [--changed]              sweep the repo → code graph (tree-sitter)
   map                             infer code→design mappings (needs a decision provider)
@@ -27,6 +33,10 @@ const HELP = `weave <command>
   report [--json] [--run <id>]    traceability: requirement → code → evidence, plus metrics
   report --html <file>            the explorer: the whole run as one self-contained HTML file
   metrics [--json]                the five metrics for the latest run and the project
+  usage [--run <id>] [--json]     what a run cost: time, sessions, retries, tokens, decision calls
+  parity [--write]                replay the decision corpus through Jev; per type: agreement and
+                                  calibration. --write routes the types that pass to Jev
+                                  (needs TYPESAFE_API_KEY)
   packs [name]                    list policy packs, or show one pack's items
   gates [--all] [--run <id>]      list open gates (latest run unless --all)
   approve <id> [--notes ...]      resolve a gate (approve; resumes execution)
@@ -43,7 +53,8 @@ Environment:
   WEAVE_MODE=api                  API mode: agents and decisions on ANTHROPIC_API_KEY, billed
                                   per token (default: subscription, the claude login)
   WEAVE_DEPLOY=vercel             approving pre-release deploys with Vercel (VERCEL_TOKEN,
-                                  or the vercel CLI login; WEAVE_DEPLOY_PROD=1 for production)`;
+                                  or the vercel CLI login; WEAVE_DEPLOY_PROD=1 for production;
+                                  WEAVE_DEPLOY_PROJECT=<name> to deploy to a named project)`;
 
 async function main(): Promise<void> {
   const { values, positionals } = parseArgs({
@@ -66,6 +77,9 @@ async function main(): Promise<void> {
       assets: { type: "string", multiple: true },
       html: { type: "string" },
       offline: { type: "boolean" },
+      write: { type: "boolean" },
+      out: { type: "string" },
+      shots: { type: "string" },
     },
   });
 
@@ -157,6 +171,32 @@ async function main(): Promise<void> {
     case "metrics": {
       const [run, project] = [await engine.metrics(values.run), await engine.projectMetrics()];
       console.log(JSON.stringify({ run, project: { runs: project.runs, autonomousCompletionRate: project.autonomousCompletionRate } }, null, 2));
+      break;
+    }
+    case "capture": {
+      const url = positionals[1];
+      if (!url || !values.out) throw new Error("capture: weave capture <url> --out <dir>");
+      mkdirSync(values.out, { recursive: true });
+      const worker = new PlaywrightBrowserWorker({ width: 1440, height: 900 });
+      for (const shot of await worker.captureViewports(url, values.out, { count: values.shots ? Number(values.shots) : 6 })) console.log(shot);
+      break;
+    }
+    case "parity": {
+      const corpus = join(repoPath, ".agent", "evidence", "decisions.jsonl");
+      if (!existsSync(corpus)) throw new Error(`no decision corpus at ${corpus} — run a build first`);
+      const rows = await runParity(readCorpus(corpus), new JevDecision());
+      for (const r of rows) console.log(`${r.verdict.padEnd(8)} ${r.name.padEnd(28)} n=${String(r.n).padEnd(4)} ${r.why}${r.errors ? ` (${r.errors} errors)` : ""}`);
+      if (values.write) {
+        const file = join(repoPath, ".agent", "policies", "providers.json");
+        mkdirSync(dirname(file), { recursive: true });
+        writeFileSync(file, `${JSON.stringify(policyFromParity(rows), null, 2)}\n`);
+        console.log(`wrote ${file}`);
+      }
+      break;
+    }
+    case "usage": {
+      const u = await engine.usage(values.run);
+      console.log(values.json ? JSON.stringify(u, null, 2) : renderUsage(u));
       break;
     }
     case "packs": {

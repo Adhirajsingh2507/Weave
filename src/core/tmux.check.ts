@@ -135,6 +135,8 @@ try {
   assert.equal(metrics.typedInterventions, 1, `the typed message is one intervention: ${JSON.stringify(typedRows.map((r) => [r.node_id, r.detail]))}`);
   assert.equal(metrics.autonomous, false);
   assert.equal(windows().filter((w) => w.startsWith("impl-")).length, 0, "windows close when their nodes finish");
+  const usage = await engine.usage(runId);
+  assert.deepEqual([usage.agentSessions, usage.retries, usage.interventions], [4, 1, 1], JSON.stringify(usage));
   console.log("tmux check passed (one window per agent, repair in the same session, a typed message counted as an intervention, windows closed)");
 } finally {
   typed = true;

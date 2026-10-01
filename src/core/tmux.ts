@@ -17,13 +17,11 @@ import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { DECISION_MODEL } from "./decision/index.js";
 import { DEFAULT_ALLOW_HOSTS, EgressProxy } from "./egress.js";
-import { ISOLATED_CLAUDE_ARGS, buildPrompt, nativeDenyRules, scrubbedEnv } from "./runtime.js";
+import { AGENT_TOOLS, ISOLATED_CLAUDE_ARGS, buildPrompt, nativeDenyRules, scrubbedEnv } from "./runtime.js";
 import type { ExecInput, ExecResult, ExecutorCapabilities, NodeExecutor } from "./runtime.js";
 import { detectSandbox, wrapCommand } from "./sandbox.js";
 
 
-/** The tools an agent may use without asking. Web tools are absent on purpose: egress is closed. */
-export const AGENT_TOOLS = ["Bash", "Edit", "Write", "MultiEdit", "Read", "Glob", "Grep", "TodoWrite", "NotebookEdit"];
 
 interface HookEvent {
   hook_event_name: string;

@@ -11,4 +11,3 @@ component: footer footer
 # Assets are acquired, measured and budgeted by Weave, never built by an agent. Put the files in
 # a folder and pass it:  weave run --brief … --assets examples/assets  (go2.glb is there, D4)
 asset: robot 3d go2.glb in:hero
-asset: logo logo logo.svg in:nav

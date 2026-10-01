@@ -51,7 +51,7 @@ export {
 export type { AssetMeasure, AssetBudget, AssetOptimizer, AssetType, Acquired } from "./core/assets.js";
 export { renderBenchmark, runBenchmark, summarise as summariseBenchmark, serve as serveSite, DEFAULT_SCORERS } from "./core/benchmark.js";
 export type { Arm, Scorer, Metric, BenchResult, BenchRun, MetricSummary } from "./core/benchmark.js";
-export { scrubbedEnv, weaveMode, ISOLATED_CLAUDE_ARGS } from "./core/runtime.js";
+export { scrubbedEnv, weaveMode, ISOLATED_CLAUDE_ARGS, AGENT_TOOLS } from "./core/runtime.js";
 export { CommandDeployer, FakeDeployer, VercelDeployer } from "./core/deploy.js";
 export type { Deployer, DeployResult, DeployContext } from "./core/deploy.js";
 export { createMcpServer, startMcpServer } from "./mcp/server.js";
@@ -92,7 +92,9 @@ export type {
 export { ClaudeDecision, FakeDecision } from "./core/decision/providers.js";
 export { ClaudeCodeDecision, ClaudeCodeVisionInterpreter, ClaudeCodeVisionExtractor, claudeJson } from "./core/subscription.js";
 export { doctor, renderDoctor } from "./core/doctor.js";
-export { TmuxClaudeExecutor, tmuxAvailable, transcriptUsage, AGENT_TOOLS } from "./core/tmux.js";
+export { runUsage, renderUsage } from "./core/usage.js";
+export { JevDecision, RoutedDecision, runParity, readCorpus, policyFromParity, fitState, ece, JEV_MODEL } from "./core/decision/jev.js";
+export { TmuxClaudeExecutor, tmuxAvailable, transcriptUsage } from "./core/tmux.js";
 export { DecisionRunner } from "./core/decision/runner.js";
 export type { DecisionOutcome, DecisionRunnerOptions } from "./core/decision/runner.js";
 export { runNode } from "./core/loop.js";

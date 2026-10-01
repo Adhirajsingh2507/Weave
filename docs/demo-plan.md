@@ -158,6 +158,15 @@ egress allowlist reaching what the subscription login needs, `TYPESAFE_API_KEY` 
 - Capture the **natural failure** (#46) from the real agents, for the story.
 - **Exit:** a completed real run, its explorer page, and a usage report → you decide the
   benchmark size.
+- **Done 2026-10-01** (#107–#109). The robotics brief (logo line dropped, owner decision), real
+  Claude Code agents in tmux windows inside bubblewrap on the Pro subscription, concurrency 3,
+  decisions on Opus 5.5. **`weave usage`:** 11.9 min wall clock; 6 agent sessions, 6 attempts,
+  **0 retries**; 0 interventions; agent tokens out 256k, cache read 3.86M, cache write 479k over
+  124 model turns; 6 `risk.classifyOperation` calls (API-price equivalent $0.27, not billed);
+  visual QA judged the Go2 visible. Parallelism 1.4×. **Run status done, autonomous.** Criteria:
+  26 passed, 0 failed. **No natural failure occurred** — every node passed first time — so the
+  story's repair moment still comes from the demo's scripted case (#46 stays open). Benchmark
+  size was chosen before D5: 3 pairs.
 
 ### D6 — Screenshot intake and the public deploy
 
@@ -221,7 +230,7 @@ egress allowlist reaching what the subscription login needs, `TYPESAFE_API_KEY` 
 | D3 Templates for real | **done** |
 | D4 3D that renders | **done** |
 | D4.5 Agents in tmux | **done** |
-| D5 First real build | not started |
+| D5 First real build | **done** (11.9 min, 0 retries, autonomous) |
 | D6 Intake + public deploy | not started (site decided, #86) |
 | D7 Benchmark | size decided after D5 |
 | D8 Jev | docs in (#84); waiting on the key |

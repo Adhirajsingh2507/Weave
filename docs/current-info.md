@@ -169,6 +169,9 @@ Asked and answered; the discussion continues, so these may be refined — change
 | 104 | How a turn ends and who typed | Claude Code hooks passed with `--settings` (they fire under isolation, verified) append each SessionStart / UserPromptSubmit / Stop to a per-agent log. **A turn is over when every submitted prompt has had its Stop.** A prompt Weave did not send is the owner's: recorded as `intervention` evidence, counted in `humanInterventionRate`, and a run with any is not autonomous. |
 | 105 | Permissions in the window | `--permission-mode acceptEdits` plus an allow list of the agent's own tools (Bash, Edit, Write, Read, Glob, Grep, …; no web tools), inside the deny rules — no bypass mode. **Weave answers exactly one dialog itself**: "trust this folder", for the worktree it created, watched for throughout the first turn. |
 | 106 | Browser background calls | Hosts on a named list of browser background services (Chrome update, Safe Browsing, accounts, …) stay **refused and recorded but are not a risk finding** and do not fail the network evidence (owner, 2026-10-01). Every other off-list host still gates (#61). |
+| 107 | Usage, measured (D5) | `weave usage` reports a run's wall clock, agent sessions, attempts and retries, typed interventions, agent tokens (each session's transcript, recorded per attempt), and decision calls with tokens and the API-price equivalent from `claude -p` (recorded in the corpus). Vision calls are counted, not yet tokenised. |
+| 108 | Headless agents, fixed | The `claude -p` executor now passes `--model claude-opus-5-5` and `--allowedTools` with the agent's tools: `acceptEdits` alone refused Bash in `-p` mode, so a headless agent could not run the build it is judged by. Same tools and model as the tmux path. |
+| 109 | Decisions before D5 | Logo line dropped from the robotics brief; benchmark **3 pairs**; Jev built against a stand-in, real parity when the key arrives (owner, 2026-10-01). |
 
 ## Tech stack (locked)
 | Concern | Choice |
@@ -303,7 +306,7 @@ by headless Chrome and the screenshots are evidence; visibility is judged on the
 **V2 is complete** as planned — every phase shipped, each with the caveat that no real agent
 run has exercised it.
 
-**Verification now:** 38 self-checks plus the design validator. `pnpm demo` ends at
+**Verification now:** 39 self-checks plus the design validator. `pnpm demo` ends at
 `first-pass 75% | repair 100% | coverage 67%`, 20 criteria passed and 2 failed — the two failures
 are real: the demo's stand-in host sends no HSTS or Referrer-Policy header, and the live checks
 say so. The demo also exercises the policy repair loop, acquires and places a 3D model, renders the

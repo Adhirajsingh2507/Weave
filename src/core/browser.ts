@@ -67,6 +67,32 @@ export class PlaywrightBrowserWorker implements BrowserWorker {
     return { ok: consoleErrors.length === 0, consoleErrors, consoleCaptured: true, ...(opts?.screenshotPath ? { screenshotPath: opts.screenshotPath } : {}) };
   }
 
+  /**
+   * A live page as a reader sees it, one viewport at a time (D6 intake). Scroll-driven sites
+   * (GSAP ScrollSmoother and the like) move content inside a fixed frame, so a single full-page
+   * capture shows the first screen over blank space; stepping the scroll and capturing each
+   * viewport shows every section after its animation has run.
+   */
+  async captureViewports(url: string, outDir: string, opts: { count?: number; settleMs?: number } = {}): Promise<string[]> {
+    const { browser, page } = await openPage(this.#width, this.#height);
+    const shots: string[] = [];
+    try {
+      await page.goto(url, { waitUntil: "networkidle", timeout: 90_000 });
+      await page.evaluate(`new Promise((r) => setTimeout(r, ${opts.settleMs ?? 1500}))`);
+      const total = await page.evaluate<number>("document.documentElement.scrollHeight");
+      const count = Math.max(1, Math.min(opts.count ?? 6, Math.ceil(total / this.#height)));
+      for (let i = 0; i < count; i++) {
+        await page.evaluate(`(async () => { window.scrollTo(0, ${i} * window.innerHeight); await new Promise((r) => setTimeout(r, ${opts.settleMs ?? 1500})); })()`);
+        const path = join(outDir, `view-${String(i + 1).padStart(2, "0")}.png`);
+        await page.screenshot({ path });
+        shots.push(path);
+      }
+    } finally {
+      await browser.close();
+    }
+    return shots;
+  }
+
   async snapshot(url: string): Promise<PageSnapshot> {
     const { browser, page } = await openPage(this.#width, this.#height);
     try {
