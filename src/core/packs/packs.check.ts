@@ -89,6 +89,10 @@ write(
 </head>
 <body>
   <a href="#main">Skip to content</a>
+  <nav aria-label="Primary">
+    <a href="#one">One</a>
+    <a href="#two">Two</a>
+  </nav>
   <main id="main">
     <h1>One</h1>
     <img src="a.png" alt="a picture" width="10" height="10" loading="lazy">
@@ -107,6 +111,9 @@ const goodA11y = runPack(loadPack("a11y"), goodCtx);
 for (const id of ["sec.secrets.not-tracked", "sec.secrets.not-in-source", "sec.links.noopener"]) {
   assert.equal(statusOf(goodSec, id), "pass", `${id} should pass on the fixed site`);
 }
+// A nav written over several lines, as real agents write it (found by the first real build: the
+// pattern used "." and failed every multi-line nav).
+assert.equal(statusOf(goodA11y, "a11y.ux.nav-choices"), "pass", "a short multi-line nav passes");
 // reduced-motion lives in CSS, not markup — the check must look where the rule actually is.
 assert.equal(statusOf(goodA11y, "a11y.reduced-motion"), "pass", "a reduced-motion block in CSS must pass");
 for (const id of ["a11y.lang", "a11y.title", "a11y.one-h1", "a11y.img-alt", "a11y.skip-link", "a11y.viewport"]) {

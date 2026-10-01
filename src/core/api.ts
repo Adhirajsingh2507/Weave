@@ -2,7 +2,7 @@
 // commands / queries / events. v1 execution is coarse/autonomous-only:
 // run() drives intake → plan → execute → loop, halting at a gate or completion.
 
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { EventLog } from "./events/index.js";
@@ -29,6 +29,7 @@ import { executeAndVerify } from "./loop.js";
 import type { AttemptOutcome, EvidenceRecord, Verifier, VerifyResult } from "./loop.js";
 import { ClaudeCodeExecutor, GitHarness, weaveMode } from "./runtime.js";
 import { ClaudeCodeDecision, ClaudeCodeVisionExtractor, ClaudeCodeVisionInterpreter } from "./subscription.js";
+import { TmuxClaudeExecutor, tmuxAvailable } from "./tmux.js";
 import type { ContextPack, NodeExecutor } from "./runtime.js";
 import { DeterministicVerifier } from "./verify.js";
 import { VercelDeployer } from "./deploy.js";
@@ -130,8 +131,14 @@ export function subscriptionLoggedIn(bin = "claude"): boolean {
  * API mode (WEAVE_MODE=api): the same through the SDK on ANTHROPIC_API_KEY. WEAVE_DEPLOY=vercel
  * makes pre-release approval deploy.
  */
-export function adapterDeps(env: NodeJS.ProcessEnv = process.env): EngineDeps {
+export function adapterDeps(env: NodeJS.ProcessEnv = process.env, repoPath: string = process.cwd()): EngineDeps {
   const mode = weaveMode(env);
+  // Subscription mode runs agents in tmux windows the owner can watch (#76); WEAVE_AGENTS=headless
+  // keeps the one-shot `claude -p` path. API mode is headless.
+  const executor =
+    mode === "subscription" && env["WEAVE_AGENTS"] !== "headless" && tmuxAvailable()
+      ? new TmuxClaudeExecutor({ session: `weave-${basename(repoPath).replace(/[^a-zA-Z0-9_-]/g, "-")}` })
+      : undefined;
   const models: EngineDeps | undefined =
     mode === "api"
       ? env["ANTHROPIC_API_KEY"]
@@ -142,6 +149,7 @@ export function adapterDeps(env: NodeJS.ProcessEnv = process.env): EngineDeps {
         : undefined;
   return {
     ...models,
+    ...(executor ? { executor } : {}),
     ...(PlaywrightBrowserWorker.available() ? { browser: new PlaywrightBrowserWorker() } : ChromeBrowserWorker.find() ? { browser: new ChromeBrowserWorker() } : {}),
     ...(env["WEAVE_DEPLOY"] === "vercel" ? { deployer: new VercelDeployer({ prod: env["WEAVE_DEPLOY_PROD"] === "1" }) } : {}),
   };

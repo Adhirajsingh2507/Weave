@@ -139,6 +139,15 @@ egress allowlist reaching what the subscription login needs, `TYPESAFE_API_KEY` 
   the same session as the next message; permissions are automatic within the sandbox and
   ownership rules.
 - **Exit:** a stand-in agent run in tmux windows end to end; one real window you attach to.
+- **Done 2026-10-01** (#103–#106). `TmuxClaudeExecutor` is the default in subscription mode
+  (`WEAVE_AGENTS=headless` for the one-shot path). `tmux.check` runs three agents in windows of one
+  session: the hero fails once and is repaired by a message pasted into the same session, a
+  message typed into the features window mid-turn is waited for and counted as one intervention,
+  and windows close when their nodes finish. **Real run on this machine**: real Claude Code agents
+  in tmux windows, inside bubblewrap, on the subscription, built a futuristic hero and home page
+  (both first-pass; ~4 and ~2 minutes). Found by it: the trust dialog can take over 30s inside
+  bubblewrap; agents open Chrome to check their work and Chrome's background calls were gating
+  (#106); the a11y nav pattern failed every multi-line nav.
 
 ### D5 — The first real build (measured)
 
@@ -211,7 +220,7 @@ egress allowlist reaching what the subscription login needs, `TYPESAFE_API_KEY` 
 | D2 Tools | **done** (CI proves them) |
 | D3 Templates for real | **done** |
 | D4 3D that renders | **done** |
-| D4.5 Agents in tmux | not started |
+| D4.5 Agents in tmux | **done** |
 | D5 First real build | not started |
 | D6 Intake + public deploy | not started (site decided, #86) |
 | D7 Benchmark | size decided after D5 |

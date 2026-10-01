@@ -11,6 +11,7 @@ import { DEFAULT_ALLOW_HOSTS, EgressProxy, describeEgress } from "./egress.js";
 import { ISOLATED_CLAUDE_ARGS, scrubbedEnv, weaveMode } from "./runtime.js";
 import type { WeaveMode } from "./runtime.js";
 import { detectSandbox } from "./sandbox.js";
+import { tmuxAvailable } from "./tmux.js";
 import { WEAVE_ROOT, toolBin } from "./tools.js";
 import { PlaywrightBrowserWorker } from "./browser.js";
 
@@ -125,6 +126,8 @@ export async function doctor(opts: DoctorOptions = {}): Promise<DoctorRow[]> {
   }
   const sb = detectSandbox();
   row("sandbox", sb.backend === "none" ? "fail" : "ok", sb.detail, sb.backend === "none" ? "install bubblewrap (apt install bubblewrap)" : undefined);
+  const tmux = tmuxAvailable();
+  row("tmux", tmux ? "ok" : "fail", tmux ? "agents run in watchable windows" : "not installed — agents fall back to headless", tmux ? undefined : "apt install tmux (or brew install tmux)");
   const chrome = ChromeBrowserWorker.find();
   row("chrome", chrome ? "ok" : "fail", chrome ?? "no Chrome or Chromium on PATH", chrome ? undefined : "install Google Chrome");
 

@@ -23,7 +23,7 @@ type ToolResult = { content: Array<{ type: "text"; text: string }> };
 const asText = (v: unknown): ToolResult => ({ content: [{ type: "text", text: JSON.stringify(v, null, 2) }] });
 
 export function createMcpServer(repoPath: string): McpServer {
-  const engine = new Engine({ repoPath, deps: adapterDeps() });
+  const engine = new Engine({ repoPath, deps: adapterDeps(process.env, repoPath) });
   const server = new McpServer({ name: "weave", version: "0.0.0" });
 
   server.registerTool(

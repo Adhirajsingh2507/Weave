@@ -153,7 +153,7 @@
       "runner": "html-assert",
       "args": {
         "eachMatch": "<nav\\b[\\s\\S]*?</nav>",
-        "requires": "^(?:(?!(?:<a\\b[\\s\\S]*?){10}).)*$"
+        "requires": "^(?:(?!(?:<a\\b[\\s\\S]*?){10})[\\s\\S])*$"
       },
       "appliesWhen": [
         "hasHtml"

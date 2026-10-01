@@ -165,6 +165,10 @@ Asked and answered; the discussion continues, so these may be refined — change
 | 100 | 3D optimisation | gltf-transform with **`--compress quantize`** (no meshopt/Draco: their decoders load from a CDN the allowlist and CSP refuse), **no simplify, no join** (geometry changes are the budget gate's decision; joining turns instances into copies). |
 | 101 | Deploy headers | The scaffold emits **`vercel.json`**: HSTS, nosniff, `X-Frame-Options: DENY`, Referrer-Policy, Permissions-Policy and a CSP allowing the site's own files only (`'wasm-unsafe-eval'` for the viewer, `blob:` for textures and workers, inline styles for web components). The build copies it into `dist/`, which is what Vercel uploads. **Weave's local server honours it**, so renders run under the production CSP. |
 | 102 | The robot | `examples/assets/go2.glb` from `scripts/go2-model.mjs` (unitree_ros@5994d4f, every file SHA-256-pinned; assembled in Chromium with three.js, standing pose thigh 0.67 / calf −1.3 rad; UVs and normals dropped, flat-shaded; 951 KB, 80,786 triangles). |
+| 103 | Agents in tmux (D4.5) | **One interactive Claude Code session per agent, in a window of tmux session `weave-<repo>`**, in its worktree, wrapped by bubblewrap with the egress proxy in its environment (`env -i` + the scrubbed set). `weave run`/`approve` print the attach command. Default in subscription mode; `WEAVE_AGENTS=headless` keeps `claude -p`; API mode is headless. |
+| 104 | How a turn ends and who typed | Claude Code hooks passed with `--settings` (they fire under isolation, verified) append each SessionStart / UserPromptSubmit / Stop to a per-agent log. **A turn is over when every submitted prompt has had its Stop.** A prompt Weave did not send is the owner's: recorded as `intervention` evidence, counted in `humanInterventionRate`, and a run with any is not autonomous. |
+| 105 | Permissions in the window | `--permission-mode acceptEdits` plus an allow list of the agent's own tools (Bash, Edit, Write, Read, Glob, Grep, …; no web tools), inside the deny rules — no bypass mode. **Weave answers exactly one dialog itself**: "trust this folder", for the worktree it created, watched for throughout the first turn. |
+| 106 | Browser background calls | Hosts on a named list of browser background services (Chrome update, Safe Browsing, accounts, …) stay **refused and recorded but are not a risk finding** and do not fail the network evidence (owner, 2026-10-01). Every other off-list host still gates (#61). |
 
 ## Tech stack (locked)
 | Concern | Choice |
@@ -299,7 +303,7 @@ by headless Chrome and the screenshots are evidence; visibility is judged on the
 **V2 is complete** as planned — every phase shipped, each with the caveat that no real agent
 run has exercised it.
 
-**Verification now:** 37 self-checks plus the design validator. `pnpm demo` ends at
+**Verification now:** 38 self-checks plus the design validator. `pnpm demo` ends at
 `first-pass 75% | repair 100% | coverage 67%`, 20 criteria passed and 2 failed — the two failures
 are real: the demo's stand-in host sends no HSTS or Referrer-Policy header, and the live checks
 say so. The demo also exercises the policy repair loop, acquires and places a 3D model, renders the

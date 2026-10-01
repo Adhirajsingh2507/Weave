@@ -6,6 +6,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { Engine, adapterDeps } from "../core/api.js";
 import { detectSandbox } from "../core/sandbox.js";
 import { doctor, renderDoctor } from "../core/doctor.js";
+import { TmuxClaudeExecutor } from "../core/tmux.js";
 import { renderReport } from "../core/report.js";
 import { DEFAULT_PACKS, listPacks, loadPack } from "../core/packs/load.js";
 import type { MultimodalInput } from "../core/intake.js";
@@ -38,6 +39,7 @@ const HELP = `weave <command>
   --concurrency <n>               impl nodes per batch (default 1)
 
 Environment:
+  WEAVE_AGENTS=headless           run agents as one-shot claude -p instead of tmux windows
   WEAVE_MODE=api                  API mode: agents and decisions on ANTHROPIC_API_KEY, billed
                                   per token (default: subscription, the claude login)
   WEAVE_DEPLOY=vercel             approving pre-release deploys with Vercel (VERCEL_TOKEN,
@@ -70,10 +72,14 @@ async function main(): Promise<void> {
   const cmd = positionals[0] ?? "help";
   const repoPath = values.repo ?? process.cwd();
   const concurrency = values.concurrency ? Number(values.concurrency) : undefined;
+  const adapters = adapterDeps(process.env, repoPath);
+  if (adapters.executor instanceof TmuxClaudeExecutor && ["run", "approve"].includes(cmd)) {
+    console.error(`agents run in tmux windows — watch or step in with: ${adapters.executor.attachCommand}`);
+  }
   const engine = new Engine({
     repoPath,
     deps: {
-      ...adapterDeps(),
+      ...adapters,
       ...(concurrency && concurrency > 0 ? { concurrency } : {}),
       ...(values.assets?.length ? { assetFolders: values.assets } : {}),
     },

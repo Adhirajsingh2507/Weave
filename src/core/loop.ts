@@ -1,7 +1,7 @@
 // Node loop (decision #26/#27): discover → execute → verify → record → repair,
 // bounded by a retry cap → escalate. Graph decides the route; the loop decides quality.
 
-import { describeEgress } from "./egress.js";
+import { BROWSER_BACKGROUND_HOSTS, describeEgress, hostAllowed } from "./egress.js";
 import type { EgressRecord } from "./egress.js";
 import type { ContextPack, NodeExecutor } from "./runtime.js";
 import type { GitHarness } from "./runtime.js";
@@ -25,7 +25,9 @@ export interface EvidenceRecord {
     /** Which hosts the agent contacted (V2.4). */
     | "network"
     /** A risk finding or a decision-layer risk verdict on the node's diff (V2.4). */
-    | "risk";
+    | "risk"
+    /** A message the owner typed into the agent's session (D4.5) — a human intervention. */
+    | "intervention";
   ok: boolean;
   detail: string;
   /** Criterion this proves, where the producer knows it. */
@@ -118,8 +120,10 @@ export async function executeAndVerify(opts: {
       evidence.push({ kind: "agent", ok: exec.ok, detail: ref });
     }
     if (exec.sandbox) evidence.push({ kind: "sandbox", ok: true, detail: exec.sandbox.detail });
+    for (const m of exec.interventions ?? []) evidence.push({ kind: "intervention", ok: true, detail: `owner typed: ${m.slice(0, 500)}` });
     if (exec.egress) {
-      const blocked = exec.egress.filter((r) => !r.allowed);
+      // A browser's own background calls are refused and listed, but they are not a failure.
+      const blocked = exec.egress.filter((r) => !r.allowed && !hostAllowed(r.host, BROWSER_BACKGROUND_HOSTS));
       evidence.push({ kind: "network", ok: blocked.length === 0, detail: `egress: ${describeEgress(exec.egress)}` });
       for (const r of exec.egress) {
         const seen = egress.get(r.host);
@@ -138,13 +142,22 @@ export async function executeAndVerify(opts: {
     });
 
     if (exec.ok && verdict.ok) {
+      await finishNode(executor, node.contextPack.taskId, evidence);
       return { ok: true, attempts: attempt, evidence, attemptLog, changedFiles, egress: [...egress.values()] };
     }
     node.contextPack.previousFailures.push(
       `attempt ${attempt}: ${exec.ok ? normaliseEvidence(verdict).filter((e) => !e.ok).map((e) => e.detail).join("; ") || "verification failed" : exec.summary}`,
     );
   }
+  await finishNode(executor, node.contextPack.taskId, evidence);
   return { ok: false, attempts: retryCap, evidence, attemptLog, changedFiles, egress: [...egress.values()] };
+}
+
+/** Release the node's session; messages the owner typed after the last turn still count. */
+async function finishNode(executor: NodeExecutor, taskId: string, evidence: EvidenceRecord[]): Promise<void> {
+  if (!executor.finish) return;
+  const { interventions } = await executor.finish(taskId);
+  for (const m of interventions) evidence.push({ kind: "intervention", ok: true, detail: `owner typed: ${m.slice(0, 500)}` });
 }
 
 /**

@@ -27,6 +27,27 @@ export interface EgressRecord {
  */
 export const DEFAULT_ALLOW_HOSTS = ["api.anthropic.com", "localhost", "127.0.0.1"];
 
+/**
+ * Background services a browser calls on its own — updates, Safe Browsing, sign-in, connectivity
+ * checks. An agent that opens Chrome to look at its work triggers them. They stay refused and
+ * recorded; they are not a risk finding (owner decision 2026-10-01). Any other host still gates.
+ */
+export const BROWSER_BACKGROUND_HOSTS = [
+  "accounts.google.com",
+  "clients2.google.com",
+  "clientservices.googleapis.com",
+  "redirector.gvt1.com",
+  "update.googleapis.com",
+  "www.google.com",
+  "www.gstatic.com",
+  "safebrowsing.googleapis.com",
+  "optimizationguide-pa.googleapis.com",
+  "content-autofill.googleapis.com",
+  "android.clients.google.com",
+  "edgedl.me.gvt1.com",
+  "*.gvt1.com",
+];
+
 /** Exact host, or `*.example.com` for the domain and every subdomain. */
 export function hostAllowed(host: string, allow: string[]): boolean {
   const h = host.toLowerCase();

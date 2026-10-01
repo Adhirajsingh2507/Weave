@@ -9,6 +9,7 @@
 //   5. rejecting a risky gate discards the parked branch.
 
 import assert from "node:assert/strict";
+import { classifyChanges } from "./risk.js";
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -172,6 +173,14 @@ async function start(repo: string, text: string, deps: EngineDeps): Promise<{ en
   assert.equal(held?.kind, "risky-op", "a refused decision holds the change for a person");
   assert.ok(held?.evidenceRefs.some((r) => /could not judge this change/.test(r)), JSON.stringify(held?.evidenceRefs));
   rmSync(repo3, { recursive: true, force: true });
+}
+
+// ── 4b. A browser's own background calls are refused and recorded, not a finding (2026-10-01) ──
+{
+  const noise = classifyChanges(tmpdir(), [], { egress: [{ host: "update.googleapis.com", allowed: false, count: 3 }, { host: "accounts.google.com", allowed: false, count: 1 }] });
+  assert.deepEqual(noise, [], "Chrome phoning home is not a risk finding");
+  const mixed = classifyChanges(tmpdir(), [], { egress: [{ host: "update.googleapis.com", allowed: false, count: 3 }, { host: "exfil.example", allowed: false, count: 1 }] });
+  assert.equal(mixed[0]?.detail, "tried to reach hosts off the allowlist: exfil.example", "any other refused host still gates");
 }
 
 // ── 5. Rejecting discards the parked work ─────────────────────

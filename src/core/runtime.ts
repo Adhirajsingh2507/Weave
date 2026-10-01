@@ -42,6 +42,10 @@ export interface ExecResult {
   egress?: EgressRecord[];
   /** How the agent was confined — recorded per node, never assumed. */
   sandbox?: SandboxInfo;
+  /** Messages the owner typed into the agent's session (D4.5): each is a human intervention. */
+  interventions?: string[];
+  /** Tokens the agent's session used so far, where the executor can read them. */
+  usage?: { input: number; output: number; cacheRead: number; cacheWrite: number; turns: number };
 }
 
 /** What an executor can do and how it is confined (V2.4). Recorded, not trusted blindly. */
@@ -60,6 +64,8 @@ export interface NodeExecutor {
   readonly name: string;
   readonly capabilities?: ExecutorCapabilities;
   run(input: ExecInput): Promise<ExecResult>;
+  /** The node is over (passed or out of retries): release its session, report late interventions. */
+  finish?(taskId: string): Promise<{ interventions: string[] }>;
 }
 
 function git(args: string[], cwd: string): string {
@@ -213,7 +219,7 @@ export function nativeDenyRules(deny: string[]): string[] {
   });
 }
 
-function buildPrompt(cp: ContextPack): string {
+export function buildPrompt(cp: ContextPack): string {
   const lines = [
     `Task: ${cp.goal}`,
     cp.constraints.length ? `Constraints:\n- ${cp.constraints.join("\n- ")}` : "",

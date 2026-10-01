@@ -92,6 +92,7 @@ export type {
 export { ClaudeDecision, FakeDecision } from "./core/decision/providers.js";
 export { ClaudeCodeDecision, ClaudeCodeVisionInterpreter, ClaudeCodeVisionExtractor, claudeJson } from "./core/subscription.js";
 export { doctor, renderDoctor } from "./core/doctor.js";
+export { TmuxClaudeExecutor, tmuxAvailable, transcriptUsage, AGENT_TOOLS } from "./core/tmux.js";
 export { DecisionRunner } from "./core/decision/runner.js";
 export type { DecisionOutcome, DecisionRunnerOptions } from "./core/decision/runner.js";
 export { runNode } from "./core/loop.js";

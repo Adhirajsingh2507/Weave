@@ -9,6 +9,7 @@ import { readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { loadPack } from "./packs/load.js";
 import { globToRegExp } from "./sandbox.js";
+import { BROWSER_BACKGROUND_HOSTS, hostAllowed } from "./egress.js";
 import type { EgressRecord } from "./egress.js";
 
 export interface RiskFinding {
@@ -124,7 +125,8 @@ export function classifyChanges(
     }
   }
 
-  const blocked = (opts.egress ?? []).filter((r) => !r.allowed);
+  // Refused either way; a browser's own background calls are recorded, not a finding.
+  const blocked = (opts.egress ?? []).filter((r) => !r.allowed && !hostAllowed(r.host, BROWSER_BACKGROUND_HOSTS));
   if (blocked.length) {
     findings.push({ kind: "egress", detail: `tried to reach hosts off the allowlist: ${blocked.map((r) => r.host).join(", ")}` });
   }

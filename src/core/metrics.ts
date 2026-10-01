@@ -3,7 +3,8 @@
 // Definitions are recorded here because a metric without a definition is a vanity number.
 // The one judgement call: design-approval and pre-release are **mandatory control points you
 // chose to have**, not rescues, so they do not count as human intervention. A run that opens
-// only those two is fully autonomous.
+// only those two is fully autonomous. A message the owner types into an agent's tmux window
+// (D4.5) is an intervention too: one per message, recorded as `intervention` evidence.
 
 import type { GraphStore } from "./store/graph-store.js";
 import type { GateKind } from "./types.js";
@@ -19,8 +20,10 @@ export interface RunMetrics {
   firstPassVerificationRate: number | null;
   /** Nodes that failed at least once and later completed ÷ nodes that failed at least once. */
   repairSuccessRate: number | null;
-  /** Gates beyond the mandatory two ÷ impl nodes. */
+  /** (Gates beyond the mandatory two + messages typed into agent sessions) ÷ impl nodes. */
   humanInterventionRate: number | null;
+  /** Messages the owner typed into agent sessions. */
+  typedInterventions: number;
   /** True when the run reached done opening no gates beyond the mandatory two. */
   autonomous: boolean;
   /** Requirements with a passed or failed verdict on some criterion ÷ requirements. */
@@ -92,6 +95,7 @@ export function runMetrics(store: GraphStore, runId: string): RunMetrics {
   const recovered = failedOnce.filter((n) => n.status === "complete");
 
   const unplanned = gates.filter((g) => !MANDATORY_GATES.includes(g.kind));
+  const typed = store.evidenceFor({ runId }).filter((e) => e.kind === "intervention").length;
 
   const requirements = store.query({ kind: "requirement" });
   const criteria = store.query({ kind: "criterion" });
@@ -114,8 +118,9 @@ export function runMetrics(store: GraphStore, runId: string): RunMetrics {
     implNodes: impls.length,
     firstPassVerificationRate: ratio(firstPass.length, ran.length),
     repairSuccessRate: ratio(recovered.length, failedOnce.length),
-    humanInterventionRate: ratio(unplanned.length, impls.length),
-    autonomous: run?.status === "done" && unplanned.length === 0,
+    humanInterventionRate: ratio(unplanned.length + typed, impls.length),
+    typedInterventions: typed,
+    autonomous: run?.status === "done" && unplanned.length === 0 && typed === 0,
     evidenceCoverage: ratio(covered, requirements.length),
     pendingCriteria: pending,
     unplannedGates: unplanned.length,
