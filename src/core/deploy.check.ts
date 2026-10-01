@@ -139,7 +139,9 @@ rmSync(repo, { recursive: true, force: true });
     `#!/usr/bin/env node
 require("node:fs").writeFileSync(${JSON.stringify(join(dir, "seen.json"))}, JSON.stringify({ argv: process.argv.slice(2), token: process.env.VERCEL_TOKEN || "", aws: process.env.AWS_SECRET_ACCESS_KEY || "" }));
 console.log("Inspect: https://vercel.com/team/site/abc");
-console.log("https://site-abc123.vercel.app");
+console.log("Production: https://site-abc123-team.vercel.app");
+if (process.argv.includes("--prod")) console.log("▲ Aliased         https://site.vercel.app");
+console.log("- Check the deployment response:\\n  vercel curl https://site-abc123-team.vercel.app --project site");
 `,
   );
   chmodSync(bin, 0o755);
@@ -148,7 +150,9 @@ console.log("https://site-abc123.vercel.app");
   delete process.env["AWS_SECRET_ACCESS_KEY"];
   const seen = JSON.parse(readFileSync(join(dir, "seen.json"), "utf8")) as { argv: string[]; token: string; aws: string };
   assert.ok(res.ok);
-  assert.equal(res.url, "https://site-abc123.vercel.app", "the deployment URL, not the inspect link");
+  assert.equal(res.url, "https://site.vercel.app", "the public alias — the per-deployment URL is behind Vercel's login");
+  const preview = await new VercelDeployer({ token: "tok-123", bin, build: false }).deploy(dir);
+  assert.equal(preview.url, "https://site-abc123-team.vercel.app", "a preview has no alias: the deployment URL, not the inspect link");
   assert.deepEqual(seen.argv, ["deploy", "dist", "--yes", "--project", "weave-robotics-demo", "--prod"], "the named project, not one called after the folder");
   assert.equal(seen.token, "tok-123", "the token is in the release step's environment");
   assert.ok(!seen.argv.join(" ").includes("tok-123"), "and never on the command line");

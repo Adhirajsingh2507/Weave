@@ -9,7 +9,7 @@ import { promisify } from "node:util";
 import * as z4 from "zod/v4";
 import { DECISION_MODEL, ModelUnavailableError } from "./decision/index.js";
 import type { Decision, DecisionRequest, DecisionResult } from "./decision/index.js";
-import { VisionFactsSchema } from "./intake.js";
+import { REFERENCE_ONLY, VisionFactsSchema } from "./intake.js";
 import type { VisionFacts, VisionInterpreter } from "./intake.js";
 import { ISOLATED_CLAUDE_ARGS, scrubbedEnv } from "./runtime.js";
 import { PageFactsSchema } from "./visual.js";
@@ -141,7 +141,8 @@ export class ClaudeCodeVisionInterpreter implements VisionInterpreter {
     const prompt =
       `Read these screenshot files with the Read tool: ${screenshots.map((s) => resolve(s)).join(", ")}. ` +
       "They show a website design to be rebuilt. Read its structure top to bottom and describe it for a design compiler. " +
-      "Report what you see, not what you would design; if a field is ambiguous, say so in your own words rather than forcing a category." +
+      "Report what you see, not what you would design; if a field is ambiguous, say so in your own words rather than forcing a category. " +
+      REFERENCE_ONLY +
       (text ? `\n\nThe author also wrote:\n${text}` : "");
     return (await claudeJson(prompt, VisionFactsSchema, { ...this.#opts, images: screenshots })).data;
   }

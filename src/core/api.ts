@@ -401,7 +401,20 @@ export class Engine {
       },
     ]);
     if (!res.ok || !res.url) return;
+    await this.#liveChecks(runId, res.url);
+  }
 
+  /** Re-run the post-deploy checks against a URL — the public one, if the first target was not. */
+  async checkLive(url: string, runId?: RunId): Promise<void> {
+    const id = runId ?? this.#graphStore().latestRun()?.runId;
+    if (!id) throw new Error("no runs yet");
+    await this.#liveChecks(id, url);
+  }
+
+  /** The packs' page and header items, judged on what the URL actually serves. */
+  async #liveChecks(runId: RunId, url: string): Promise<void> {
+    const store = this.#graphStore();
+    const res = { url };
     const ir = this.#loadIR(runId);
     const packs = ir ? packsFor(ir) : [];
     if (!packs.length) return;
@@ -548,6 +561,13 @@ export class Engine {
     const constraints: string[] = [];
     if (style) constraints.push(styleBrief(style));
     if (notes) constraints.push(`Reviewer notes from the last gate: ${notes}`);
+    // Built from a reference site: its layout and style were read, its words and brand are not ours.
+    if ((this.#loadIR(runId)?.meta.sourceInputs ?? []).some((i) => i.kind === "screenshot" || i.kind === "url")) {
+      constraints.push(
+        "This design was read from a reference website for layout and style only. Write original copy. Do not use the " +
+          "reference's company or brand names, slogans or headlines, and do not present the site as an official page of any real company.",
+      );
+    }
     // A retry after a gate used to start blind. Seed it with what the earlier attempt
     // recorded, so the agent does not repeat the same failure.
     const prior = store.getExecNode(runId, node.id)?.evidence ?? [];

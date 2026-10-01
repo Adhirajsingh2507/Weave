@@ -84,7 +84,8 @@ if (!run) {
   }
   const screenshots = readdirSync(shots).filter((f) => f.endsWith(".png")).sort().map((f) => join(shots, f));
   say(`intake: brief + ${screenshots.length} screenshots → design (vision on Opus 5.5)`);
-  const handle = await engine.run({ projectName: "Unitree Go2", text: BRIEF, screenshots });
+  // Our own name: the reference site's brand is not ours to use (decision #86).
+  const handle = await engine.run({ projectName: "Quadruped Robotics", text: BRIEF, screenshots });
   run = { runId: handle.runId };
 }
 const runId = run.runId;

@@ -85,7 +85,10 @@ they are not lost:
 - ~~**3D needs a renderer.**~~ — the scaffold bundles model-viewer (D4, #99).
 - ~~The example brief's `logo.svg`~~ — line dropped (#109).
 - **The natural failure (#46) has not happened for real yet.** D5's six agents all passed first
-  time. The story's repair moment is still the demo's scripted case.
+  time. The failures the real runs did produce were Weave's own (an un-ignored `dist/`, a turn
+  that never ended), now fixed. The story's repair moment is still the demo's scripted case.
+- **Wall-clock turn timeouts count sleep.** A laptop that sleeps mid-turn makes the turn "time
+  out" on wake. The turn is interrupted and repaired, but the attempt is spent.
 - ~~The IR has no home for the guides' `shape`, `motion` and `spacing` tokens~~ — V2.6 (#68).
 - `ingest --changed` uses working-tree dirty files rather than a persisted since-last-ingest diff,
   and deletions leave stale code nodes.

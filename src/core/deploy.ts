@@ -118,9 +118,13 @@ export class VercelDeployer implements Deployer {
     const args = ["deploy", this.#outputDir, "--yes", ...(this.#project ? ["--project", this.#project] : []), ...(this.#prod ? ["--prod"] : [])];
     const res = await exec(this.#bin, args, { cwd: repoPath, env, timeoutMs: this.#timeoutMs });
     log.push(res.out);
-    // The CLI prints the deployment URL on stdout; the last vercel.app URL is the deployment.
+    // Prefer the public alias ("Aliased https://…"): the per-deployment URL sits behind Vercel's
+    // deployment protection and answers with a redirect to a login page, so live checks run
+    // against it would grade that page (found by the D6 real run). Without an alias — a preview —
+    // the first vercel.app URL printed is the deployment.
+    const alias = /Aliased\s+(https:\/\/[^\s"']+)/.exec(res.out)?.[1];
     const urls = res.out.match(/https:\/\/[^\s"']+\.vercel\.app\b/g) ?? [];
-    const url = urls.at(-1);
+    const url = alias ?? urls[0];
     return { ok: res.ok && Boolean(url), ...(url ? { url } : {}), log: log.join("\n") };
   }
 }

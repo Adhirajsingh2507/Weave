@@ -47,6 +47,11 @@ export async function buildLiveContext(url: string, pageFiles: string[]): Promis
     const target = new URL(file === "index.html" ? "/" : file, url);
     try {
       const res = await fetch(target, { signal: AbortSignal.timeout(15_000), redirect: "follow" });
+      // Landing on another host means a login wall or a parked domain answered, not the site.
+      if (new URL(res.url).host !== target.host) {
+        if (file === "index.html") return { error: `${target} redirects to ${new URL(res.url).host} — the site is not publicly reachable there (deployment protection?)` };
+        continue;
+      }
       if (!res.ok) {
         if (file === "index.html") return { error: `${target} answered ${res.status}` };
         continue;

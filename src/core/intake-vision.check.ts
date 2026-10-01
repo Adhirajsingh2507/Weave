@@ -125,11 +125,18 @@ const field = (ir: DesignIR, f: string) => ir.meta.interpretations!.find((i) => 
   git(["add", "-A"], repo);
   git(["commit", "-q", "-m", "init"], repo);
 
+  const briefs: string[] = [];
   const engine = new Engine({
     repoPath: repo,
     deps: {
       vision,
-      executor: { name: "r", run: async (input) => realise(input) },
+      executor: {
+        name: "r",
+        run: async (input) => {
+          briefs.push(input.contextPack.constraints.join("\n"));
+          return realise(input);
+        },
+      },
       makeHarness: (p) => new GitHarness(p),
       concurrency: 4,
     },
@@ -154,6 +161,8 @@ const field = (ir: DesignIR, f: string) => ir.meta.interpretations!.find((i) => 
   const tokens = readFileSync(join(repo, "styles", "tokens.css"), "utf8");
   assert.match(tokens, /Futuristic/, "styled with the confirmed guide");
   assert.ok(existsSync(join(repo, "sections", "hero.html")), "built from the reading's structure");
+  // A reference is read for its design, not its words or brand (decision #86): every agent is told.
+  assert.ok(briefs.length > 0 && briefs.every((b) => /reference website for layout and style only\. Write original copy/.test(b)));
   rmSync(repo, { recursive: true, force: true });
 }
 

@@ -43,6 +43,13 @@ export const VisionFactsSchema = z4.object({
 });
 export type VisionFacts = z4.infer<typeof VisionFactsSchema>;
 
+/**
+ * A reference site is read for its design, never for its words or its brand (decision #86). Told
+ * to the vision pass, so the reading carries no copy to reuse, and to every agent building from it.
+ */
+export const REFERENCE_ONLY =
+  "Describe what kind of content sits where and how it looks. Do not transcribe its headlines, slogans, product or company names or figures: the design is being read, the words and the brand are not being reused. For projectName give an empty string unless the author named the project.";
+
 /** The execution-layer seam for reading screenshots. Real: Claude vision. Checks: recorded. */
 export interface VisionInterpreter {
   interpret(input: { screenshots: string[]; text?: string }): Promise<VisionFacts>;
@@ -93,7 +100,8 @@ export class ClaudeVisionInterpreter implements VisionInterpreter {
               text:
                 "These screenshots show a website design to be rebuilt. Read its structure top to bottom and describe it " +
                 "for a design compiler. Report what you see, not what you would design; if a field is ambiguous, say so " +
-                "in your own words rather than forcing a category." +
+                "in your own words rather than forcing a category. " +
+                REFERENCE_ONLY +
                 (text ? `\n\nThe author also wrote:\n${text}` : ""),
             },
           ],

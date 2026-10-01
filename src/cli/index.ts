@@ -33,6 +33,7 @@ const HELP = `weave <command>
   report [--json] [--run <id>]    traceability: requirement → code → evidence, plus metrics
   report --html <file>            the explorer: the whole run as one self-contained HTML file
   metrics [--json]                the five metrics for the latest run and the project
+  live <url> [--run <id>]         re-run the post-deploy checks against a URL
   usage [--run <id>] [--json]     what a run cost: time, sessions, retries, tokens, decision calls
   parity [--write]                replay the decision corpus through Jev; per type: agreement and
                                   calibration. --write routes the types that pass to Jev
@@ -192,6 +193,12 @@ async function main(): Promise<void> {
         writeFileSync(file, `${JSON.stringify(policyFromParity(rows), null, 2)}\n`);
         console.log(`wrote ${file}`);
       }
+      break;
+    }
+    case "live": {
+      if (!positionals[1]) throw new Error("live: weave live <url>");
+      await engine.checkLive(positionals[1], values.run);
+      console.log(renderReport(await engine.report(values.run)).split("\n").filter((l) => /live |post-deploy/.test(l)).join("\n"));
       break;
     }
     case "usage": {
