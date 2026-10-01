@@ -175,6 +175,19 @@ egress allowlist reaching what the subscription login needs, `TYPESAFE_API_KEY` 
 - Pre-release approval deploys to Vercel project `weave-robotics-demo`; post-deploy checks run
   against the public URL.
 - **Exit:** a public URL, deploy evidence, live checks passing.
+- **Done 2026-10-01** (#112–#117), on the fourth real run. **https://weave-robotics-demo.vercel.app**
+  — six viewport captures of the Go2 site, vision read them, three uncertain readings (layout,
+  type scale, the style suggestion `futuristic` with alternatives) gated; 9 agent sessions, 0
+  retries, 33.1 min; a real **risky-op gate** (an agent reached for `registry.npmjs.org`: refused,
+  held, and judged risky at 0.62 by the decision layer); visual QA judged the Go2 visible;
+  deployed by Weave to the public alias; **post-deploy checks 12 passed, 0 failed**. Gates were
+  approved with `--yes` by Claude on the owner's behalf (the owner asked for one go).
+  What the first three runs found, all fixed: an existing `.gitignore` left `dist/` tracked and
+  failed every node; a turn folded with a queued message never ended; sections' scripts were not
+  shipped; live checks graded Vercel's login page (the per-deployment URL is protected); the
+  build reused the reference's headlines and brand, against #86. The second run produced the
+  first **natural failure repaired for real** (#46): the hero agent did not place `go2.glb`, the
+  placement check failed it, and the same session fixed it.
 
 ### D7 — The benchmark
 
@@ -246,7 +259,7 @@ egress allowlist reaching what the subscription login needs, `TYPESAFE_API_KEY` 
 | D4 3D that renders | **done** |
 | D4.5 Agents in tmux | **done** |
 | D5 First real build | **done** (11.9 min, 0 retries, autonomous) |
-| D6 Intake + public deploy | not started (site decided, #86) |
+| D6 Intake + public deploy | **done** — https://weave-robotics-demo.vercel.app |
 | D7 Benchmark | size decided after D5 |
-| D8 Jev | docs in (#84); waiting on the key |
-| D9 Recording kit | not started |
+| D8 Jev | built against a stand-in; real parity waits on the key |
+| D9 Recording kit | built (`pnpm demo:real`, `docs/runbook.md`); your dry run pending |

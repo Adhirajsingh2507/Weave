@@ -178,6 +178,8 @@ Asked and answered; the discussion continues, so these may be refined — change
 | 113 | Plan limits | A usage-limit message in an agent's window is `ModelUnavailableError`: the batch stops at a low-confidence gate naming it, windows close, no retries are spent; approving after the reset re-runs the unfinished nodes. The benchmark pings the subscription before each build and stops the same way. |
 | 114 | A section's own files | `sections/<id>/` (scripts, media a section loads) is owned by the component, named in its brief, and copied into `dist/` by the build. No inline scripts: the CSP allows the site's own files only. |
 | 115 | Capture for intake (D6) | `weave capture <url> --out <dir>`: Playwright scrolls a live page one viewport at a time and captures each after its animation — scroll-driven sites show only their first screen in a single full-page capture. |
+| 116 | Which URL is live | **The deployer returns Vercel's public alias** ("Aliased https://…"), not the per-deployment URL, which is behind deployment protection and redirects to a login page. The live checker refuses a response that lands on another host and reports the checks as unavailable. `weave live <url>` re-runs them. |
+| 117 | #86, enforced | A reference site is read for design only: the vision pass is told to describe, not transcribe headlines, names or figures; every agent building from a reference is told to write original copy and not to present the site as a real company's; `demo:real` uses its own project name. (The first D6 deploy reused the reference's headlines under its brand; it was replaced.) |
 
 ## Tech stack (locked)
 | Concern | Choice |

@@ -84,9 +84,12 @@ they are not lost:
   resized to their pixel budget; video and fonts are budgeted by size only.
 - ~~**3D needs a renderer.**~~ — the scaffold bundles model-viewer (D4, #99).
 - ~~The example brief's `logo.svg`~~ — line dropped (#109).
-- **The natural failure (#46) has not happened for real yet.** D5's six agents all passed first
-  time. The failures the real runs did produce were Weave's own (an un-ignored `dist/`, a turn
-  that never ended), now fixed. The story's repair moment is still the demo's scripted case.
+- **The natural failure (#46) has happened once for real** (second D6 run: the hero agent did not
+  place the model; the placement check failed it; the same session fixed it). It is not
+  reproducible on demand — three of four real builds had no agent failure at all — so record
+  several takes, or keep the scripted demo as the fallback for that moment.
+- **Gates in the real runs were approved by Claude with `--yes`**, including the style suggestion.
+  Your recording should make those calls yourself.
 - **Wall-clock turn timeouts count sleep.** A laptop that sleeps mid-turn makes the turn "time
   out" on wake. The turn is interrupted and repaired, but the attempt is spent.
 - ~~The IR has no home for the guides' `shape`, `motion` and `spacing` tokens~~ — V2.6 (#68).

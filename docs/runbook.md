@@ -85,6 +85,16 @@ Open `~/weave-demo/robotics/.agent/report.html` (one offline file). Show, in thi
 | Decisions are typed and recorded | `.agent/evidence/decisions.jsonl` (model, confidence, usage per call) |
 | Cost | `weave usage` |
 
-## Measured
+## Measured (2026-10-01, this machine, Claude Pro, Opus 5.5)
 
-Filled in from the real runs (D5–D7) — see `docs/demo-plan.md` for the dates and details.
+| Run | What | Wall clock | Agent sessions | Retries | Gates beyond the two mandatory | Result |
+|---|---|---|---|---|---|---|
+| D5 | robotics brief, style given | 11.9 min | 6 | 0 | 0 | done, autonomous; 26 criteria passed, 0 failed |
+| D6 | brief + six screenshots, style read | 33.1 min | 9 | 0 | 2 (uncertain readings; a refused registry call) | deployed; live checks 12/12 |
+
+- One build is roughly 250–660k output tokens across its sessions, plus 6–7 decision calls
+  (API-price equivalent about $0.30, not billed on a subscription).
+- A Pro session limit is reachable inside two builds in one window. Weave stops at a gate naming
+  it; re-run `pnpm demo:real` after the reset.
+- A real agent failure and repair happened in one of four builds. Do not count on it live.
+- Benchmark: see `bench/benchmark.md`.
