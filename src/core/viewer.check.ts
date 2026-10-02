@@ -68,6 +68,9 @@ if (!PlaywrightBrowserWorker.available()) {
   assert.ok(existsSync(join(repo, "vendor", "model-viewer.min.js")));
   assert.match(readFileSync(join(repo, "index.html"), "utf8"), /<script type="module" src="vendor\/model-viewer\.min\.js"><\/script>/);
   assert.ok(existsSync(join(repo, "dist", "vercel.json")), "the deploy config is in what Vercel uploads");
+  // No request that can only fail: an explicit (empty) icon, and no dangling source-map reference.
+  assert.match(readFileSync(join(repo, "index.html"), "utf8"), /<link rel="icon" href="data:,">/);
+  assert.ok(!/sourceMappingURL/.test(readFileSync(join(repo, "vendor", "model-viewer.min.js"), "utf8").slice(-300)));
   assert.match(readFileSync(join(repo, "dist", "vercel.json"), "utf8"), /Content-Security-Policy/);
 
   // Rendered under the CSP with no console errors.

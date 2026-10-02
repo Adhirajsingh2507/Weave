@@ -195,6 +195,14 @@ egress allowlist reaching what the subscription login needs, `TYPESAFE_API_KEY` 
   scored by Lighthouse, axe, gitleaks and `pnpm audit` only.
 - Published as-is, including the runs Weave loses.
 - **Exit:** `bench/benchmark.md` with mean ± sd and head-to-head.
+- **Done 2026-10-02** (#118). 3 pairs, all 6 builds produced a site, run across two plan windows
+  (the first attempt stopped at the session limit, as designed; the benchmark is now resumable).
+  **The plain agent won on these scorers**: Lighthouse performance 32 vs 20, best-practices 100
+  vs 96, agentic-browsing 100 vs 82 on all three pairs; accessibility, axe, secrets, dependencies
+  and SEO level. `bench/notes.md` says why and what the arms did not share: the Weave build is
+  scored under its own CSP (without it, 100 on both), two findings were Weave's scaffold (no
+  favicon, a dangling source map — fixed after the measurement), and the plain agent had open
+  network access. These scorers grade the page, not control or evidence.
 
 ### D8 — Jev
 
@@ -260,6 +268,6 @@ egress allowlist reaching what the subscription login needs, `TYPESAFE_API_KEY` 
 | D4.5 Agents in tmux | **done** |
 | D5 First real build | **done** (11.9 min, 0 retries, autonomous) |
 | D6 Intake + public deploy | **done** — https://weave-robotics-demo.vercel.app |
-| D7 Benchmark | size decided after D5 |
+| D7 Benchmark | **done** — 3 pairs; plain wins on page scorers (`bench/notes.md`) |
 | D8 Jev | built against a stand-in; real parity waits on the key |
 | D9 Recording kit | built (`pnpm demo:real`, `docs/runbook.md`); your dry run pending |

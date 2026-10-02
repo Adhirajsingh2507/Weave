@@ -6,7 +6,7 @@
 // work offline, in CI, and inside a fresh worktree.
 
 import { execFile } from "node:child_process";
-import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
 import { styleTokensCss } from "./design/style.js";
@@ -103,7 +103,10 @@ export class TemplateScaffolder implements Scaffolder {
       // render must not depend on the network. Models are optimised with mesh quantisation, which
       // the viewer decodes natively — no decoder download either.
       mkdirSync(join(repoPath, "vendor"), { recursive: true });
-      copyFileSync(join(WEAVE_ROOT, "node_modules", "@google", "model-viewer", "dist", "model-viewer.min.js"), join(repoPath, "vendor", "model-viewer.min.js"));
+      // Without its sourceMappingURL: the map is not bundled, and a dangling reference is a failed
+      // request and a Lighthouse best-practices finding (found by the D7 benchmark).
+      const viewer = readFileSync(join(WEAVE_ROOT, "node_modules", "@google", "model-viewer", "dist", "model-viewer.min.js"), "utf8");
+      writeFileSync(join(repoPath, "vendor", "model-viewer.min.js"), viewer.replace(/\n?\/\/# sourceMappingURL=\S+\s*$/, "\n"), "utf8");
       files.push("vendor/model-viewer.min.js");
       write(repoPath, "vendor/README.md", VENDOR_README, files);
     }
@@ -300,6 +303,7 @@ function pageHtml(title: string, heading: string, sections: string[], pageId?: s
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${title}</title>
   <meta name="description" content="${title}">
+  <link rel="icon" href="data:,">
   <link rel="stylesheet" href="styles/tokens.css">
   <link rel="stylesheet" href="styles/base.css">
   <link rel="stylesheet" href="styles/theme.css">${viewer3d ? '\n  <script type="module" src="vendor/model-viewer.min.js"></script>' : ""}

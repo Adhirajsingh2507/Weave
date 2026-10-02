@@ -172,8 +172,9 @@ V2 (V2.0–V2.7) shipped — see `docs/implementation-v2.md` — and **has run f
 subscription, built a robotics landing page from a brief (11.9 min, 6 sessions, no retries) and
 again from screenshots of a live site, and Weave deployed it —
 https://weave-robotics-demo.vercel.app — with its post-deploy checks passing. One command
-reproduces it: `pnpm demo:real` (`docs/runbook.md`). Still open: the benchmark is partly run
-(`bench/benchmark.md`), and Jev is built against a stand-in until its key arrives.
+reproduces it: `pnpm demo:real` (`docs/runbook.md`). The benchmark ran (3 pairs, free scorers): on page-quality scores a
+plain agent does as well or better — `bench/notes.md` says what that does and does not measure.
+Jev is built against a stand-in until its key arrives.
 
 Docs: `docs/handoff.md` is where to start (where work stopped, how to work),
 `docs/information.md` the overview, `docs/current-info.md` the decisions,

@@ -12,11 +12,11 @@ inside bubblewrap, on the owner's Claude Pro subscription, built the robotics la
 (D5 from the brief; D6 from screenshots of a live site) and Weave deployed it:
 **https://weave-robotics-demo.vercel.app** (post-deploy checks 12 passed, 0 failed).
 
-Three things are not finished, and each says why:
+What is and is not finished:
 
 | Item | State | What it needs |
 |---|---|---|
-| **D7 benchmark** (3 pairs) | resumable; see `bench/benchmark.md` for how many pairs completed | more plan windows: `node scripts/benchmark.mjs --runs 3 --out bench` continues where it stopped |
+| **D7 benchmark** (3 pairs) | **done** — the plain agent wins on page scorers; read `bench/notes.md` before quoting it | a decision on what to show instead (a benchmark of control does not exist yet) |
 | **D8 Jev** | adapter, parity harness and routing built and proven against a stand-in | `TYPESAFE_API_KEY` on this machine, then `weave parity --write` in a workspace with a corpus |
 | **D9 dry run** | `pnpm demo:real` and `docs/runbook.md` are ready | the owner runs it and reports what to fix |
 
@@ -76,7 +76,7 @@ demo phases were started without it at the owner's request.
 |---|---|
 | Their description of how Weave should look and work | the next direction |
 | `TYPESAFE_API_KEY` on this machine | D8's real parity run |
-| More plan windows (or a larger plan) | finishing the 3-pair benchmark |
+| What to show in place of a winning benchmark | the demo's "is it better?" step |
 | A dry run of `pnpm demo:real` | D9 |
 | Name and licence (#6) | before any public launch |
 
@@ -90,8 +90,8 @@ and no `TYPESAFE_API_KEY`.** This is the only machine in use (#88).
 
 ## Next steps, in order
 
-1. Finish the benchmark across plan windows; publish `bench/benchmark.md` as it stands, losses
-   included.
+1. Decide what the demo says about the benchmark (`bench/notes.md`): Weave did not win on page
+   scorers, and no benchmark of control exists yet.
 2. The owner's dry run of `pnpm demo:real`, and fixes from it.
 3. `TYPESAFE_API_KEY` → `weave parity --write` → one real run with Jev serving the passing types.
 4. The design discussion (open item #7), and whatever it changes.

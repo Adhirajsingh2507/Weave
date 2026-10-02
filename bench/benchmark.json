@@ -1,0 +1,298 @@
+{
+  "brief": "# Weave brief — robotics company landing page (line-directive format)\n# Use with the real Claude executor:  node dist/cli/index.js run --brief examples/robotics-landing.brief --name robotics-landing\n# futuristic names robotics in its best_for; one line to change.\nstyle: futuristic\npage: home /\ncomponent: nav nav\ncomponent: hero section\ncomponent: features section\ncomponent: cta section\ncomponent: footer footer\n# Assets are acquired, measured and budgeted by Weave, never built by an agent. Put the files in\n# a folder and pass it:  weave run --brief … --assets examples/assets  (go2.glb is there, D4)\nasset: robot 3d go2.glb in:hero\n",
+  "runs": [
+    {
+      "arm": "plain",
+      "index": 1,
+      "ok": true,
+      "metrics": {
+        "lighthouse.performance": {
+          "value": 28,
+          "better": "higher"
+        },
+        "lighthouse.accessibility": {
+          "value": 100,
+          "better": "higher"
+        },
+        "lighthouse.best-practices": {
+          "value": 100,
+          "better": "higher"
+        },
+        "lighthouse.seo": {
+          "value": 100,
+          "better": "higher"
+        },
+        "lighthouse.agentic-browsing": {
+          "value": 100,
+          "better": "higher"
+        },
+        "axe.violations": {
+          "value": 0,
+          "better": "lower"
+        },
+        "axe.affected-nodes": {
+          "value": 0,
+          "better": "lower"
+        },
+        "gitleaks.findings": {
+          "value": 0,
+          "better": "lower"
+        },
+        "audit.high+critical": {
+          "value": 0,
+          "better": "lower"
+        }
+      },
+      "meta": {
+        "wallMs": 409716
+      }
+    },
+    {
+      "arm": "weave",
+      "index": 1,
+      "ok": true,
+      "metrics": {
+        "lighthouse.performance": {
+          "value": 21,
+          "better": "higher"
+        },
+        "lighthouse.accessibility": {
+          "value": 100,
+          "better": "higher"
+        },
+        "lighthouse.best-practices": {
+          "value": 96,
+          "better": "higher"
+        },
+        "lighthouse.seo": {
+          "value": 100,
+          "better": "higher"
+        },
+        "lighthouse.agentic-browsing": {
+          "value": 89,
+          "better": "higher"
+        },
+        "axe.violations": {
+          "value": 1,
+          "better": "lower"
+        },
+        "axe.affected-nodes": {
+          "value": 1,
+          "better": "lower"
+        },
+        "gitleaks.findings": {
+          "value": 0,
+          "better": "lower"
+        },
+        "audit.high+critical": {
+          "value": 0,
+          "better": "lower"
+        }
+      },
+      "meta": {
+        "wallMs": 717964,
+        "gates": [],
+        "firstPass": 0.8333,
+        "repair": 1,
+        "note": "scored after the fact: the script's checkout failed, the build had finished"
+      }
+    },
+    {
+      "arm": "plain",
+      "index": 2,
+      "ok": true,
+      "metrics": {
+        "lighthouse.performance": {
+          "value": 38,
+          "better": "higher"
+        },
+        "lighthouse.accessibility": {
+          "value": 100,
+          "better": "higher"
+        },
+        "lighthouse.best-practices": {
+          "value": 100,
+          "better": "higher"
+        },
+        "lighthouse.seo": {
+          "value": 100,
+          "better": "higher"
+        },
+        "lighthouse.agentic-browsing": {
+          "value": 100,
+          "better": "higher"
+        },
+        "axe.violations": {
+          "value": 0,
+          "better": "lower"
+        },
+        "axe.affected-nodes": {
+          "value": 0,
+          "better": "lower"
+        },
+        "gitleaks.findings": {
+          "value": 0,
+          "better": "lower"
+        },
+        "audit.high+critical": {
+          "value": 0,
+          "better": "lower"
+        }
+      },
+      "meta": {
+        "wallMs": 559593
+      }
+    },
+    {
+      "arm": "weave",
+      "index": 2,
+      "ok": true,
+      "metrics": {
+        "lighthouse.performance": {
+          "value": 17,
+          "better": "higher"
+        },
+        "lighthouse.accessibility": {
+          "value": 100,
+          "better": "higher"
+        },
+        "lighthouse.best-practices": {
+          "value": 96,
+          "better": "higher"
+        },
+        "lighthouse.seo": {
+          "value": 100,
+          "better": "higher"
+        },
+        "lighthouse.agentic-browsing": {
+          "value": 74,
+          "better": "higher"
+        },
+        "axe.violations": {
+          "value": 0,
+          "better": "lower"
+        },
+        "axe.affected-nodes": {
+          "value": 0,
+          "better": "lower"
+        },
+        "gitleaks.findings": {
+          "value": 0,
+          "better": "lower"
+        },
+        "audit.high+critical": {
+          "value": 0,
+          "better": "lower"
+        }
+      },
+      "meta": {
+        "wallMs": 288562,
+        "gates": [
+          "design-approval",
+          "pre-release"
+        ],
+        "firstPass": 1,
+        "repair": null
+      }
+    },
+    {
+      "arm": "plain",
+      "index": 3,
+      "ok": true,
+      "metrics": {
+        "lighthouse.performance": {
+          "value": 30,
+          "better": "higher"
+        },
+        "lighthouse.accessibility": {
+          "value": 98,
+          "better": "higher"
+        },
+        "lighthouse.best-practices": {
+          "value": 100,
+          "better": "higher"
+        },
+        "lighthouse.seo": {
+          "value": 100,
+          "better": "higher"
+        },
+        "lighthouse.agentic-browsing": {
+          "value": 100,
+          "better": "higher"
+        },
+        "axe.violations": {
+          "value": 1,
+          "better": "lower"
+        },
+        "axe.affected-nodes": {
+          "value": 1,
+          "better": "lower"
+        },
+        "gitleaks.findings": {
+          "value": 0,
+          "better": "lower"
+        },
+        "audit.high+critical": {
+          "value": 0,
+          "better": "lower"
+        }
+      },
+      "meta": {
+        "wallMs": 879068
+      }
+    },
+    {
+      "arm": "weave",
+      "index": 3,
+      "ok": true,
+      "metrics": {
+        "lighthouse.performance": {
+          "value": 22,
+          "better": "higher"
+        },
+        "lighthouse.accessibility": {
+          "value": 100,
+          "better": "higher"
+        },
+        "lighthouse.best-practices": {
+          "value": 96,
+          "better": "higher"
+        },
+        "lighthouse.seo": {
+          "value": 100,
+          "better": "higher"
+        },
+        "lighthouse.agentic-browsing": {
+          "value": 83,
+          "better": "higher"
+        },
+        "axe.violations": {
+          "value": 0,
+          "better": "lower"
+        },
+        "axe.affected-nodes": {
+          "value": 0,
+          "better": "lower"
+        },
+        "gitleaks.findings": {
+          "value": 0,
+          "better": "lower"
+        },
+        "audit.high+critical": {
+          "value": 0,
+          "better": "lower"
+        }
+      },
+      "meta": {
+        "wallMs": 336915,
+        "gates": [
+          "design-approval",
+          "pre-release"
+        ],
+        "firstPass": 1,
+        "repair": null
+      }
+    }
+  ],
+  "unavailable": []
+}

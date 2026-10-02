@@ -75,8 +75,13 @@ they are not lost:
   `claude-sonnet-5`. That is valid there, but Opus 5.5 and Sonnet 5.5 reject forced tool use, and
   the documented default model is `claude-opus-5-5`. Moving it to the SDK with structured outputs
   changes the model — and so the cost — of every decision; that is a choice to make, not a cleanup.
-- **The benchmark is partly run** (D7): resumable across plan windows; `bench/benchmark.md` says
-  how many of the 3 pairs completed. Three pairs is a small sample — direction, not a mean ± sd.
+- **The benchmark ran and Weave did not win it** (D7, #118). On page-quality scorers a strong
+  model unaided is as good or better on a simple brief. Open: what to show engineering leaders
+  instead — a benchmark of control and evidence (planted secrets, a tempting dependency, a brief
+  with a trap) would measure what Weave is for; it is not built.
+- **The benchmark's Weave arm is served with its CSP; the plain arm has no headers.** Whether to
+  score both the same way (both without, or add a scorer that rewards security headers) is a
+  fairness choice for the owner.
 - **`demo-design/` has pictures for 6 of 91 styles**, so the MCP picture resources are thin.
 - ~~`browser-qa` and `visual-qa` are marked `skipped`~~ — wired in V2.7 (#73, #74).
 - **V2.7 ceilings.** ~~Raster and 3D optimisation need sharp / gltf-transform~~ and ~~the Chrome

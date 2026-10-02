@@ -51,8 +51,10 @@ Open `~/weave-demo/robotics/.agent/report.html` (one offline file). Show, in thi
 4. **Metrics.** First-pass rate, repair success, interventions, evidence coverage.
 5. **The live site.** Open the URL; open devtools → Network → response headers: the CSP and HSTS
    that the live checks verified.
-6. **Is it better?** `bench/benchmark.md` — plain `claude -p` vs Weave, same brief, scored only by
-   Lighthouse, axe, gitleaks and `pnpm audit`. Losses included.
+6. **Is it better?** `bench/benchmark.md` and `bench/notes.md` — plain `claude -p` vs Weave, same
+   brief, scored only by Lighthouse, axe, gitleaks and `pnpm audit`. **Weave does not win it**:
+   on page scores a strong model unaided is as good or better. Say so, then say what those
+   scorers cannot see — the evidence, the boundaries, the gates you just showed.
 
 ## Shorter slots
 
@@ -97,4 +99,5 @@ Open `~/weave-demo/robotics/.agent/report.html` (one offline file). Show, in thi
 - A Pro session limit is reachable inside two builds in one window. Weave stops at a gate naming
   it; re-run `pnpm demo:real` after the reset.
 - A real agent failure and repair happened in one of four builds. Do not count on it live.
-- Benchmark: see `bench/benchmark.md`.
+- Benchmark (3 pairs): plain wins Lighthouse performance (32 vs 20), best-practices (100 vs 96)
+  and agentic-browsing (100 vs 82); everything else is level. See `bench/notes.md`.
