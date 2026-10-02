@@ -98,6 +98,6 @@ Open `~/weave-demo/robotics/.agent/report.html` (one offline file). Show, in thi
   (API-price equivalent about $0.30, not billed on a subscription).
 - A Pro session limit is reachable inside two builds in one window. Weave stops at a gate naming
   it; re-run `pnpm demo:real` after the reset.
-- A real agent failure and repair happened in one of four builds. Do not count on it live.
+- A real agent failure and repair happened in two of seven completed real builds. Do not count on it live.
 - Benchmark (3 pairs): plain wins Lighthouse performance (32 vs 20), best-practices (100 vs 96)
   and agentic-browsing (100 vs 82); everything else is level. See `bench/notes.md`.

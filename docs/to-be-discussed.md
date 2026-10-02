@@ -19,7 +19,9 @@ _Last updated: 2026-09-30_
 | ~~9~~ | The robot model: a CC0 candidate I shortlist, or yours. | D4 | **Decided (#87):** Unitree's Go2 mesh, BSD-3-Clause. |
 | ~~10~~ | Benchmark size (pairs). | D7 | **Decided (#109):** 3 pairs. |
 | ~~11~~ | The new device's OS. | setup | **Decided (#88):** no new device — this Linux machine only. |
-| 12 | Jev API key (`TYPESAFE_API_KEY`) on this machine. | D8 | You add it; not set as of 2026-09-30. |
+| 12 | Jev API key (`TYPESAFE_API_KEY`) on this machine. | D8 | You add it; not set as of 2026-10-02. |
+| 13 | Vercel's GitHub app has no access to the private `weave-robotics-demo` repo. | deploy-on-push | You grant it on GitHub; then `vercel git connect`. Until then the site is deployed from the repo's code by the CLI. |
+| 14 | Weave is public with no licence (#6). | now | Without one it is all rights reserved: readable, not usable by others. |
 
 Struck-through rows are settled; they stay here for one phase so the reasoning is easy to find.
 
@@ -89,9 +91,10 @@ they are not lost:
   resized to their pixel budget; video and fonts are budgeted by size only.
 - ~~**3D needs a renderer.**~~ — the scaffold bundles model-viewer (D4, #99).
 - ~~The example brief's `logo.svg`~~ — line dropped (#109).
-- **The natural failure (#46) has happened once for real** (second D6 run: the hero agent did not
+- **The natural failure (#46) has happened for real, twice** (first in the second D6 run: the hero agent did not
   place the model; the placement check failed it; the same session fixed it). It is not
-  reproducible on demand — three of four real builds had no agent failure at all — so record
+  reproducible on demand — five of seven completed real builds had no agent failure at all (the
+  other was the benchmark's first Weave build) — so record
   several takes, or keep the scripted demo as the fallback for that moment.
 - **Gates in the real runs were approved by Claude with `--yes`**, including the style suggestion.
   Your recording should make those calls yourself.

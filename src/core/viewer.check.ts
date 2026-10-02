@@ -72,6 +72,10 @@ if (!PlaywrightBrowserWorker.available()) {
   assert.match(readFileSync(join(repo, "index.html"), "utf8"), /<link rel="icon" href="data:,">/);
   assert.ok(!/sourceMappingURL/.test(readFileSync(join(repo, "vendor", "model-viewer.min.js"), "utf8").slice(-300)));
   assert.match(readFileSync(join(repo, "dist", "vercel.json"), "utf8"), /Content-Security-Policy/);
+  // Both deploy paths: the root config names the build for a deploy from git; the copy in dist/
+  // carries the headers only, because a direct deploy uploads dist/ and must not build there.
+  assert.equal((JSON.parse(readFileSync(join(repo, "vercel.json"), "utf8")) as { outputDirectory?: string }).outputDirectory, "dist");
+  assert.deepEqual(Object.keys(JSON.parse(readFileSync(join(repo, "dist", "vercel.json"), "utf8")) as object), ["headers"]);
 
   // Rendered under the CSP with no console errors.
   const report = await engine.report(runId);

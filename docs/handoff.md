@@ -29,7 +29,8 @@ demo phases were started without it at the owner's request.
   multiple-choice questions with a recommended option first). If an answer is unclear, explain
   and ask again rather than picking.
 - **Code and docs are committed and pushed after each phase** (#90); CI is watched. The repo is
-  **private** and pushed straight to `main`.
+  **public** (since 2026-10-02) and pushed straight to `main`.
+- **Both repos:** Weave is public; the demo site's code is private (#119).
 - Report honestly: what was verified, what was not, and why. Checks never pass silently on an
   unproven machine — they say "NOT verified here", and CI (`WEAVE_REQUIRE_TOOLS=1`) fails on it.
 - Real runs cost the owner's plan usage. A **Pro** session window holds about two builds; a
@@ -37,7 +38,8 @@ demo phases were started without it at the owner's request.
 
 ## Read in this order
 
-1. `docs/current-info.md` — every decision (#1–#117), status, what's next.
+1. `docs/findings.md` — what running for real showed: results, defects found, the benchmark.
+1. `docs/current-info.md` — every decision (#1–#120), status, what's next.
 2. `docs/demo-plan.md` — D0–D9, each with what was done, when, and what it found.
 3. `docs/runbook.md` — how to record and present the demo; measured numbers.
 4. `docs/to-be-discussed.md` — open questions and known gaps.
@@ -64,7 +66,7 @@ demo phases were started without it at the owner's request.
 
 - Gates in the recorded runs were approved by Claude with `--yes`, at the owner's request for
   "one go". **The owner's recording should make those calls.**
-- A real agent failure and repair happened in one of four builds — it cannot be staged; the
+- A real agent failure and repair happened in two of seven completed real builds — it cannot be staged; the
   scripted `pnpm demo` still carries that moment.
 - The live site uses the Go2 mesh (BSD-3-Clause, credited in `examples/assets/go2.CREDITS.md`);
   its copy and name are original (#117). The model itself carries a "Go2" marking.
@@ -78,6 +80,8 @@ demo phases were started without it at the owner's request.
 | `TYPESAFE_API_KEY` on this machine | D8's real parity run |
 | What to show in place of a winning benchmark | the demo's "is it better?" step |
 | A dry run of `pnpm demo:real` | D9 |
+| Vercel's GitHub app given access to `weave-robotics-demo` (github.com → Settings → Applications → Vercel → Repository access), then `vercel git connect` in the site repo | deploy-on-push for the demo site |
+| A licence for the now-public Weave repo (#56) | anyone else using it |
 | Name and licence (#6) | before any public launch |
 
 ## This machine (as of 2026-10-02)

@@ -14,7 +14,7 @@ _Last updated: 2026-09-30. Describes what works today; planned items are marked 
 | Node.js ≥ 22.6 (24 LTS recommended) | Weave itself | yes |
 | pnpm 9.15 | installing and running Weave | yes |
 | C/C++ build tools | only if `better-sqlite3` has no prebuilt binary for your machine | fallback |
-| GitHub CLI (`gh`) | cloning the private repo; `pnpm ship` | yes (private repo) |
+| GitHub CLI (`gh`) | `pnpm ship` (pushing); cloning needs no login — the repo is public | only to push |
 | Claude Code (`claude`) + a Claude subscription | real builds by real agents | for real runs |
 | Chrome or Chromium | rendering built pages for screenshots and visual QA | optional |
 | bubblewrap (Linux) | the OS sandbox that hides secrets from agents | optional, recommended |
@@ -70,7 +70,7 @@ Node must print v22.6 or later; pnpm must print 9.15.x.
 
 ## 2. Get the code
 
-The repository is private, so log in to GitHub first.
+The repository is public; log in to GitHub (`gh auth login`) only if you will push.
 
 ```bash
 gh auth login                  # choose GitHub.com, HTTPS, and log in with the browser
@@ -169,7 +169,7 @@ logged in (step 2).
 
 | Account | Used for | Where it lives |
 |---|---|---|
-| GitHub | cloning the private repo, `pnpm ship` | `gh auth login` |
+| GitHub | `pnpm ship` (pushing) | `gh auth login` |
 | Claude subscription | real agent builds; decisions and vision **(planned, D1)** | `claude` login |
 | Vercel | public deploys | `vercel login` |
 | Anthropic API key | optional API mode (`WEAVE_MODE=api`) — billed per token | `ANTHROPIC_API_KEY`, never in the repo |

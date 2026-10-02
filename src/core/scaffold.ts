@@ -161,7 +161,7 @@ export class CommandScaffolder implements Scaffolder {
 }
 
 const BUILD_SCRIPT = `// Dependency-free build: copy the site into dist/ and fail on missing entry points.
-import { cpSync, existsSync, mkdirSync, readdirSync, rmSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 
 if (!existsSync("index.html")) {
   console.error("build: index.html is missing");
@@ -180,8 +180,12 @@ if (existsSync("sections")) {
     if (e.isDirectory()) cpSync(\`sections/\${e.name}\`, \`dist/sections/\${e.name}\`, { recursive: true });
   }
 }
-// Vercel deploys dist/, so its config — the security headers — has to be in it.
-if (existsSync("vercel.json")) cpSync("vercel.json", "dist/vercel.json");
+// Weave's direct deploy uploads dist/, so the security headers have to be in it — and only the
+// headers: the root file also names the build for deploys from git, which must not run in dist/.
+if (existsSync("vercel.json")) {
+  const { headers } = JSON.parse(readFileSync("vercel.json", "utf8"));
+  writeFileSync("dist/vercel.json", JSON.stringify({ headers }, null, 2));
+}
 for (const page of readdirSync(".").filter((f) => f.endsWith(".html"))) {
   cpSync(page, \`dist/\${page}\`);
 }
@@ -241,6 +245,10 @@ export const CSP =
 
 const VERCEL_JSON = `${JSON.stringify(
   {
+    // For a deploy from git: Vercel runs the project's own build and serves dist/.
+    framework: null,
+    buildCommand: "node scripts/build.mjs",
+    outputDirectory: "dist",
     headers: [
       {
         source: "/(.*)",

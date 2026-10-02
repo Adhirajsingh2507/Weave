@@ -3,7 +3,7 @@
 **Coding agents write the code. Weave governs the run: what they may touch, how their work is
 checked, what a person must approve, and a record of every step.**
 
-(Package/CLI: `weave`; MCP server: `weave-mcp`. Private, pre-release.)
+(Package/CLI: `weave`; MCP server: `weave-mcp`. Pre-release; public repo, no licence granted yet.)
 
 ## The problem
 
@@ -175,6 +175,7 @@ https://weave-robotics-demo.vercel.app — with its post-deploy checks passing. 
 reproduces it: `pnpm demo:real` (`docs/runbook.md`). The benchmark ran (3 pairs, free scorers): on page-quality scores a
 plain agent does as well or better — `bench/notes.md` says what that does and does not measure.
 Jev is built against a stand-in until its key arrives.
+**`docs/findings.md`** collects what the real runs found, defects and benchmark losses included.
 
 Docs: `docs/handoff.md` is where to start (where work stopped, how to work),
 `docs/information.md` the overview, `docs/current-info.md` the decisions,
