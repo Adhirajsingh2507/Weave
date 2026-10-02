@@ -57,6 +57,26 @@ const result = await runBenchmark({
 });
 
 assert.equal(result.runs.length, 6, "runs × arms");
+
+// Resumed: runs that produced a site are kept, not rebuilt; progress is reported after each run.
+{
+  let built = 0;
+  const counting = (name: string) => ({
+    name,
+    async build(_b: string, dir: string) {
+      built++;
+      mkdirSync(join(dir, "dist"), { recursive: true });
+      writeFileSync(join(dir, "dist", "index.html"), page('<img src="b.png" alt="ok">'));
+      return { ok: true, siteDir: join(dir, "dist") };
+    },
+  });
+  const saved: number[] = [];
+  const previous = [...result.runs.filter((r) => r.index === 1), { arm: "plain", index: 2, ok: false, metrics: {} }];
+  const resumed = await runBenchmark({ brief: "x", arms: [counting("plain"), counting("weave")], runs: 2, scorers: [missingAlt], previous, onRun: (runs) => saved.push(runs.length) });
+  assert.equal(built, 2, "only the unfinished pair is built — the failed plain run 2 is rebuilt, run 1 is kept");
+  assert.deepEqual(resumed.runs.find((r) => r.arm === "plain" && r.index === 1)!.metrics, result.runs.find((r) => r.arm === "plain" && r.index === 1)!.metrics);
+  assert.deepEqual(saved, [3, 4], "saved after each new run");
+}
 assert.deepEqual(result.unavailable, [{ scorer: "not-installed", why: "not-installed not on PATH (install it)" }]);
 assert.deepEqual(
   result.runs.map((r) => [r.arm, r.index]),

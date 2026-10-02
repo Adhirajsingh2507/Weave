@@ -4,8 +4,10 @@
 
 _Last updated: 2026-09-30_
 
-> **Where things stand:** v1 and V2 (V2.0–V2.7) are complete, proven with stand-in agents but
-> **not yet with a real agent run**. Next is the demonstration plan (`demo-plan.md`) and a design
+> **Where things stand (2026-10-02):** v1 and V2 are complete and **have run for real**: D0–D6 of
+> the demonstration plan are done (real agents, a measured build, a public deploy at
+> https://weave-robotics-demo.vercel.app). D7 (benchmark) is partly run, D8 (Jev) waits on the
+> key, D9 (recording kit) waits on the owner's dry run. Earlier: the demonstration plan (`demo-plan.md`) and a design
 > discussion in progress (decisions #75–#83). Start a new session with `handoff.md`.
 
 ## What the project is
@@ -301,7 +303,7 @@ listing (V2.5) and the IR token gap (V2.6) are closed.
   run on the subscription is what fills it; the first real entry was logged in D1.
 
 **V2.5:** shipped. The explorer (`weave report --html`): the whole run as one self-contained file.
-The benchmark harness, third-party scorers only — **not yet run**. A pack failure now drives one
+The benchmark harness, third-party scorers only — first run in D7. A pack failure now drives one
 bounded repair before a person is asked. The README is outcome-first.
 
 **V2.6:** shipped. The IR carries every token of the chosen guide (2,226 leaves across 91 guides,
@@ -321,9 +323,9 @@ say so. The demo also exercises the policy repair loop, acquires and places a 3D
 page with Chrome, and writes the explorer. Its screenshot shows the robot placed but not visible —
 the case visual QA exists for.
 
-**Not yet done with a real agent.** Every phase is proven with stand-in agents and recorded
-readings. No credentialed run has happened, so the calibration corpus and the benchmark are
-empty, and real Claude Code has not run inside bubblewrap.
+**Done with real agents since 2026-10-01** (D4.5–D6): real Claude Code has run inside bubblewrap,
+in tmux windows, on the subscription; the corpus has real `risk.classifyOperation` entries (too
+few for calibration or parity yet); visual QA has judged a real render. See `demo-plan.md`.
 
 **Fixed after review (2026-09-29):** a policy waiver now covers only the items its gate named;
 `dep-audit` reports `unavailable` when the audit cannot run instead of passing; rejecting a gate
@@ -333,6 +335,5 @@ restores the user's branch and stash. Details in `implementation-v2.md` → V2.2
 repair* is proven by `policy-gate.check` but not yet by the demo itself — staged with the
 benchmark in V2.5. Contrast and target size wait on the browser worker (V2.7).
 
-**Next:** the demonstration plan in `demo-plan.md` (decided 2026-09-30): preflight, decisions and
-vision through the Claude subscription, tools, real templates, rendered 3D, a measured first real
-build, screenshot intake, a public Vercel deploy, the benchmark, Jev, and a recording kit.
+**Next:** finish the benchmark across plan windows (D7), the real Jev parity run when the key
+arrives (D8), the owner's dry run of `pnpm demo:real` (D9), and the design discussion (#7).

@@ -97,7 +97,7 @@ const plain = {
         timeout: 30 * 60_000,
       });
     } catch (e) {
-      return { ok: false, siteDir: dir, log: String(e), meta: { wallMs: Date.now() - started } };
+      return { ok: false, siteDir: dir, log: String(e), meta: { wallMs: Date.now() - started, error: String(e).split("\n")[0].slice(0, 200) } };
     }
     return { ok: true, siteDir: siteOf(dir), meta: { wallMs: Date.now() - started } };
   },
@@ -121,10 +121,16 @@ const weave = {
     }
     const run = await engine.getRun(runId);
     const metrics = await engine.metrics(runId);
-    if (run?.workingBranch) git(["checkout", "-q", run.workingBranch], dir);
+    // The result is on the run's branch. Score it from its own worktree: the user's checkout is
+    // back on its branch with its uncommitted files restored, and a plain checkout would collide.
+    let site = dir;
+    if (run?.workingBranch) {
+      site = `${dir}-result`;
+      git(["worktree", "add", "-q", "--detach", site, run.workingBranch], dir);
+    }
     return {
       ok: run?.status === "done",
-      siteDir: siteOf(dir),
+      siteDir: siteOf(site),
       meta: { wallMs: Date.now() - started, gates: opened, firstPass: metrics.firstPassVerificationRate, repair: metrics.repairSuccessRate },
     };
   },
@@ -142,14 +148,32 @@ const guarded = (arm) => ({
       console.log(stopped);
       return { ok: false, siteDir: dir, meta: { skipped: stopped } };
     }
-    return arm.build(text, dir);
+    const result = await arm.build(text, dir);
+    if (!result.ok) {
+      // A build that died because the plan's limit hit mid-way is not a loss for its arm.
+      try {
+        await preflight();
+      } catch (e) {
+        stopped = `stopped: ${e instanceof Error ? e.message : String(e)}`;
+        console.log(stopped);
+        return { ok: false, siteDir: dir, meta: { ...result.meta, skipped: stopped } };
+      }
+    }
+    return result;
   },
 });
 const arms = values.arms.split(",").map((a) => ({ plain, weave })[a.trim()]).filter(Boolean).map(guarded);
+// Resumable: runs that produced a site are saved as they finish and kept on the next invocation,
+// so a benchmark larger than one plan window finishes across several.
+mkdirSync(values.out, { recursive: true });
+const stateFile = join(values.out, "benchmark.json");
+const previous = existsSync(stateFile) ? JSON.parse(readFileSync(stateFile, "utf8")).runs : [];
 const result = await runBenchmark({
   brief,
   arms,
   runs: Number(values.runs),
+  previous,
+  onRun: (runs) => writeFileSync(stateFile, `${JSON.stringify({ brief, runs, unavailable: [] }, null, 2)}\n`),
   onProgress: (line) => console.log(line),
 });
 if (stopped) result.stopped = stopped;

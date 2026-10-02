@@ -62,8 +62,8 @@ they are not lost:
   not yet the natural failure of #46 from a real agent — needs the first credentialed run.
 - `weave packs add <name>` is in the V2.2 plan but not in the CLI; packs are selected in the brief.
 - **V2.4 ceilings.** The egress proxy binds only clients that honour `HTTPS_PROXY` (a network
-  namespace is the upgrade); the OS sandbox is Linux-only; a real `claude` has not yet run inside
-  bubblewrap, only a stand-in; the decision layer's `llm` tier keeps the verdict for want of a
+  namespace is the upgrade); the OS sandbox is Linux-only; ~~a real `claude` has not yet run inside
+  bubblewrap~~ (it has, since D4.5); the decision layer's `llm` tier keeps the verdict for want of a
   second classifier; a failing live check after deploy is recorded, not rolled back.
 - **Default egress allowlist is narrow** (`api.anthropic.com` + loopback, observed — #93). Loopback stays open for dev servers, so a process on the user's machine listening on localhost is reachable by an agent's shell; a network namespace is the upgrade. An agent that runs
   `pnpm add` is refused the registry — which is also a risky-op. Decide whether the registry
@@ -75,8 +75,8 @@ they are not lost:
   `claude-sonnet-5`. That is valid there, but Opus 5.5 and Sonnet 5.5 reject forced tool use, and
   the documented default model is `claude-opus-5-5`. Moving it to the SDK with structured outputs
   changes the model — and so the cost — of every decision; that is a choice to make, not a cleanup.
-- **The benchmark has never run.** It needs real agent runs (cost ≈ runs × 2 builds). Its
-  scorers are installed and proven since D2 (#95).
+- **The benchmark is partly run** (D7): resumable across plan windows; `bench/benchmark.md` says
+  how many of the 3 pairs completed. Three pairs is a small sample — direction, not a mean ± sd.
 - **`demo-design/` has pictures for 6 of 91 styles**, so the MCP picture resources are thin.
 - ~~`browser-qa` and `visual-qa` are marked `skipped`~~ — wired in V2.7 (#73, #74).
 - **V2.7 ceilings.** ~~Raster and 3D optimisation need sharp / gltf-transform~~ and ~~the Chrome

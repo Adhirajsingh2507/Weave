@@ -1,90 +1,97 @@
 # Handoff — start here in a new session
 
-> Where the last session (2026-09-29 → 30) stopped, what to read, and how to work. Read this
+> Where the last session (2026-09-30 → 10-02) stopped, what to read, and how to work. Read this
 > first, then the files it points to. Update it at the end of every session.
 
-_Last updated: 2026-09-30_
+_Last updated: 2026-10-02_
 
 ## Where we stopped
 
-**The owner was about to explain how Weave should look and work.** That discussion comes first.
-Listen, then ask about anything ambiguous; correct them where it conflicts with what is built or
-decided (they asked for that).
+**The demo plan (D0–D9) is built and has run for real.** Real Claude Code agents, in tmux windows
+inside bubblewrap, on the owner's Claude Pro subscription, built the robotics landing page twice
+(D5 from the brief; D6 from screenshots of a live site) and Weave deployed it:
+**https://weave-robotics-demo.vercel.app** (post-deploy checks 12 passed, 0 failed).
 
-Nothing is half-built. The last code commit is `6614981` (V2.7); the last commit overall is the
-docs update after `84c7e6d`. CI is green on `main`.
+Three things are not finished, and each says why:
+
+| Item | State | What it needs |
+|---|---|---|
+| **D7 benchmark** (3 pairs) | resumable; see `bench/benchmark.md` for how many pairs completed | more plan windows: `node scripts/benchmark.mjs --runs 3 --out bench` continues where it stopped |
+| **D8 Jev** | adapter, parity harness and routing built and proven against a stand-in | `TYPESAFE_API_KEY` on this machine, then `weave parity --write` in a workspace with a corpus |
+| **D9 dry run** | `pnpm demo:real` and `docs/runbook.md` are ready | the owner runs it and reports what to fix |
+
+**The owner's description of how Weave should look and work is still owed** (open item #7). The
+demo phases were started without it at the owner's request.
 
 ## Working rules the owner set
 
 - **Always ask; never assume.** Any edge case, preference or choice → ask (the owner prefers
   multiple-choice questions with a recommended option first). If an answer is unclear, explain
   and ask again rather than picking.
-- **Commit and push only when asked.** The repo is **private** and pushed straight to `main`
-  (the project's convention).
-- **Documentation is pushed now and after every phase** (#83).
+- **Code and docs are committed and pushed after each phase** (#90); CI is watched. The repo is
+  **private** and pushed straight to `main`.
 - Report honestly: what was verified, what was not, and why. Checks never pass silently on an
-  unproven machine — they say "NOT verified here".
+  unproven machine — they say "NOT verified here", and CI (`WEAVE_REQUIRE_TOOLS=1`) fails on it.
+- Real runs cost the owner's plan usage. A **Pro** session window holds about two builds; a
+  limit stops Weave at a gate, and everything real is resumable.
 
 ## Read in this order
 
-1. `docs/current-info.md` — every decision (#1–#83), status, what's next. Decisions #75–#83 are
-   the newest direction.
-2. `docs/demo-plan.md` — the plan now being executed (D0–D9) and what was decided for it.
-3. `docs/to-be-discussed.md` — open questions (#7–#11 are the live ones) and known gaps.
-4. `docs/implementation-v2.md` — how V2.0–V2.7 were built and what each proved.
-5. `docs/architecture.md` — the design, including the planned two ways to run.
-6. `README.md` and `SETUP.md` — the outward view and the new-device guide.
-7. `docs/past-info.md` — history, newest first, when you need the reasoning behind a change.
+1. `docs/current-info.md` — every decision (#1–#117), status, what's next.
+2. `docs/demo-plan.md` — D0–D9, each with what was done, when, and what it found.
+3. `docs/runbook.md` — how to record and present the demo; measured numbers.
+4. `docs/to-be-discussed.md` — open questions and known gaps.
+5. `docs/implementation-v2.md` and `docs/architecture.md` — how V2 was built; the design.
+6. `README.md` and `SETUP.md` — the outward view and the machine setup.
+7. `docs/past-info.md` — history, newest first.
 
 ## State of the project
 
-- **V2 complete** (V2.0–V2.7): DAG with file ownership, sandbox + egress proxy + risky-op gates,
-  gated Vercel deploy with live checks, the HTML explorer, policy packs with a repair loop,
-  multimodal intake, 91 style guides as IR tokens and MCP resources, assets acquired and budgeted
-  (never built by an agent), pages rendered in Chrome with visual QA.
-- **Not yet done with a real agent.** Everything is proven with stand-in agents and recorded
-  readings. The calibration corpus and the benchmark are empty.
-- **Verify on any machine:** `pnpm install --frozen-lockfile && pnpm build && pnpm check`
-  (39 checks) `&& node scripts/check-design.mjs && pnpm demo`.
+- **V2 complete** (V2.0–V2.7) and **D0–D6 done**: `weave doctor`; decisions and vision through
+  the subscription (Opus 5.5); the tools installed and proven in CI; 91 styles rendered for real
+  with style checks on the rendered page; the real Go2 in a bundled 3D viewer under a strict CSP;
+  agents in tmux windows the owner can watch and type into; a measured real build; screenshot
+  intake and a public deploy.
+- **Verify on any machine:** `pnpm install --frozen-lockfile && pnpm exec playwright install
+  chromium && pnpm tools:gitleaks && pnpm build && pnpm check` (39 checks) `&& node
+  scripts/check-design.mjs && pnpm demo`. Then `node dist/cli/index.js doctor`.
+- **What real runs found that stand-ins could not** is recorded per phase in `demo-plan.md`. The
+  short list: agents inheriting the owner's MCP servers; Chrome's background calls gating;
+  an existing `.gitignore` failing every node; a folded turn that never ended; live checks
+  grading Vercel's login page; the reference site's copy and brand being reused.
 
-## The direction just decided (#75–#83)
+## Things to know before the next real run
 
-- Two ways to run: **subscription mode** (Claude Code via the `claude` login) and **API mode**
-  (same agents, API key, billed per token).
-- Subscription mode: **one tmux window per agent, own folder**; the owner can **watch and step
-  in**; their messages **count as interventions**; repairs continue **in the same session**;
-  permissions **fully automatic**.
-- **Decisions and vision through the subscription** on Opus 5.5 — no API key; refused or
-  rate-limited → stop and ask.
-- Tests may use Claude; **benchmarks use free open-source scorers**, builds on the subscription.
-- Platforms: Linux, macOS, Windows/WSL2; **a macOS sandbox** (`sandbox-exec`, which Apple marks
-  deprecated but still ships — the owner was told).
-- Demo: engineering leaders; a recorded real run plus a live walkthrough; everything real; the
-  robotics landing page; Vercel project `weave-robotics-demo` (code private); model-viewer
-  bundled; tools as devDependencies; templates styled for real with runnable style checks;
-  reference pictures as links only.
+- Gates in the recorded runs were approved by Claude with `--yes`, at the owner's request for
+  "one go". **The owner's recording should make those calls.**
+- A real agent failure and repair happened in one of four builds — it cannot be staged; the
+  scripted `pnpm demo` still carries that moment.
+- The live site uses the Go2 mesh (BSD-3-Clause, credited in `examples/assets/go2.CREDITS.md`);
+  its copy and name are original (#117). The model itself carries a "Go2" marking.
+- Usage is measured, not billed: `weave usage` in a workspace.
 
 ## Waiting on the owner
 
 | Item | Needed for |
 |---|---|
-| Their description of how Weave should look and work | before D0 |
-| `TYPESAFE_API_KEY` on this machine (Jev docs received — #84) | D8 |
-| Benchmark size | after the first measured build (D5) |
+| Their description of how Weave should look and work | the next direction |
+| `TYPESAFE_API_KEY` on this machine | D8's real parity run |
+| More plan windows (or a larger plan) | finishing the 3-pair benchmark |
+| A dry run of `pnpm demo:real` | D9 |
+| Name and licence (#6) | before any public launch |
 
-Settled 2026-09-30: Jev API and data (#84, #85), intake site (#86), robot model (#87), this
-Linux machine only with all platforms still supported (#88).
+## This machine (as of 2026-10-02)
 
-## This machine (as of 2026-09-30)
-
-Linux, Node 22.23, pnpm 9.15. bubblewrap works (the sandbox check proves `.env` unreadable).
-Google Chrome installed (renders verified). `claude` CLI 2.1.285 logged in with a **Claude Pro
-subscription**; Opus 5.5 answers through it. Vercel CLI logged in. **No `ANTHROPIC_API_KEY`** —
-and the owner does not want one for now. tmux is installed. The demo tools (D2) are installed;
-`weave doctor` says **Ready**.
+Linux, Node 22.23, pnpm 9.15. bubblewrap, tmux, Google Chrome, Playwright Chromium, Lighthouse,
+axe, sharp, gltf-transform and gitleaks are installed; `weave doctor` says **Ready**. `claude` CLI
+2.1.28x logged in with a **Claude Pro** subscription; Opus 5.5 answers through it. Vercel CLI
+logged in (`techadhiraj07-1630`); project `weave-robotics-demo` exists. **No `ANTHROPIC_API_KEY`
+and no `TYPESAFE_API_KEY`.** This is the only machine in use (#88).
 
 ## Next steps, in order
 
-1. The design discussion (above) — record outcomes as decisions in `current-info.md`.
-2. `demo-plan.md` D5 onward. D0–D4.5 are done. Code and docs
-   are pushed after each phase (#90).
+1. Finish the benchmark across plan windows; publish `bench/benchmark.md` as it stands, losses
+   included.
+2. The owner's dry run of `pnpm demo:real`, and fixes from it.
+3. `TYPESAFE_API_KEY` → `weave parity --write` → one real run with Jev serving the passing types.
+4. The design discussion (open item #7), and whatever it changes.

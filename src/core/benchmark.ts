@@ -201,6 +201,10 @@ export async function runBenchmark(opts: {
   runs: number;
   scorers?: Scorer[];
   onProgress?: (line: string) => void;
+  /** Runs from an earlier, interrupted benchmark: the ones that produced a site are kept, not rebuilt. */
+  previous?: BenchRun[];
+  /** Called after every run, so a caller can persist progress as it happens. */
+  onRun?: (runs: BenchRun[]) => void;
 }): Promise<BenchResult> {
   const scorers = opts.scorers ?? DEFAULT_SCORERS;
   const unavailable: BenchResult["unavailable"] = [];
@@ -214,6 +218,12 @@ export async function runBenchmark(opts: {
   // Interleave arms so drift over time (API latency, cache state) hits both equally.
   for (let i = 0; i < opts.runs; i++) {
     for (const arm of opts.arms) {
+      const kept = opts.previous?.find((r) => r.arm === arm.name && r.index === i + 1 && r.ok);
+      if (kept) {
+        opts.onProgress?.(`${arm.name} run ${i + 1}/${opts.runs}: kept from the earlier run`);
+        runs.push(kept);
+        continue;
+      }
       const work = mkdtempSync(join(tmpdir(), `weave-bench-${arm.name}-`));
       opts.onProgress?.(`${arm.name} run ${i + 1}/${opts.runs}`);
       const result = await arm.build(opts.brief, work);
@@ -233,6 +243,7 @@ export async function runBenchmark(opts: {
         }
       }
       runs.push({ arm: arm.name, index: i + 1, ok: result.ok, metrics, ...(result.meta ? { meta: result.meta } : {}) });
+      opts.onRun?.(runs);
     }
   }
   return { brief: opts.brief, runs, unavailable };

@@ -167,11 +167,13 @@ browse styles by example and pick one.
 
 ## Status
 
-V2 (V2.0–V2.7) shipped — see `docs/implementation-v2.md`. Proven with stand-in agents and
-recorded readings; **not yet exercised with a real Claude Code run**, so the calibration corpus
-and the benchmark are empty and no vision verdict has been produced live. Next: the
-demonstration plan (`docs/demo-plan.md`) — subscription and API modes, agents in tmux windows,
-a real measured build, a public deploy, a free benchmark, and Jev once its docs arrive.
+V2 (V2.0–V2.7) shipped — see `docs/implementation-v2.md` — and **has run for real**
+(`docs/demo-plan.md`, D0–D6): real Claude Code agents in tmux windows, sandboxed, on a Claude
+subscription, built a robotics landing page from a brief (11.9 min, 6 sessions, no retries) and
+again from screenshots of a live site, and Weave deployed it —
+https://weave-robotics-demo.vercel.app — with its post-deploy checks passing. One command
+reproduces it: `pnpm demo:real` (`docs/runbook.md`). Still open: the benchmark is partly run
+(`bench/benchmark.md`), and Jev is built against a stand-in until its key arrives.
 
 Docs: `docs/handoff.md` is where to start (where work stopped, how to work),
 `docs/information.md` the overview, `docs/current-info.md` the decisions,
