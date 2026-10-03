@@ -2,6 +2,30 @@
 
 > Archive of prior thinking and superseded decisions, newest first. Never delete — this is the paper trail.
 
+## 2026-09-30 → 10-02 — The demonstration phases run for real (#84–#120)
+
+D0–D7 built and run on real agents; D8 built against a stand-in; D9 built. Superseded:
+- **#104 — "a turn ends when every prompt has had its Stop".** A message queued mid-turn shares
+  the turn's single Stop, so Weave waited forever on a real run. Now: a Stop after the latest
+  prompt (#112).
+- **#61 — every refused host is a risk finding.** A browser's own background calls (Chrome update,
+  Safe Browsing, accounts) are still refused and recorded, but no longer gate (#106, owner).
+- **#79 — "permissions fully automatic"** became `acceptEdits` plus an allow list of the agent's
+  tools, inside the deny rules — not bypass mode, which needs its own dialog (#105).
+- **#86 — "intake reads design only"** was a decision without enforcement; the first public deploy
+  reused the reference site's headlines and brand. Enforced since (#117), and that deploy replaced.
+- **The deployer's URL.** It returned Vercel's per-deployment URL, which is behind a login redirect;
+  live checks graded the login page. Now the public alias (#116).
+- **#82 — "a macOS sandbox will be built."** Still decided, still not built; all work ran on one
+  Linux machine (#88).
+- **#55 / #83 — the repo stays private.** Public since 2026-10-02 (owner, #119).
+- **The benchmark as the demo's proof.** It ran and Weave did not win on page scorers (#118); the
+  demo now says so and argues from control and evidence.
+
+Recorded for the reasoning: the owner asked for D4.5–D9 "in one go", so Claude approved every gate
+in the real runs with `--yes`, including style suggestions read from screenshots. The defects the
+real runs found, and their fixes, are listed in `findings.md`.
+
 ## 2026-09-30 — Direction set for the demonstration (#75–#83)
 
 Asked, not assumed, over several rounds. Superseded:

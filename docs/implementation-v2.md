@@ -6,7 +6,7 @@
 > Sources: `../V2_planing.md` (the V2 brief), canonical §116 (V2 definition), `v2-inputs.md`
 > (the raw lists), and the decisions recorded in `current-info.md`.
 
-_Last updated: 2026-09-30_
+_Last updated: 2026-10-03_
 
 ## What V2 is
 
@@ -464,7 +464,7 @@ separate classifier yet, so it keeps the verdict. A failing live check is record
 
 ---
 
-## V2.5 — Graph explorer, README, benchmark ✅ DONE (benchmark not yet run)
+## V2.5 — Graph explorer, README, benchmark ✅ DONE (benchmark run in D7)
 
 **Goal.** Make the work visible and quantified — the two things V2_planing asks for that no
 amount of architecture supplies.
@@ -711,8 +711,11 @@ fonts are budgeted by size only.
 
 ## Jev track (parallel, access-gated)
 
-**Blocked on:** `TYPESAFE_API_KEY` on this machine. Docs received 2026-09-30 (#84); tracked as
-D8 in `demo-plan.md`.
+**Built 2026-10-01 (D8, #110); the real run is blocked on `TYPESAFE_API_KEY`.** Steps 1, 3 and 4
+are implemented (`decision/jev.ts`: `JevDecision.ask()` for several typed questions per call,
+`runParity`, `policyFromParity`, `RoutedDecision`; `weave parity [--write]`) and proven against a
+stand-in of the API. Step 2 has begun: the corpus has real entries since D1, only
+`risk.classifyOperation` and too few to pass parity's 20-entry minimum.
 
 1. **Widen the `Decision` seam** to match Jev's shape: several typed questions per call, with
    `choice`, `score` and boolean-probability primitives. Today it is one string-choice question
@@ -771,7 +774,7 @@ the failure faked.
 4. ~~Does a blocking pack item fail the run or open a gate?~~ **Decided (V2.2):** gate; approval
    waives the items it names.
 5. ~~Deploy target for the demo?~~ **Decided (V2.4):** Vercel.
-6. Name and licence before any public launch (repo is private; `weave` is taken on npm).
+6. Name and licence (the repo is public since 2026-10-02 with no licence; `weave` is taken on npm).
 7. `terminal-ui` still has no reference pictures.
 
 ## Status
@@ -782,10 +785,11 @@ the failure faked.
 | V2.1 Requirements, criteria, evidence, metrics | ✅ done, CI green |
 | V2.2 Policy packs | ✅ done, CI green (demo repair from a pack failure deferred to V2.5) |
 | V2.3 Parallel DAG | ✅ done |
-| V2.4 Boundaries and deploy | ✅ done (corpus awaits a credentialed run) |
-| V2.5 Explorer, README, benchmark | ✅ done (benchmark awaits real runs) |
-| V2.6 Multimodal compiler and presets | ✅ done (live vision awaits a real run — via the subscription, D1) |
-| V2.7 Assets and 3D | ✅ done (visibility verdict awaits a real run) |
-| Jev track | access granted; waiting on API docs (D8 in `demo-plan.md`) |
+| V2.4 Boundaries and deploy | ✅ done; exercised for real in D4.5–D6 (real agents in bubblewrap, a real risky-op gate, a public deploy) |
+| V2.5 Explorer, README, benchmark | ✅ done; benchmark run in D7 (3 pairs, Weave lost on page scorers) |
+| V2.6 Multimodal compiler and presets | ✅ done; live vision intake run in D6 |
+| V2.7 Assets and 3D | ✅ done; real visibility verdicts in D4 and D6 |
+| Jev track | built against a stand-in (D8); the real run waits on the key |
 
-**After V2:** the work continues in `demo-plan.md` (D0–D9), shaped by decisions #75–#83.
+**After V2:** the demonstration phases D0–D9 (`demo-plan.md`) took V2 from stand-ins to real runs;
+what they found is in `findings.md`.

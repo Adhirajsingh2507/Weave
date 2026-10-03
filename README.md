@@ -61,9 +61,8 @@ shows Weave catching each one:
   ✓ deployed 2e50707 to http://127.0.0.1:…
   ✗ post-deploy checks: 10 passed, 2 failed         the host sends no HSTS or Referrer-Policy
   crit:robot.asset-present: passed                  referenced in the hero section
-  crit:robot.asset-visible: unavailable             the screenshot shows an empty hero — the
-                                                    model needs a renderer; a vision pass
-                                                    (with a key) would fail it
+  crit:robot.asset-visible: unavailable             no vision pass in the stand-in demo;
+                                                    `pnpm demo:real` judges it with Opus 5.5
   impl wall-clock 4.3s vs 6.7s one at a time
   explorer: …/.agent/report.html
 ```
@@ -111,7 +110,7 @@ node loop: execute → verify → record → repair  (bounded retries, then a ga
 ## Design system
 
 91 style guides in `design-guide/`, each with machine-readable tokens and style-specific checks
-(739 checks, ~86% deterministic). `style: swiss-design` in a brief selects one; its tokens travel
+(757 checks, 662 of them deterministic). `style: swiss-design` in a brief selects one; its tokens travel
 in the design document and become the project's `styles/tokens.css`. `weave styles --suggest
 "a robotics launch"` proposes three with reasons. `_base.md` is the floor every style inherits.
 
@@ -121,6 +120,8 @@ New device? **[SETUP.md](SETUP.md)** walks through Linux, macOS and Windows (WSL
 
 ```bash
 pnpm install
+pnpm exec playwright install chromium   # the browser Weave renders with
+pnpm tools:gitleaks              # pinned, checksum-verified, into .tools/bin
 pnpm build
 pnpm check                       # 39 self-checks
 node scripts/check-design.mjs    # validates the 91 guides and their picture folders
@@ -133,6 +134,10 @@ Needs the `claude` CLI on PATH, logged in with a Claude subscription: agents, th
 (risk judgement on every diff) and vision (screenshot intake, visual QA) all run through it, on
 Opus 5.5. `WEAVE_MODE=api` runs the same on `ANTHROPIC_API_KEY`, billed per token.
 `weave doctor` says whether this machine is ready.
+
+**One command for the whole real demo:** `pnpm demo:real` — captures a live site, reads it,
+builds with agents in tmux windows, stops at every gate for you, deploys to Vercel and prints
+the explorer and the usage (`docs/runbook.md`). Re-run it to resume.
 
 `weave` is `node <weave>/dist/cli/index.js`; `pnpm link --global` in this repo puts it on PATH.
 
@@ -147,12 +152,19 @@ weave approve <gate-id> --concurrency 3          # builds: components in paralle
 weave gates                                     # risky-op / policy gates if any, then pre-release
 weave approve <pre-release-gate-id>             # the verified build is on weave/<run>
 weave report --html report.html                  # the whole run, one file
+weave usage                                      # time, sessions, retries, tokens, decision calls
 ```
 
-`weave sandbox` says how agents are confined on this machine. With Chrome or Chromium installed,
-every built page is rendered and screenshotted as evidence. Deployment is off by default;
-`WEAVE_DEPLOY=vercel` (with `VERCEL_TOKEN` or a `vercel login`) makes pre-release approval deploy
-and re-check the live site. The token reaches only the `vercel` process — never an agent.
+Agents run in tmux windows (subscription mode): `tmux attach -t weave-<repo>` to watch, type to
+step in — every message you type is recorded as an intervention. `WEAVE_AGENTS=headless` runs
+them as one-shot `claude -p` instead. Other commands: `weave capture <url> --out dir` (a live page,
+one viewport at a time, for intake), `weave live <url>` (re-run the post-deploy checks), `weave
+parity --write` (replay the decision corpus through Jev; needs `TYPESAFE_API_KEY`).
+
+`weave sandbox` says how agents are confined on this machine. Every built page is rendered by
+Playwright and screenshotted as evidence, and the style's checks run on the rendered page. Deployment is off by default;
+`WEAVE_DEPLOY=vercel` (with `VERCEL_TOKEN` or a `vercel login`; `WEAVE_DEPLOY_PROJECT=<name>`,
+`WEAVE_DEPLOY_PROD=1`) makes pre-release approval deploy and re-check the public URL. The token reaches only the `vercel` process — never an agent.
 
 ### MCP
 
@@ -162,24 +174,25 @@ weave-mcp          # stdio MCP server
 
 Tools: `init`, `run` (with `style`, `screenshots`, `url`), `gates`, `resolve_gate`, `status`,
 `gaps`, `ingest`, `exec_graph`, `list_styles`, `suggest_styles`. Resources: every guide
-(`style://<slug>`) and its reference pictures (`style-picture://<slug>/<file>`), so a client can
-browse styles by example and pick one.
+(`style://<slug>`), its reference pictures (`style-picture://<slug>/<file>`) and its reference
+links (`style-links://<slug>`), so a client can browse styles by example and pick one.
 
 ## Status
 
 V2 (V2.0–V2.7) shipped — see `docs/implementation-v2.md` — and **has run for real**
-(`docs/demo-plan.md`, D0–D6): real Claude Code agents in tmux windows, sandboxed, on a Claude
+(`docs/demo-plan.md`, D0–D7): real Claude Code agents in tmux windows, sandboxed, on a Claude
 subscription, built a robotics landing page from a brief (11.9 min, 6 sessions, no retries) and
 again from screenshots of a live site, and Weave deployed it —
 https://weave-robotics-demo.vercel.app — with its post-deploy checks passing. One command
-reproduces it: `pnpm demo:real` (`docs/runbook.md`). The benchmark ran (3 pairs, free scorers): on page-quality scores a
-plain agent does as well or better — `bench/notes.md` says what that does and does not measure.
-Jev is built against a stand-in until its key arrives.
+reproduces it: `pnpm demo:real` (`docs/runbook.md`). The benchmark ran (3 pairs, free scorers):
+on page-quality scores a plain agent does as well or better — `bench/notes.md` says what that
+does and does not measure. Jev is built against a stand-in until its key arrives.
 **`docs/findings.md`** collects what the real runs found, defects and benchmark losses included.
 
 Docs: `docs/handoff.md` is where to start (where work stopped, how to work),
 `docs/information.md` the overview, `docs/current-info.md` the decisions,
-`docs/demo-plan.md` the current plan, `docs/architecture.md` the design,
+`docs/demo-plan.md` the demonstration plan, `docs/findings.md` what real runs showed,
+`docs/runbook.md` how to present it, `docs/architecture.md` the design,
 `docs/to-be-discussed.md` what is open.
 
 ### Publishing this repo
@@ -190,4 +203,5 @@ broken tree. Requires `gh`; `WEAVE_REPO` and `WEAVE_VISIBILITY` override the def
 ## Stack
 
 TypeScript · Node ≥22.6 · pnpm · Zod · SQLite · tree-sitter · the Anthropic SDK · Claude Code ·
-bubblewrap (optional) · Chrome or Chromium (optional, for rendering) · Playwright (optional).
+tmux · bubblewrap · Playwright, Lighthouse, axe, sharp, gltf-transform (devDependencies) ·
+gitleaks (pinned download) · model-viewer (bundled into generated sites) · Vercel.

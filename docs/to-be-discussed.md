@@ -2,7 +2,7 @@
 
 > Open questions not yet decided. Move each to `current-info.md` once resolved.
 
-_Last updated: 2026-09-30_
+_Last updated: 2026-10-03_
 
 ## Needs a decision before the phase that uses it
 
@@ -13,8 +13,8 @@ _Last updated: 2026-09-30_
 | ~~3~~ | Which policy packs are on by default versus opt-in? | V2.2 | **Decided (V2.2):** `web-security` + `a11y` on; `seo` + `performance` opt-in. |
 | ~~4~~ | Does a `severity: blocking` pack item fail the run or open a gate? | V2.2 | **Decided (V2.2):** opens a `policy` gate; approving is a recorded waiver. |
 | ~~5~~ | Deploy target for the demo: Vercel, Netlify or Cloudflare Pages? | V2.4 | **Decided (V2.4):** Vercel — `VercelDeployer`, token in the release env only (#63). |
-| 6 | Name and licence before any public launch. | before launch | `weave` on npm belongs to Weights & Biases. Decide after the demo. |
-| 7 | **How Weave should look and work** — your description, then questions. | before D0 | The design discussion started 2026-09-30 (#75–#83); you were about to explain it. |
+| 6 | Name and licence. | now — the repo is public | `weave` on npm belongs to Weights & Biases. Without a licence the public repo is all rights reserved. |
+| 7 | **How Weave should look and work** — your description, then questions. | next direction | Owed since 2026-09-30; D0–D9 went ahead without it at your request. |
 | ~~8~~ | The website URL for screenshot intake. | D6 | **Decided (#86):** the ai-robots Unitree Go2 page. |
 | ~~9~~ | The robot model: a CC0 candidate I shortlist, or yours. | D4 | **Decided (#87):** Unitree's Go2 mesh, BSD-3-Clause. |
 | ~~10~~ | Benchmark size (pairs). | D7 | **Decided (#109):** 3 pairs. |
@@ -22,6 +22,9 @@ _Last updated: 2026-09-30_
 | 12 | Jev API key (`TYPESAFE_API_KEY`) on this machine. | D8 | You add it; not set as of 2026-10-02. |
 | 13 | Vercel's GitHub app has no access to the private `weave-robotics-demo` repo. | deploy-on-push | You grant it on GitHub; then `vercel git connect`. Until then the site is deployed from the repo's code by the CLI. |
 | 14 | Weave is public with no licence (#6). | now | Without one it is all rights reserved: readable, not usable by others. |
+| 15 | **What the demo shows in place of a winning benchmark** (#118). | the recording | Weave lost on page scorers. Options: say so and argue from control and evidence; build a benchmark of control (planted secrets, a tempting dependency, a brief with a trap); or both. |
+| 16 | Score both benchmark arms the same way? | the next benchmark | The Weave arm is scored under its own CSP, the plain arm with no headers. Score both without, or add a scorer that rewards security headers. |
+| 17 | Your dry run of `pnpm demo:real`. | D9 | Run it in `~/weave-demo/robotics`, make every gate call yourself, report what to fix. |
 
 Struck-through rows are settled; they stay here for one phase so the reasoning is easy to find.
 

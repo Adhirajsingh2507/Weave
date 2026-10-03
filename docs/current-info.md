@@ -2,13 +2,15 @@
 
 > Single source of truth for the **latest** decisions. When something changes, update it here and move the superseded version to `past-info.md`.
 
-_Last updated: 2026-09-30_
+_Last updated: 2026-10-03_
 
-> **Where things stand (2026-10-02):** v1 and V2 are complete and **have run for real**: D0–D6 of
-> the demonstration plan are done (real agents, a measured build, a public deploy at
-> https://weave-robotics-demo.vercel.app). D7 (benchmark) is partly run, D8 (Jev) waits on the
-> key, D9 (recording kit) waits on the owner's dry run. Earlier: the demonstration plan (`demo-plan.md`) and a design
-> discussion in progress (decisions #75–#83). Start a new session with `handoff.md`.
+> **Where things stand (2026-10-03):** v1 and V2 are complete and **have run for real**. D0–D7 of
+> the demonstration plan are done: real agents, two measured builds, a public site at
+> https://weave-robotics-demo.vercel.app (built by Vercel from the private repo
+> `weave-robotics-demo`), and a 3-pair benchmark that Weave did not win on page scorers. D8 (Jev)
+> is built and waits on the key; D9 (recording kit) waits on the owner's dry run. What the real
+> runs found is in `findings.md`. The owner's description of how Weave should look and work (#7)
+> is still owed. Start a new session with `handoff.md`.
 
 ## What the project is
 A **graph-driven autonomous engineering platform** (**Weave**) that turns human intent + multimodal design inputs into software via bounded agent loops, with persistent state, evidence, and human gates.
@@ -134,8 +136,9 @@ The ultimate reference is **`../autonomous-engineering-universal-context.md`** (
 | 74 | Browser | **Headless Chrome via its CLI** (`ChromeBrowserWorker`), Chrome's own sandbox kept on; Playwright stays the upgrade for console capture and full-page shots. |
 | 64 | OS sandbox | **bubblewrap on Linux**: home secrets and deny-listed files masked, the user's checkout hidden (only `.git` kept). Layered under Claude Code's own deny rules (`--settings`). Where bubblewrap cannot run, each node records that it ran unsandboxed. |
 
-## Direction decisions (2026-09-30, design discussion in progress)
-Asked and answered; the discussion continues, so these may be refined — changes go to `past-info.md`.
+## Direction and demonstration decisions (2026-09-30 → 10-02)
+Asked and answered while the demo plan was carried out (#75–#120). The design discussion (#7) has
+not happened yet, so these may be refined — changes go to `past-info.md`.
 
 | # | Decision | Value |
 |---|----------|-------|
@@ -220,7 +223,7 @@ Reliability (evidence-gated completion, graceful failure), scalability (no singl
 3. **Autonomy ≠ lack of control** — more autonomy demands stronger state, boundaries, evaluation, recovery, auditability.
 4. **Complexity must be earned** — simple loop for simple work; graph for cross-domain; multiple agents only when specialization/parallelism/isolation justify it.
 
-## Status (2026-09-29)
+## Status (V2 as built, 2026-09-29; demo phases since — see `demo-plan.md`)
 
 **v1:** complete. Phases 0–7 + ingestion + MCP + parallel worktrees + gated deployment; §115 DoD
 met. The v1 phase plan is archived in `past-info.md`.
@@ -241,7 +244,7 @@ met. The v1 phase plan is archived in `past-info.md`.
 - **Context packs carry the design guide** — tokens become `styles/tokens.css` and the agent is
   told the rules its work will be judged against.
 
-**Design system:** 91 guides in `design-guide/`, 739 checks (~86% deterministic), 89 picture
+**Design system:** 91 guides in `design-guide/`, 757 checks (662 deterministic), 89 picture
 folders in `demo-design/`, validated by `scripts/check-design.mjs`.
 
 **Verification (at V2.0):** 18 self-checks plus the design validator. See "Verification now"
@@ -297,13 +300,13 @@ agent and a check Weave runs:
 listing (V2.5) and the IR token gap (V2.6) are closed.
 
 ## Open (see `to-be-discussed.md`)
-- **#8** — escalation framework implemented; real threshold values await calibration data, which
-  V2.4 starts producing by putting the decision layer in the run path.
-- **#10 / #57** — provider routing implemented; Jev parity awaits access.
-- Metric definitions (#1, #2), default packs (#3, #4) and the deploy target (#5 → Vercel, #63)
-  are decided. Name and licence (#6) remain open.
-- **The corpus has no real entries yet.** The decision layer is in the run path (#62), but a real
-  run on the subscription is what fills it; the first real entry was logged in D1.
+- **#7** — the owner's description of how Weave should look and work.
+- **#8** — escalation framework implemented; real threshold values await calibration data. The
+  corpus has real entries since D1, but only `risk.classifyOperation` and too few to calibrate.
+- **#10 / #57** — Jev adapter, parity harness and routing built (#110); the real parity run
+  waits on `TYPESAFE_API_KEY`.
+- **#6** — name and licence. The repo is public without a licence (#119).
+- **What to show instead of a winning benchmark** (#118): no benchmark of control exists yet.
 
 **V2.5:** shipped. The explorer (`weave report --html`): the whole run as one self-contained file.
 The benchmark harness, third-party scorers only — first run in D7. A pack failure now drives one
@@ -316,19 +319,20 @@ The 91 guides and their pictures are MCP resources a client can browse and choos
 **V2.7:** shipped. Assets are acquired, measured and budgeted by the engine — no agent is asked to
 build one. Placement is checked in the placing section and across the site; pages are rendered
 by headless Chrome and the screenshots are evidence; visibility is judged on the hybrid path.
-**V2 is complete** as planned — every phase shipped, each with the caveat that no real agent
-run has exercised it.
+**V2 is complete** as planned — and since D4.5–D7 it has been exercised by real agents.
 
-**Verification now:** 39 self-checks plus the design validator. `pnpm demo` ends at
-`first-pass 75% | repair 100% | coverage 67%`, 20 criteria passed and 2 failed — the two failures
-are real: the demo's stand-in host sends no HSTS or Referrer-Policy header, and the live checks
-say so. The demo also exercises the policy repair loop, acquires and places a 3D model, renders the
-page with Chrome, and writes the explorer. Its screenshot shows the robot placed but not visible —
-the case visual QA exists for.
+**Verification now:** 39 self-checks (CI runs them with every tool installed and
+`WEAVE_REQUIRE_TOOLS=1`) plus the design validator. `pnpm demo` (stand-in agents, no accounts)
+ends at `first-pass 75% | repair 100% | coverage 67%`, 23 criteria passed and 2 failed — the two
+failures are real: the demo's stand-in host sends no HSTS or Referrer-Policy header, and the live
+checks say so. The demo also exercises the policy repair loop, acquires and places a 3D model,
+renders the page and writes the explorer. `weave doctor` says whether a machine can run the real
+demo; `pnpm demo:real` runs it.
 
-**Done with real agents since 2026-10-01** (D4.5–D6): real Claude Code has run inside bubblewrap,
-in tmux windows, on the subscription; the corpus has real `risk.classifyOperation` entries (too
-few for calibration or parity yet); visual QA has judged a real render. See `demo-plan.md`.
+**Done with real agents since 2026-10-01** (D4.5–D7): real Claude Code has run inside bubblewrap,
+in tmux windows, on the subscription — seven completed builds (a mini run, D5, D6, three
+benchmark builds), two with an agent failure the loop repaired; visual QA has judged real renders;
+a site is live. Results, defects found and the benchmark: `findings.md`.
 
 **Fixed after review (2026-09-29):** a policy waiver now covers only the items its gate named;
 `dep-audit` reports `unavailable` when the audit cannot run instead of passing; rejecting a gate
@@ -338,5 +342,6 @@ restores the user's branch and stash. Details in `implementation-v2.md` → V2.2
 repair* is proven by `policy-gate.check` but not yet by the demo itself — staged with the
 benchmark in V2.5. Contrast and target size wait on the browser worker (V2.7).
 
-**Next:** finish the benchmark across plan windows (D7), the real Jev parity run when the key
-arrives (D8), the owner's dry run of `pnpm demo:real` (D9), and the design discussion (#7).
+**Next:** the owner's dry run of `pnpm demo:real` (D9); what the demo says about the benchmark
+(#118); the real Jev parity run when the key arrives (D8); Vercel's GitHub access for
+deploy-on-push (#120); a licence (#6); and the design discussion (#7).

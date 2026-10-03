@@ -5,7 +5,7 @@
 > what to do when something misbehaves. Numbers quoted here are from real runs on this machine
 > (see "Measured" at the end) — re-measure before you quote them on stage.
 
-_Last updated: 2026-10-01_
+_Last updated: 2026-10-03_
 
 ## Before the day (once)
 

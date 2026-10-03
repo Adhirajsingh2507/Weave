@@ -4,7 +4,7 @@
 > engineering leaders. Every choice below was asked and answered on 2026-09-30; nothing here is
 > assumed. Anything still undecided is listed under **Open inputs** and will be asked, not guessed.
 
-_Last updated: 2026-09-30_
+_Last updated: 2026-10-03_
 
 ## What was decided
 
@@ -15,7 +15,7 @@ _Last updated: 2026-09-30_
 | Length | No fixed slot — the plan covers a full tour; the runbook marks what to cut for shorter slots |
 | Must be real | **Everything**: Claude agents building, a public deploy, benchmark numbers, screenshot intake, Jev, tools, design templates |
 | Spending | **Measure one real build first**, report it, then you decide what else to spend |
-| Benchmark size | **Decided after the first build**, once its real cost/usage is known |
+| Benchmark size | **3 pairs** (decided before D5, #109) |
 | Agents' billing | **Your Claude subscription** — Weave stops passing `ANTHROPIC_API_KEY` into agents |
 | Decision layer + vision | **Through your subscription**, via the `claude` CLI — no API key, no extra bill |
 | Decision model | **Claude Opus 5.5**; if your plan refuses or rate-limits it, **Weave stops and asks** — no silent switch |
@@ -34,15 +34,16 @@ _Last updated: 2026-09-30_
 | Platforms (#82) | Linux, macOS, Windows/WSL2; **macOS sandbox** to be built; new device OS undecided |
 | Repository (#83) | Private; docs pushed now and after every phase |
 
-## Open inputs (asked when the phase needs them)
+## Open inputs
 
-1. **Your description of how Weave should look** — the design discussion in progress.
-2. **Benchmark size** — after the first build's usage is known.
-3. **`TYPESAFE_API_KEY`** on this machine — before D8.
+1. **Your description of how Weave should look** — the design discussion (#7), not yet held.
+2. **`TYPESAFE_API_KEY`** on this machine — for D8's real parity run.
+3. **Your dry run** of `pnpm demo:real` — for D9.
+4. **What the demo says about the benchmark** — Weave did not win on page scorers (#118).
+5. **Vercel's GitHub app access** to `weave-robotics-demo` — for deploy-on-push (#120).
 
-Settled 2026-09-30: the site (#86), Jev docs (#84, #85), the robot model (#87), this device only (#88).
-
-Nothing else is needed from you: no API key, no new accounts.
+Settled: the site (#86), Jev docs (#84, #85), the robot model (#87), this device only (#88),
+the logo dropped and 3 benchmark pairs (#109), the repos (#119).
 
 ## Phases
 
@@ -236,13 +237,16 @@ egress allowlist reaching what the subscription login needs, `TYPESAFE_API_KEY` 
 ## The story for engineering leaders
 
 1. **The problem** (1 min) — agents build fast; nothing bounds them, checks them, or remembers.
-2. **Intake** — a real site's screenshot becomes a design; one uncertain field gates; you confirm.
-3. **The run** (recorded) — the DAG building in parallel; a real agent's natural failure and its
-   repair; a risky change held; the sandbox refusing a secret read.
+2. **Intake** — a real site's screenshots become a design; uncertain readings gate; you confirm.
+3. **The run** (recorded) — the DAG building in parallel in tmux windows; a risky change held (a
+   real one happened: an agent reached for the npm registry); the sandbox refusing a secret read.
+   A real agent failure and repair happened in two of seven real builds — record several takes,
+   or show it from the scripted `pnpm demo`.
 4. **Release** — approval, public deploy, live checks against the URL.
 5. **The evidence** (live) — the explorer: every requirement traced to code, evidence, commit and
    approval; the timeline; the boundaries.
-6. **Is it better?** — the benchmark table, losses included.
+6. **Is it better?** — the benchmark table, losses included: on page scorers the plain agent
+   won (#118). Say so, and say what those scorers cannot see.
 7. **What is next** — Jev serving decisions, calibrated thresholds.
 
 ## Risks
@@ -250,6 +254,7 @@ egress allowlist reaching what the subscription login needs, `TYPESAFE_API_KEY` 
 | Risk | Mitigation |
 |---|---|
 | Real agents vary run to run | Record the run beforehand; keep a second recording |
+| The laptop sleeps mid-run | A turn that outruns 30 minutes is interrupted and repaired; a dead process resumes (`pnpm demo:real` again) |
 | Subscription limits hit mid-benchmark | Measure first (D5); benchmark in batches; stop-and-ask on refusal |
 | The subscription path returns malformed JSON | Schema validation, one retry, then a gate — never a guess |
 | The chosen site's design is hard to read | Intake gates uncertain fields; you confirm on camera — that is the feature |
@@ -271,3 +276,5 @@ egress allowlist reaching what the subscription login needs, `TYPESAFE_API_KEY` 
 | D7 Benchmark | **done** — 3 pairs; plain wins on page scorers (`bench/notes.md`) |
 | D8 Jev | built against a stand-in; real parity waits on the key |
 | D9 Recording kit | built (`pnpm demo:real`, `docs/runbook.md`); your dry run pending |
+
+What the real runs found, across all phases: `findings.md`.

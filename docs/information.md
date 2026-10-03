@@ -4,12 +4,13 @@
 >
 > **Ultimate source of truth:** `../autonomous-engineering-universal-context.md` (canonical, 123 sections). This project's docs are the *distilled decided layer* over it.
 
-_Last updated: 2026-09-30_
+_Last updated: 2026-10-03_
 
-> **V2 is complete.** Identity: the control and governance layer for AI coding agents, web
-> apps first — agents execute; Weave governs, verifies, records. V2 (phases V2.0–V2.7) has shipped;
-> the phased plan is `implementation-v2.md`, decisions #42–83 are in `current-info.md`, and the
-> next work is `demo-plan.md`. New session? Read `handoff.md` first.
+> **V2 is complete and has run for real.** Identity: the control and governance layer for AI
+> coding agents, web apps first — agents execute; Weave governs, verifies, records. V2 (V2.0–V2.7)
+> is in `implementation-v2.md`; the demonstration phases D0–D9 (real agents, a public deploy, a
+> benchmark) are in `demo-plan.md`; what the real runs found is in `findings.md`; decisions #42–120
+> are in `current-info.md`. New session? Read `handoff.md` first.
 
 ---
 
@@ -163,8 +164,8 @@ gate, judged by deterministic rules and, with credentials, the decision layer; V
 with deploy evidence and post-deploy checks against the live URL.
 
 **V2.5:** shipped — the static explorer (`weave report --html`), one coverage definition, gates
-scoped to a run, a bounded whole-site repair before a policy gate, the benchmark harness (not yet
-run) and the outcome-first README.
+scoped to a run, a bounded whole-site repair before a policy gate, the benchmark harness (run in
+D7) and the outcome-first README.
 
 **V2.6:** shipped — every guide token carried in the IR, screenshot and URL intake with
 confidence-gated readings, style suggestion, and the guides as MCP resources.
@@ -173,21 +174,28 @@ confidence-gated readings, style suggestion, and the guides as MCP resources.
 agent), placement checked, pages rendered by headless Chrome, visibility judged on the hybrid
 path.
 
-**Design system:** 91 guides, 739 checks (~86% deterministic), 89 picture folders, validated by
+**Design system:** 91 guides, 757 checks (662 deterministic; with the base floor, 110 of 674 deterministic checks have a rendered-page runner), 89 picture folders, validated by
 `scripts/check-design.mjs`.
 
-**Verification:** 39 self-checks + the design validator. `pnpm demo` runs end to end without
-credentials, including a gated deploy to a local stand-in host.
+**Demonstration phases (D0–D9, 2026-09-30 → 10-02):** `weave doctor`; decisions and vision on the
+Claude subscription; tools proven in CI; 91 styles rendered with style checks on the page; the
+real Go2 in a bundled 3D viewer; agents in tmux windows the owner can watch and step into; two
+measured real builds; screenshot intake and a public deploy (https://weave-robotics-demo.vercel.app);
+a 3-pair benchmark Weave did not win on page scorers; Jev built against a stand-in; `pnpm
+demo:real` and a runbook. Details: `demo-plan.md`, `findings.md`.
+
+**Verification:** 39 self-checks + the design validator; CI installs every tool and fails any check
+that would say "NOT verified here". `pnpm demo` runs end to end without credentials; `pnpm
+demo:real` runs the real thing.
 
 ## 9. Open / ongoing
-- **#8** — escalation framework implemented; threshold values await calibration data, which V2.4
-  begins producing by putting the decision layer in the run path.
-- **#10 / #57** — provider routing implemented; Jev parity awaits early-access approval.
-- Name and licence — see `to-be-discussed.md`. Metric definitions, default packs and the deploy
-  target (Vercel) are decided.
-- Carried gaps: `listGates()` spans runs; browser and visual QA are `skipped`; the IR has no home
-  for the guides' shape/motion/spacing tokens; the full list is in `to-be-discussed.md`.
+- **#7** — the owner's description of how Weave should look and work.
+- **#8** — escalation framework implemented; real corpus entries exist but too few to calibrate.
+- **#10 / #57** — Jev adapter and parity built; the real run waits on `TYPESAFE_API_KEY`.
+- **#6** — name and licence; the repo is public without one.
+- What to show in place of a winning benchmark — a benchmark of control does not exist yet.
+- The full list, with carried engineering gaps, is in `to-be-discussed.md`.
 
 ## 10. Build plan
-See **`implementation-v2.md`** — V2.0–V2.7 done; a first credentialed run next, then V3 planning,
-with the Jev track alongside.
+See **`implementation-v2.md`** (V2.0–V2.7, done) and **`demo-plan.md`** (D0–D9: D0–D7 done, D8
+waits on the key, D9 on the owner's dry run). V3 planning follows the design discussion (#7).

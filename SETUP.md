@@ -4,7 +4,7 @@ Step by step, for Linux, macOS and Windows. Everything in **Required** is needed
 run its 39 self-checks and run the demo. Everything in **Optional** unlocks one capability; skip
 what you do not need. Each step says what it is for.
 
-_Last updated: 2026-09-30. Describes what works today; planned items are marked **(planned)**._
+_Last updated: 2026-10-03. Describes what works today; anything decided but not built says so._
 
 ## What each piece is for
 
@@ -16,10 +16,12 @@ _Last updated: 2026-09-30. Describes what works today; planned items are marked 
 | C/C++ build tools | only if `better-sqlite3` has no prebuilt binary for your machine | fallback |
 | GitHub CLI (`gh`) | `pnpm ship` (pushing); cloning needs no login — the repo is public | only to push |
 | Claude Code (`claude`) + a Claude subscription | real builds by real agents | for real runs |
-| Chrome or Chromium | rendering built pages for screenshots and visual QA | optional |
+| Playwright's Chromium | rendering built pages, style checks, screenshots, visual QA | yes (`pnpm exec playwright install chromium`) |
+| Chrome or Chromium | a fallback renderer; Lighthouse uses it | optional |
 | bubblewrap (Linux) | the OS sandbox that hides secrets from agents | optional, recommended |
 | Vercel CLI | deploying the built site | optional |
-| tmux **(planned)** | watching and stepping into agents, one window each | planned |
+| tmux | watching and stepping into agents, one window each | for real runs (else agents run headless) |
+| gitleaks | the benchmark's secrets scorer | `pnpm tools:gitleaks` (pinned download) |
 
 ## 1. Base tools
 
@@ -27,7 +29,7 @@ _Last updated: 2026-09-30. Describes what works today; planned items are marked 
 
 ```bash
 sudo apt update
-sudo apt install -y git curl build-essential python3   # build tools are the fallback for native modules
+sudo apt install -y git curl build-essential python3 tmux bubblewrap   # build tools are the fallback for native modules
 # Node.js 24 via nvm (no root needed, easy to switch versions)
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
 exec $SHELL                                            # reload the shell so `nvm` exists
@@ -115,8 +117,10 @@ npm install -g @anthropic-ai/claude-code
 claude                           # opens a login; use your Claude subscription account
 ```
 
-Real builds then run as `weave run …` (see the README). Agents use your subscription login.
-Weave does not need an API key for this.
+Real builds then run as `weave run …` (see the README), or the whole demo as `pnpm demo:real`.
+Agents use your subscription login, each in its own tmux window (`tmux attach -t weave-<repo>`).
+Weave does not need an API key for this. A Claude Pro session window holds about two builds; at a
+limit Weave stops at a gate and resumes once you approve after the reset.
 
 > **Subscription mode is the default.** Weave never passes `ANTHROPIC_API_KEY` to agents in this
 > mode, even if it is set in your shell, and the decision layer and vision run through the same
@@ -125,12 +129,15 @@ Weave does not need an API key for this.
 
 ### Rendering pages (browser QA)
 
+Weave renders with Playwright's own Chromium (`pnpm exec playwright install chromium`, in step 3).
+A system Chrome or Chromium is the fallback, and Lighthouse uses it:
+
 - **Linux:** `sudo apt install -y chromium` (or install Google Chrome from google.com/chrome).
 - **macOS:** install Google Chrome, or `brew install --cask chromium`.
 - **WSL2:** install Chromium inside Ubuntu as for Linux.
 
-Check: `weave sandbox` does not cover this; run `pnpm check` and look for
-`visual placement check passed … real Chrome render verified`.
+Check: `weave doctor` lists `playwright chromium` and `chrome`; `pnpm check` runs
+`tools check passed … all run for real` and `theme check passed (91 styles rendered …)`.
 
 ### The OS sandbox
 
@@ -138,8 +145,8 @@ Check: `weave sandbox` does not cover this; run `pnpm check` and look for
   On Ubuntu 24.04+, if it reports that user namespaces are restricted, allow them for bubblewrap
   (see Ubuntu's AppArmor documentation for `unprivileged_userns`) or run without the OS sandbox —
   Weave records which it did on every node.
-- **macOS:** **(planned)** a macOS sandbox backend. Until then runs are recorded as unsandboxed;
-  Claude Code's own deny rules and the egress allowlist still apply.
+- **macOS:** a macOS sandbox backend is decided (#82) but **not built**. Runs are recorded as
+  unsandboxed; Claude Code's own deny rules and the egress allowlist still apply.
 
 ### Deploying (Vercel)
 
@@ -148,8 +155,10 @@ npm install -g vercel
 vercel login
 ```
 
-Then `WEAVE_DEPLOY=vercel` makes pre-release approval deploy. The Vercel login is never visible
-to agents.
+Then `WEAVE_DEPLOY=vercel` makes pre-release approval deploy (`WEAVE_DEPLOY_PROJECT=<name>` for a
+named project, `WEAVE_DEPLOY_PROD=1` for production). The Vercel login is never visible to agents.
+On a Hobby plan, a deploy that Vercel builds from git is blocked unless the latest commit is
+yours; Weave's own deploy uploads the built `dist/` and is not affected.
 
 ### Publishing changes to GitHub
 
@@ -164,16 +173,17 @@ logged in (step 2).
 - [ ] for real runs: `claude` opens logged in to your subscription
 - [ ] optional: `weave sandbox` prints `bwrap` (Linux/WSL2)
 - [ ] optional: `vercel whoami` prints your account
+- [ ] for real runs: `node dist/cli/index.js doctor` ends with **Ready**
 
 ## Accounts at a glance
 
 | Account | Used for | Where it lives |
 |---|---|---|
 | GitHub | `pnpm ship` (pushing) | `gh auth login` |
-| Claude subscription | real agent builds; decisions and vision **(planned, D1)** | `claude` login |
+| Claude subscription | real agent builds; decisions and vision | `claude` login |
 | Vercel | public deploys | `vercel login` |
 | Anthropic API key | optional API mode (`WEAVE_MODE=api`) — billed per token | `ANTHROPIC_API_KEY`, never in the repo |
-| Jev | decision provider **(planned, D8 — waiting on docs)** | an environment variable, never in the repo |
+| Jev (TypeSafe) | decision provider, per decision type after parity (D8) | `TYPESAFE_API_KEY`, never in the repo |
 
 Never commit keys or tokens. `.env` files are ignored by git, and agents cannot read them when the
 sandbox is on.

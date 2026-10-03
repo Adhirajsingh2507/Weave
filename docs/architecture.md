@@ -2,20 +2,57 @@
 
 > The living architecture. Improve in place as decisions firm up. Reflects `current-info.md`.
 
-_Last updated: 2026-09-30_
+_Last updated: 2026-10-03_
 
-## Planned: two ways to run (decisions #75–#83)
+## How it runs now (built in D0–D7, decisions #75–#120)
 
-Not built yet — the target shape the demo plan works toward:
+- **Two modes, one switch.** Subscription mode (default) runs everything on the `claude` login;
+  `WEAVE_MODE=api` runs the same on `ANTHROPIC_API_KEY`, billed per token. In subscription mode no
+  API key reaches an agent, even one set in the shell.
+- **Agents in tmux** (`tmux.ts`, `TmuxClaudeExecutor`). Each impl node is an interactive Claude
+  Code session in a window of tmux session `weave-<repo>`, in its own worktree, wrapped by
+  bubblewrap, behind the egress proxy, with `--permission-mode acceptEdits` plus an allow list of
+  the agent's tools inside the deny rules. Claude Code hooks (passed with `--settings`) log every
+  SessionStart / UserPromptSubmit / Stop; **a turn ends when a Stop follows the latest prompt**. A
+  prompt Weave did not send is the owner's — an `intervention`, counted in the metrics. A repair is
+  pasted into the same session; the window closes when the node finishes. Weave answers one
+  dialog itself: "trust this folder", for the worktree it created. `WEAVE_AGENTS=headless` keeps
+  the one-shot `claude -p` executor (same model, tools and isolation).
+- **Isolation from the user's setup.** Every `claude` Weave starts runs with
+  `--strict-mcp-config --setting-sources "" --disable-slash-commands`: no MCP servers, user
+  settings, plugins or hooks of the owner's.
+- **Decisions and vision on the subscription** (`subscription.ts`): `claude -p --json-schema`,
+  Opus 5.5 pinned, Zod-validated, one retry; vision reads the image with the Read tool, confined to
+  its folder. A refusal, a rate or plan limit, another model answering, or a second invalid answer
+  is `ModelUnavailableError` → a gate, never a guess. The same error from an agent's window (a
+  plan limit) stops the batch at a gate that re-runs the unfinished nodes on approval.
+- **Sandboxes:** bubblewrap on Linux/WSL2. The macOS `sandbox-exec` backend is **not built**.
+- **Resumable.** A run halts at gates and resumes from them; a run whose process died mid-build
+  resumes with `engine.resume()` (stale worktrees discarded, finished nodes kept).
+- **Preflight and measurement.** `weave doctor` (login, one real model call through the egress
+  proxy, deploy, sandbox, browser, tools); `weave usage` (time, sessions, retries, interventions,
+  tokens, decision calls).
 
-- **Subscription mode.** Each agent is an interactive Claude Code session in its own tmux window
-  and folder (worktree), run under your `claude` login. Weave learns a turn ended from a Claude
-  Code Stop hook, verifies, and sends failures back into the same session. Anything you type is
-  read from the session transcript and recorded as an intervention. Decisions and vision also go
-  through the CLI (validated JSON, Opus 5.5; refused → a gate).
-- **API mode.** The same Claude Code agents, authenticated with an API key; decisions and vision
-  through the SDK.
-- **Sandboxes:** bubblewrap on Linux/WSL2, a `sandbox-exec` profile on macOS.
+## What the demonstration phases changed (D0–D7)
+
+- **Tools are Weave's own devDependencies** (Playwright, Lighthouse, axe, sharp, gltf-transform),
+  gitleaks a pinned download; Weave finds them in its own install before PATH. CI installs the
+  same and fails any check that would say "NOT verified here".
+- **Playwright is the browser worker**: full-page capture, console errors, a scroll pass; a
+  viewport-by-viewport capture for intake of scroll-driven sites (`weave capture`); a computed-style
+  snapshot for style checks.
+- **Themes and style checks** (`design/theme.ts`, `design/rendered.ts`). `styles/theme.css` applies
+  a guide's tokens to plain markup with readable text guaranteed. Criteria whose rule a runner
+  recognises are judged on the rendered page — a failure is decisive, a pass only when the runner
+  covers the whole rule.
+- **3D**: model-viewer bundled into `vendor/`, models quantised (no CDN decoders), a self-only CSP
+  with `'wasm-unsafe-eval'`. `sections/<id>/` carries a section's scripts and ships with the build.
+- **Deploy**: the scaffold's `vercel.json` carries the security headers and names the build (for
+  deploys from git); the build writes a headers-only copy into `dist/` (for the direct deploy).
+  The deployer returns Vercel's public alias; live checks refuse a response from another host;
+  `weave live <url>` re-runs them. Weave's local server honours the headers, so renders run under
+  the production CSP.
+- **References are read for design only**: vision describes, agents write original copy.
 
 ## What V2.7 changed
 
@@ -226,13 +263,14 @@ Thresholds are per-decision-type and versioned. This is "put the human at the ex
 
 **Starting thresholds (placeholders until calibration):** high ≥ 0.85 (auto-accept) · 0.6–0.85 (→ execution-layer LLM) · < 0.6 (→ human gate). Per-type overrides in `policies/`: inferred mappings and risky ops use stricter high (≥ 0.9); **security-sensitive decisions always gate regardless of confidence**. Calibration: log `(decision, confidence, eventual outcome)` → reliability curve → adjust thresholds per type.
 
-### Provider constraints (Jev, when adopted)
-- **No vision** — Jev scores structured state, not images (see Visual QA below).
-- **Cardinality ≤ 255** — for large choice sets (e.g. "which of 900 files"), pre-filter candidates via code-graph edges, then 2-stage score-then-choose.
-- **Early access** — hence LLM-wrapper-now behind the `Decision` seam; swapping providers changes no callers.
+### Provider constraints (Jev — docs.typesafe.ai, #84)
+- **Text only** — Jev scores structured state, not images; vision stays on Claude (the hybrid path fits).
+- **Typed questions** — Choice (≤ 255 options), Score (2–10 levels), Noul (P(yes), no confidence). A Weave decision with candidates is one Choice; Jev does not generate, so a decision without candidates is not sent to it.
+- **Window** — 64k tokens per request, 32k for state + the longest question: state is trimmed longest-field first.
+- **Pinned model** — `jev-1.13.0`, not `jev-latest`, so tuned thresholds do not drift.
 
-### Jev adoption path
-Default provider is **our own Claude-structured wrapper**. Adopt Jev **per-decision-type, behind a flag**, once (a) access is granted and (b) a **parity harness** passes: replay recorded `(state → decision)` pairs through both providers and require agreement + calibration within tolerance on that decision type. No caller changes (same `Decision` interface). Until then Jev is aspirational.
+### Jev adoption path (built, D8 — real run waits on the key)
+`JevDecision` (`decision/jev.ts`) implements the seam, plus `ask()` for several typed questions in one call. `weave parity [--write]` replays the corpus and switches a decision type only when agreement ≥ 95% and ECE ≤ 0.05 over ≥ 20 entries; `--write` records passing types in `.agent/policies/providers.json`, and `RoutedDecision` serves exactly those from Jev when `TYPESAFE_API_KEY` is set. Proven against a stand-in of the API; **no real Jev call has been made.**
 
 ### Model roster (all-Claude, procedural independence)
 | Role | Model | Independence |
@@ -273,7 +311,7 @@ Pure, versioned policies (typed defaults in `src/core/policy/`, per-project over
 ### Provider routing + Jev parity (#10)
 `providerFor(name, policy) → claude-wrapper | jev` — implemented. Default every type to `claude-wrapper`; swap **per decision type, behind a flag**, only after the parity harness passes. No caller changes (same `Decision` interface).
 
-Parity harness (spec — execution needs Jev access + a decision corpus):
+Parity harness (implemented in `decision/jev.ts` → `runParity`; the real run needs the Jev key and a larger corpus):
 1. **Record** every live decision `(name, state, candidates?, result{value,confidence}, outcome?)` to a corpus.
 2. **Replay** `(name, state, candidates)` through the candidate provider (Jev).
 3. **Compare per type:** agreement vs incumbent (and accuracy vs logged outcomes where available) ≥ `minAgreement` (0.95); confidence calibration error (ECE/Brier) ≤ `maxCalibrationError` (0.05).
