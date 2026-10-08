@@ -193,7 +193,7 @@ Docs: `docs/handoff.md` is where to start (where work stopped, how to work),
 `docs/information.md` the overview, `docs/current-info.md` the decisions,
 `docs/demo-plan.md` the demonstration plan, `docs/findings.md` what real runs showed,
 `docs/runbook.md` how to present it, `docs/architecture.md` the design,
-`docs/to-be-discussed.md` what is open.
+`docs/to-be-discussed.md` what is open, `docs/references.md` the prior art behind the ideas.
 
 ### Publishing this repo
 
