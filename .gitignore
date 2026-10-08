@@ -12,3 +12,6 @@ dist/
 .env.*
 !.env.example
 .tools/
+
+# Personal study notes, kept local
+learning/
